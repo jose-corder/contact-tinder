@@ -34,6 +34,7 @@ Home ─► Import ─► Pass 1 Triage ─► Pass 2 Work deck ─► Pass 3 Pe
 - Bottom action bar mirrors the four directions with buttons for one-handed or desktop use. Keyboard: arrows, `Z` undo, `1-9` toggle chips.
 - Progress bar "142 / 913" with bucket counts. Deck ends with a summary and a CTA into the next pass.
 - Skipped cards return at the end of the same deck; a second skip leaves them "unsorted" for Review.
+- **Follow-up sheet (added after user testing).** In triage, swiping Work or Personal opens a bottom sheet for that contact with the status/relation chips and type chips, plus custom tags. Done saves and the contact skips the later deck; Later leaves it for pass 2/3. A link in the sheet and a toggle in Settings turn it off.
 
 ### Card
 

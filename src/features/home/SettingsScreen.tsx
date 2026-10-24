@@ -5,11 +5,12 @@ import { backupJson } from '@/export/json'
 import { downloadText } from '@/export/share'
 import RestoreInput from '@/features/export/RestoreInput'
 import { Button, Frame, Segmented, Sheet, TopBar } from '@/ui'
-import { getThemePref, setThemePref, hapticsEnabled, setHapticsEnabled, type ThemePref } from '@/ui/theme'
+import { getThemePref, setThemePref, hapticsEnabled, setHapticsEnabled, followUpEnabled, setFollowUpEnabled, type ThemePref } from '@/ui/theme'
 
 export default function SettingsScreen() {
   const [theme, setTheme] = useState(getThemePref)
   const [haptics, setHaptics] = useState(hapticsEnabled)
+  const [followUp, setFollowUp] = useState(followUpEnabled)
   const [confirm, setConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -26,6 +27,15 @@ export default function SettingsScreen() {
       <Button variant="outline" role="switch" aria-label="Haptics" aria-checked={haptics} onClick={() => {
         setHapticsEnabled(!haptics); setHaptics(!haptics)
       }}>{haptics ? 'On' : 'Off'}</Button>
+    </section>
+    <section className="flex items-center justify-between gap-4 border-b border-rule py-5">
+      <div>
+        <h2 className="eyebrow">Ask for type after swipe</h2>
+        <p className="mt-1 text-sm text-ink-2">Show status and type chips right after a Work or Personal swipe in triage.</p>
+      </div>
+      <Button variant="outline" role="switch" aria-label="Ask for type after swipe" aria-checked={followUp} onClick={() => {
+        setFollowUpEnabled(!followUp); setFollowUp(!followUp)
+      }}>{followUp ? 'On' : 'Off'}</Button>
     </section>
     <section className="space-y-3 border-b border-rule py-5">
       <h2 className="eyebrow mb-3">Data</h2>

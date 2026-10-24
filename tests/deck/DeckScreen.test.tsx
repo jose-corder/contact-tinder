@@ -6,6 +6,7 @@ import * as repo from '@/db/repo'
 import { applySwipe } from '@/domain/taxonomy'
 import type { Contact, Pass } from '@/domain/types'
 import DeckScreen from '@/features/deck/DeckScreen'
+import { setFollowUpEnabled } from '@/ui/theme'
 
 vi.mock('framer-motion', async (original) => {
   const actual = await original<typeof import('framer-motion')>()
@@ -24,7 +25,8 @@ async function action(label: string) {
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: label })) })
 }
 
-beforeEach(async () => { await repo.resetAll() })
+// These tests exercise the raw deck; the post-swipe type sheet has its own test file.
+beforeEach(async () => { await repo.resetAll(); setFollowUpEnabled(false) })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 describe('DeckScreen', () => {

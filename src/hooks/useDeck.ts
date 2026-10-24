@@ -70,6 +70,7 @@ export function useDeck(pass: Pass) {
     try {
       await saveDecision(decision)
       if (version === generation.current) history.push({ item, prevDecision: item.decision, direction })
+      return { item, decision }
     } catch {
       if (version !== generation.current) return
       setQueue(queue)

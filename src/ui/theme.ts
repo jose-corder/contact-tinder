@@ -4,9 +4,19 @@ export type ThemePref = 'system' | 'light' | 'dark'
 const THEME_KEY = 'ct.theme'
 const HAPTICS_KEY = 'ct.haptics'
 
+// Use window.localStorage explicitly: in Node-based test runners the bare global can be
+// Node's own experimental storage, which is not the page's.
+function store(): Storage | undefined {
+  try {
+    return typeof window !== 'undefined' ? window.localStorage : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function read(key: string): string | null {
   try {
-    return localStorage.getItem(key)
+    return store()?.getItem(key) ?? null
   } catch {
     return null
   }
@@ -14,7 +24,7 @@ function read(key: string): string | null {
 
 function write(key: string, value: string) {
   try {
-    localStorage.setItem(key, value)
+    store()?.setItem(key, value)
   } catch {
     /* private mode etc. */
   }
@@ -58,6 +68,17 @@ export function haptic(ms = 10) {
   } catch {
     /* ignore */
   }
+}
+
+const FOLLOWUP_KEY = 'ct.followup'
+
+/** Show the status/type sheet right after a Work or Personal swipe in triage (default on). */
+export function followUpEnabled(): boolean {
+  return read(FOLLOWUP_KEY) !== 'off'
+}
+
+export function setFollowUpEnabled(on: boolean) {
+  write(FOLLOWUP_KEY, on ? 'on' : 'off')
 }
 
 export function prefersReducedMotion(): boolean {
