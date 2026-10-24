@@ -1,0 +1,16 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Doe\, Jr.;Jane;;;
+FN:Jane Doe\, Jr.
+ORG:Studio\, Inc.;Design
+TEL;TYPE=WORK,VOICE:202-555-0123
+EMAIL;TYPE=WORK:jane@example.com
+NOTE:Comma\, semicolon\; slash\\ and newline\Ndone
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Rivera;Luis;;;
+ORG:Northwind
+TEL;TYPE=CELL:+52 55 1234 5678
+EMAIL:luis@example.com
+END:VCARD
