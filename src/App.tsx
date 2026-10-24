@@ -7,6 +7,7 @@ import ImportScreen from './features/import/ImportScreen'
 import DeckScreen from './features/deck/DeckScreen'
 import ReviewScreen from './features/review/ReviewScreen'
 import ExportScreen from './features/export/ExportScreen'
+import { Toaster } from './ui/toast'
 
 function DeckRoute() {
   const { pass } = useParams()
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/settings" element={<SettingsScreen />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Toaster />
     </BrowserRouter>
   )
 }
