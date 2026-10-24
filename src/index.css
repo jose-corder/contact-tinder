@@ -1,0 +1,170 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/fraunces/opsz.css';
+@import '@fontsource-variable/fraunces/opsz-italic.css';
+@import '@fontsource-variable/inter/opsz.css';
+
+/* ---------- design tokens (see DESIGN.md) ---------- */
+:root {
+  --paper: #f4efe6;
+  --paper-2: #ede7db;
+  --ink: #141311;
+  --ink-2: #5b5750;
+  --rule: #d8d1c3;
+
+  --stamp-delete: #8e2b2b;
+  --stamp-work: #1f3a5f;
+  --stamp-personal: #2f5d3a;
+  --stamp-skip: #7a766e;
+
+  --status-old: #7a766e;
+  --status-current: #1f3a5f;
+  --status-potential: #9a6b1f;
+
+  --shadow-card: 0 20px 60px -30px rgba(20, 19, 17, 0.35);
+  color-scheme: light;
+}
+
+:root[data-theme='dark'],
+:root:not([data-theme='light']):where(.dark-auto) {
+  --paper: #121110;
+  --paper-2: #1b1917;
+  --ink: #f1ece2;
+  --ink-2: #a39d92;
+  --rule: #2c2a26;
+
+  --stamp-delete: #c2504f;
+  --stamp-work: #6f93c4;
+  --stamp-personal: #6fa57d;
+  --stamp-skip: #9a958c;
+
+  --status-old: #9a958c;
+  --status-current: #6f93c4;
+  --status-potential: #d1a04a;
+
+  --shadow-card: 0 20px 60px -30px rgba(0, 0, 0, 0.8);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --paper: #121110;
+    --paper-2: #1b1917;
+    --ink: #f1ece2;
+    --ink-2: #a39d92;
+    --rule: #2c2a26;
+
+    --stamp-delete: #c2504f;
+    --stamp-work: #6f93c4;
+    --stamp-personal: #6fa57d;
+    --stamp-skip: #9a958c;
+
+    --status-old: #9a958c;
+    --status-current: #6f93c4;
+    --status-potential: #d1a04a;
+
+    --shadow-card: 0 20px 60px -30px rgba(0, 0, 0, 0.8);
+    color-scheme: dark;
+  }
+}
+
+/* Expose tokens to Tailwind utilities: bg-paper, text-ink, border-rule, font-serif, ... */
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-rule: var(--rule);
+  --color-stamp-delete: var(--stamp-delete);
+  --color-stamp-work: var(--stamp-work);
+  --color-stamp-personal: var(--stamp-personal);
+  --color-stamp-skip: var(--stamp-skip);
+  --color-status-old: var(--status-old);
+  --color-status-current: var(--status-current);
+  --color-status-potential: var(--status-potential);
+
+  --font-serif: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --shadow-card: var(--shadow-card);
+  --radius-card: 20px;
+}
+
+/* ---------- base ---------- */
+html,
+body,
+#root {
+  min-height: 100dvh;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+.font-serif {
+  font-variation-settings: 'opsz' 144, 'SOFT' 0, 'WONK' 0;
+}
+
+/* Deck title style: 11px, tracked small caps */
+.eyebrow {
+  font-family: var(--font-serif);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-variation-settings: 'opsz' 9;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.hairline {
+  border-top: 1px solid var(--rule);
+}
+
+/* Rubber stamp: Fraunces 900 italic, uppercase, tilted, double hairline border. */
+.stamp {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 900;
+  font-variation-settings: 'opsz' 144;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 28px;
+  line-height: 1;
+  padding: 6px 12px;
+  border: 2px solid currentColor;
+  outline: 1px solid currentColor;
+  outline-offset: 3px;
+  border-radius: 4px;
+  transform: rotate(-12deg);
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 120ms !important;
+  }
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--paper);
+}

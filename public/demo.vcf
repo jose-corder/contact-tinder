@@ -1,0 +1,443 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Herrera;Javier;;;
+FN:Javier Herrera
+ORG:Northwind
+TITLE:Head of Sales
+TEL;TYPE=CELL:+1 555 319 4988
+EMAIL;TYPE=INTERNET:javier.herrera@northwind.com
+NOTE:Met at the Lisbon conference 2022
+REV:2023-06-13T10:00:00Z
+UID:demo-0
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Cruz;Mateo;;;
+FN:Mateo Cruz
+ORG:Wayne Capital
+TITLE:Analyst
+TEL;TYPE=CELL:+1 555 168 5486
+REV:2016-06-14T10:00:00Z
+UID:demo-1
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Rivera;Lucas;;;
+FN:Lucas Rivera
+TEL;TYPE=CELL:+1 555 972 2086
+EMAIL;TYPE=INTERNET:lucas.rivera@gmail.com
+NOTE:Cousin from Madrid
+REV:2016-04-14T10:00:00Z
+UID:demo-2
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Vargas;Sebastian;;;
+FN:Sebastian Vargas
+ORG:Northwind
+TITLE:Head of Sales
+TEL;TYPE=CELL:+1 555 987 5010
+REV:2018-02-16T10:00:00Z
+UID:demo-3
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Flores;Andres;;;
+FN:Andres Flores
+ORG:Acme Corp
+TITLE:CFO
+TEL;TYPE=CELL:+1 555 933 3147
+EMAIL;TYPE=INTERNET:andres.flores@acmecorp.com
+REV:2017-06-13T10:00:00Z
+UID:demo-4
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Romero;Nicolas;;;
+FN:Nicolas Romero
+ORG:Northwind
+TITLE:Head of Sales
+TEL;TYPE=CELL:+1 555 301 5053
+NOTE:Met at the Lisbon conference 2022
+REV:2019-07-15T10:00:00Z
+UID:demo-5
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Reyes;Martin;;;
+FN:Martin Reyes
+ORG:Umbrella Studio
+TITLE:Creative Director
+TEL;TYPE=CELL:+1 555 546 4949
+EMAIL;TYPE=INTERNET:martin.reyes@umbrellastudio.com
+REV:2019-03-12T10:00:00Z
+UID:demo-6
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Castro;Paula;;;
+FN:Paula Castro
+ORG:Globex
+TITLE:Procurement Lead
+TEL;TYPE=CELL:+1 555 789 8725
+EMAIL;TYPE=INTERNET:paula.castro@globex.com
+NOTE:Cousin from Madrid
+REV:2023-07-15T10:00:00Z
+UID:demo-7
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Gomez;Tomas;;;
+FN:Tomas Gomez
+ORG:Initech
+TITLE:Engineer
+TEL;TYPE=CELL:+1 555 421 2936
+EMAIL;TYPE=INTERNET:tomas.gomez@initech.com
+REV:2022-03-18T10:00:00Z
+UID:demo-8
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Flores;Maria;;;
+FN:Maria Flores
+ORG:Stark Legal
+TITLE:Partner
+TEL;TYPE=CELL:+1 555 497 1804
+EMAIL;TYPE=INTERNET:maria.flores@starklegal.com
+REV:2023-06-14T10:00:00Z
+UID:demo-9
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Cruz;Sofia;;;
+FN:Sofia Cruz
+TEL;TYPE=CELL:+1 555 338 1219
+NOTE:Dentist
+REV:2021-06-17T10:00:00Z
+UID:demo-10
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Ramos;Elena;;;
+FN:Elena Ramos
+ORG:Northwind
+TITLE:Head of Sales
+TEL;TYPE=CELL:+1 555 133 1736
+REV:2023-08-11T10:00:00Z
+UID:demo-11
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Rivera;Javier;;;
+FN:Javier Rivera
+ORG:Initech
+TITLE:Engineer
+TEL;TYPE=CELL:+1 555 539 1576
+EMAIL;TYPE=INTERNET:javier.rivera@initech.com
+NOTE:Introduced by Ana
+REV:2017-08-11T10:00:00Z
+UID:demo-12
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Gomez;Lucas;;;
+FN:Lucas Gomez
+ORG:Stark Legal
+TITLE:Partner
+TEL;TYPE=CELL:+1 555 177 4630
+REV:2019-01-16T10:00:00Z
+UID:demo-13
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Pena;Javier;;;
+FN:Javier Pena
+ORG:Initech
+TITLE:Engineer
+TEL;TYPE=CELL:+1 555 937 7452
+EMAIL;TYPE=INTERNET:javier.pena@initech.com
+NOTE:Introduced by Ana
+REV:2018-01-17T10:00:00Z
+UID:demo-14
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Rivera;Daniel;;;
+FN:Daniel Rivera
+ORG:Globex
+TITLE:Procurement Lead
+TEL;TYPE=CELL:+1 555 373 1265
+EMAIL;TYPE=INTERNET:daniel.rivera@globex.com
+REV:2018-05-18T10:00:00Z
+UID:demo-15
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Torres;Isabela;;;
+FN:Isabela Torres
+ORG:Northwind
+TITLE:Head of Sales
+TEL;TYPE=CELL:+1 555 909 6958
+EMAIL;TYPE=INTERNET:isabela.torres@northwind.com
+NOTE:Cousin from Madrid
+REV:2021-05-18T10:00:00Z
+UID:demo-16
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Torres;Diego;;;
+FN:Diego Torres
+ORG:Vandelay Imports
+TITLE:Account Manager
+TEL;TYPE=CELL:+1 555 732 8085
+EMAIL;TYPE=INTERNET:diego.torres@vandelayimports.com
+REV:2024-06-17T10:00:00Z
+UID:demo-17
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Rivera;Valentina;;;
+FN:Valentina Rivera
+TEL;TYPE=CELL:+1 555 599 6870
+EMAIL;TYPE=INTERNET:valentina.rivera@gmail.com
+NOTE:Dentist
+REV:2022-05-13T10:00:00Z
+UID:demo-18
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Pena;Diego;;;
+FN:Diego Pena
+ORG:Acme Corp
+TITLE:CFO
+TEL;TYPE=CELL:+1 555 432 5202
+EMAIL;TYPE=INTERNET:diego.pena@acmecorp.com
+REV:2016-07-11T10:00:00Z
+UID:demo-19
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Mendoza;Elena;;;
+FN:Elena Mendoza
+ORG:Initech
+TITLE:Engineer
+TEL;TYPE=CELL:+1 555 119 9635
+EMAIL;TYPE=INTERNET:elena.mendoza@initech.com
+NOTE:Met at the Lisbon conference 2022
+REV:2018-02-15T10:00:00Z
+UID:demo-20
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Pena;Elena;;;
+FN:Elena Pena
+ORG:Initech
+TITLE:Engineer
+TEL;TYPE=CELL:+1 555 916 6392
+EMAIL;TYPE=INTERNET:elena.pena@initech.com
+NOTE:Plumber, good rates
+REV:2016-04-13T10:00:00Z
+UID:demo-21
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Herrera;Diego;;;
+FN:Diego Herrera
+ORG:Acme Corp
+TITLE:CFO
+TEL;TYPE=CELL:+1 555 246 5363
+EMAIL;TYPE=INTERNET:diego.herrera@acmecorp.com
+REV:2020-03-10T10:00:00Z
+UID:demo-22
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Pena;Daniel;;;
+FN:Daniel Pena
+ORG:Vandelay Imports
+TITLE:Account Manager
+TEL;TYPE=CELL:+1 555 598 9101
+REV:2017-04-10T10:00:00Z
+UID:demo-23
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Pena;Sofia;;;
+FN:Sofia Pena
+TEL;TYPE=CELL:+1 555 126 5831
+EMAIL;TYPE=INTERNET:sofia.pena@gmail.com
+NOTE:Sent proposal Q3
+REV:2017-07-14T10:00:00Z
+UID:demo-24
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Silva;Elena;;;
+FN:Elena Silva
+TEL;TYPE=CELL:+1 555 953 4440
+EMAIL;TYPE=INTERNET:elena.silva@gmail.com
+NOTE:Plumber, good rates
+REV:2019-01-11T10:00:00Z
+UID:demo-25
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Pena;Sofia;;;
+FN:Sofia Pena
+ORG:Stark Legal
+TITLE:Partner
+TEL;TYPE=CELL:+1 555 968 3485
+EMAIL;TYPE=INTERNET:sofia.pena@starklegal.com
+NOTE:Sent proposal Q3
+REV:2016-09-15T10:00:00Z
+UID:demo-26
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Pena;Nicolas;;;
+FN:Nicolas Pena
+ORG:Initech
+TITLE:Engineer
+TEL;TYPE=CELL:+1 555 626 2186
+EMAIL;TYPE=INTERNET:nicolas.pena@initech.com
+NOTE:Cousin from Madrid
+REV:2021-04-13T10:00:00Z
+UID:demo-27
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Herrera;Tomas;;;
+FN:Tomas Herrera
+ORG:Northwind
+TITLE:Head of Sales
+TEL;TYPE=CELL:+1 555 451 8434
+EMAIL;TYPE=INTERNET:tomas.herrera@northwind.com
+REV:2020-06-13T10:00:00Z
+UID:demo-28
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Castro;Daniel;;;
+FN:Daniel Castro
+ORG:Umbrella Studio
+TITLE:Creative Director
+TEL;TYPE=CELL:+1 555 930 7784
+EMAIL;TYPE=INTERNET:daniel.castro@umbrellastudio.com
+REV:2023-04-10T10:00:00Z
+UID:demo-29
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Reyes;Diego;;;
+FN:Diego Reyes
+ORG:Globex
+TITLE:Procurement Lead
+TEL;TYPE=CELL:+1 555 319 1458
+EMAIL;TYPE=INTERNET:diego.reyes@globex.com
+NOTE:Sent proposal Q3
+REV:2024-08-15T10:00:00Z
+UID:demo-30
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Rivera;Isabela;;;
+FN:Isabela Rivera
+ORG:Vandelay Imports
+TITLE:Account Manager
+TEL;TYPE=CELL:+1 555 240 5345
+EMAIL;TYPE=INTERNET:isabela.rivera@vandelayimports.com
+NOTE:Introduced by Ana
+REV:2020-06-11T10:00:00Z
+UID:demo-31
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Romero;Tomas;;;
+FN:Tomas Romero
+ORG:Vandelay Imports
+TITLE:Account Manager
+TEL;TYPE=CELL:+1 555 183 1001
+EMAIL;TYPE=INTERNET:tomas.romero@vandelayimports.com
+REV:2015-06-10T10:00:00Z
+UID:demo-32
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Reyes;Daniel;;;
+FN:Daniel Reyes
+ORG:Umbrella Studio
+TITLE:Creative Director
+TEL;TYPE=CELL:+1 555 703 9647
+EMAIL;TYPE=INTERNET:daniel.reyes@umbrellastudio.com
+NOTE:Padel on Thursdays
+REV:2015-08-18T10:00:00Z
+UID:demo-33
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Cruz;Carolina;;;
+FN:Carolina Cruz
+ORG:Stark Legal
+TITLE:Partner
+TEL;TYPE=CELL:+1 555 922 1173
+EMAIL;TYPE=INTERNET:carolina.cruz@starklegal.com
+REV:2015-06-13T10:00:00Z
+UID:demo-34
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Delgado;Mateo;;;
+FN:Mateo Delgado
+ORG:Stark Legal
+TITLE:Partner
+TEL;TYPE=CELL:+1 555 229 7134
+EMAIL;TYPE=INTERNET:mateo.delgado@starklegal.com
+NOTE:Met at the Lisbon conference 2022
+REV:2017-02-12T10:00:00Z
+UID:demo-35
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Vargas;Daniel;;;
+FN:Daniel Vargas
+ORG:Vandelay Imports
+TITLE:Account Manager
+TEL;TYPE=CELL:+1 555 579 5752
+EMAIL;TYPE=INTERNET:daniel.vargas@vandelayimports.com
+NOTE:Met at the Lisbon conference 2022
+REV:2018-01-11T10:00:00Z
+UID:demo-36
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Reyes;Sofia;;;
+FN:Sofia Reyes
+ORG:Northwind
+TITLE:Head of Sales
+TEL;TYPE=CELL:+1 555 395 1917
+EMAIL;TYPE=INTERNET:sofia.reyes@northwind.com
+NOTE:Sent proposal Q3
+REV:2023-05-14T10:00:00Z
+UID:demo-37
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Herrera;Javier;;;
+FN:Javier Herrera
+ORG:Northwind
+TITLE:Head of Sales
+TEL;TYPE=CELL:(555) 319-4988
+EMAIL;TYPE=INTERNET:javier.herrera@northwind.com
+NOTE:Met at the Lisbon conference 2022
+REV:2023-06-13T10:00:00Z
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Herrera;Javier;;;
+FN:Javier Herrera
+ORG:Northwind
+TITLE:Head of Sales
+TEL;TYPE=CELL:(555) 319-4988
+NOTE:Met at the Lisbon conference 2022
+REV:2023-06-13T10:00:00Z
+END:VCARD
