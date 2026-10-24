@@ -5,7 +5,8 @@ import { allWithDecisions } from '@/db/repo'
 import { Button, Empty, Frame, TopBar } from '@/ui'
 import { IconDownload, IconShare } from '@/ui/icons'
 import { toast } from '@/ui/toast'
-import { cleanFile, groupFiles, vcfText } from '@/export/vcf'
+import { cleanFile, groupFiles, type ExportFile } from '@/export/vcf'
+import { prepareVcards, fileStub } from '@/export/prepare'
 import { csvText } from '@/export/csv'
 import { deleteListText } from '@/export/deleteList'
 import { backupJson } from '@/export/json'
@@ -18,17 +19,16 @@ export default function ExportScreen() {
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const locked = useRef(false)
-  // Prepare Files before the tap so native sharing retains user activation.
+  // Memoize only memberships/counts, never contact text or photo payloads.
   const prepared = useMemo(() => {
     const groups = groupFiles(rows ?? [])
     const clean = cleanFile(rows ?? [])
-    const prepare = (group: typeof clean) => ({ ...group, file: new File([vcfText(group.rows)], group.filename, { type: 'text/vcard' }) })
-    return { clean: prepare(clean), files: groups.map(prepare) }
+    return { clean, files: groups }
   }, [rows])
   const { clean, files } = prepared
-  const allFiles = files.map(({ file }) => file)
+  const allFiles = files.map(fileStub)
   const allAction = fileAction(allFiles)
-  const cleanAction = fileAction([clean.file])
+  const cleanAction = fileAction([fileStub(clean)])
 
   async function run(action: () => void | Promise<unknown>) {
     if (locked.current) return
@@ -40,9 +40,12 @@ export default function ExportScreen() {
       setMessage(cancelled ? 'Sharing cancelled. Your files are still here.' : 'Could not export. Please try again.')
     } finally { locked.current = false; setBusy(false) }
   }
-  async function send(files: File[]) {
+  async function send(groups: ExportFile[]) {
+    setMessage('Preparing vCards…')
+    const files = await prepareVcards(groups, (rows?.length ?? 0) > 1000)
+    setMessage('')
     const result = await shareOrDownload(files)
-    toast(result === 'shared' ? 'vCards shared.' : 'vCard downloads started.')
+    toast(result === 'fallback' ? 'Sharing failed, downloaded instead' : result === 'shared' ? 'vCards shared.' : 'vCard downloads started.')
   }
   return (
     <Frame>
@@ -56,7 +59,7 @@ export default function ExportScreen() {
           <h2 className="font-serif text-2xl">Clean address book</h2>
           <p className="mt-2 text-sm text-ink-2">{clean.description}</p>
           <p className="tabular my-3 text-xs text-ink-2">contacts-clean.vcf · {clean.rows.length.toLocaleString()} contacts</p>
-          <Button full disabled={busy || !clean.rows.length} onClick={() => void run(() => send([clean.file]))}>
+          <Button full disabled={busy || !clean.rows.length} onClick={() => void run(() => send([clean]))}>
             {cleanAction === 'Share' ? <IconShare /> : <IconDownload />}{cleanAction} clean address book
           </Button>
         </section>
@@ -65,7 +68,7 @@ export default function ExportScreen() {
           <thead className="sr-only"><tr><th>File</th><th>Contacts</th><th>Share or download</th></tr></thead>
           <colgroup><col /><col className="w-12" /><col className="w-[84px]" /></colgroup>
           <tbody>{files.map((group) => {
-            const action = fileAction([group.file])
+            const action = fileAction([fileStub(group)])
             return <tr key={group.filename} className="border-b border-rule">
               <td className="py-3 pr-1">
                 <p className="break-words [overflow-wrap:anywhere]">{group.filename}</p>
@@ -79,7 +82,7 @@ export default function ExportScreen() {
               <td className="px-1 text-right text-ink-2">{group.rows.length.toLocaleString()}</td>
               <td className="py-2 text-right"><button aria-label={`${action} ${group.filename}`} disabled={busy}
                 className="inline-flex min-h-11 items-center gap-1 pl-2 text-xs disabled:opacity-40"
-                onClick={() => void run(() => send([group.file]))}>
+                onClick={() => void run(() => send([group]))}>
                 {action === 'Share' ? <IconShare size={16} /> : <IconDownload size={16} />}{action}
               </button></td>
             </tr>
@@ -88,7 +91,7 @@ export default function ExportScreen() {
         <p className="mt-3 text-xs leading-relaxed text-ink-2">{platformHint(exportPlatform())}</p>
         <p className="mt-2 mb-6 text-xs text-ink-2">Lists overlap. Import the clean address book once, or choose individual lists.</p>
         <div className="space-y-3">
-          <Button full variant="outline" disabled={busy} onClick={() => void run(() => send(allFiles))}>{allAction} all vCards</Button>
+          <Button full variant="outline" disabled={busy} onClick={() => void run(() => send(files))}>{allAction} all vCards</Button>
           <Button full variant="outline" disabled={busy} onClick={() => void run(() => downloadText('all-contacts.csv', csvText(rows), 'text/csv'))}>Everything as CSV</Button>
           <Button full variant="outline" disabled={busy} onClick={() => void run(() => downloadText('delete-list.txt', deleteListText(rows), 'text/plain'))}>Delete list (.txt)</Button>
           <Button full variant="outline" disabled={busy} onClick={() => void run(async () => downloadText('contacts-backup.json', await backupJson(), 'application/json'))}>Backup (.json)</Button>

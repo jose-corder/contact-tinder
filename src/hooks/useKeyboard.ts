@@ -14,7 +14,7 @@ export function useKeyboard({ swipe, undo, toggleChip, focusTag, disabled }: Sho
     const handle = (event: KeyboardEvent) => {
       const target = event.target
       if (disabled || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return
-      if (target instanceof HTMLElement && (target.closest('input, textarea, select, [contenteditable="true"]'))) return
+      if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"], [data-deck-details]')) return
       const directions: Record<string, Direction> = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }
       const direction = directions[event.key]
       if (direction) { event.preventDefault(); swipe(direction) }

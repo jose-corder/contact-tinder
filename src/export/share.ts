@@ -20,10 +20,16 @@ export function fileAction(files: File[]): 'Share' | 'Download' {
   return canShareFiles(files) ? 'Share' : 'Download'
 }
 
-export async function shareOrDownload(files: File[], title = 'Contacts.'): Promise<'shared' | 'downloaded'> {
+export async function shareOrDownload(files: File[], title = 'Contacts.'): Promise<'shared' | 'downloaded' | 'fallback'> {
   if (canShareFiles(files)) {
-    await navigator.share({ files, title })
-    return 'shared'
+    try {
+      await navigator.share({ files, title })
+      return 'shared'
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError') throw error
+      files.forEach(downloadFile)
+      return 'fallback'
+    }
   }
   files.forEach(downloadFile)
   return 'downloaded'

@@ -30,7 +30,7 @@ export function property(line: string) {
     const value = (equals < 0 ? param : param.slice(equals + 1)).replace(/^"|"$/g, '')
     params.set(key, [...(params.get(key) ?? []), ...value.split(',').map((v) => v.replace(/^"|"$/g, ''))])
   }
-  return { name: name.split('.').pop()!.toUpperCase(), params, value: values.join(':') }
+  return { name: name.split('.').pop()!.toUpperCase(), group: name.includes('.') ? name.slice(0, name.lastIndexOf('.')).toLowerCase() : undefined, params, value: values.join(':') }
 }
 
 export function logicalLines(raw: string): string[] {

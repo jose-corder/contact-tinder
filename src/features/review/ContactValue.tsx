@@ -1,8 +1,10 @@
 import { toast } from '@/ui/toast'
 
-export default function ContactValue({ label, value, href }: { label: string; value: string; href: string }) {
+export default function ContactValue({ label, value, href }: { label: string; value: string; href?: string }) {
   return <div className="flex items-center justify-between gap-3">
-    <div className="min-w-0"><dt className="text-ink-2">{label}</dt><dd><a href={href} className="inline-flex min-h-11 items-center break-all underline underline-offset-4">{value}</a></dd></div>
+    <div className="min-w-0"><dt className="text-ink-2">{label}</dt><dd>{href ?
+      <a href={href} className="inline-flex min-h-11 items-center break-all underline underline-offset-4">{value}</a> :
+      <span className="break-all">{value}</span>}</dd></div>
     <button type="button" aria-label={`Copy ${value}`} className="flex h-11 w-11 shrink-0 items-center justify-center" onClick={async () => {
       try { await navigator.clipboard.writeText(value); toast('Copied') }
       catch { toast('Could not copy. Touch and hold the value to copy it.') }

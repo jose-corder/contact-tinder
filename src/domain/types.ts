@@ -39,7 +39,7 @@ export interface Contact {
   notes?: string
   /** vCard REV (last modified) as ISO string if present. */
   rev?: string
-  /** Original vCard text, kept verbatim for lossless export. Empty for CSV/picker imports. */
+  /** Richest decoded source vCard text, preserving folds and line endings. Empty for CSV/picker imports. */
   raw: string
   source: ContactSource
   importedAt: number

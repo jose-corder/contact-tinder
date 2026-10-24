@@ -9,6 +9,6 @@ export function homeProgress(rows: ContactWithDecision[]) {
   })
   const completed = rows.filter(({ decision: d }) => d.bucket === 'delete' ||
     (d.bucket === 'work' && !!d.workStatus) || (d.bucket === 'personal' && !!d.relation)).length
-  return { steps, current: steps.find((step) => step.done < step.total), completed,
+  return { steps, current: steps.find(({ pass }) => rows.some(({ decision }) => isInDeck(decision, pass))), completed,
     percent: rows.length ? Math.round(completed / rows.length * 100) : 0 }
 }

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { allWithDecisions, counts, saveDecisions } from '@/db/repo'
+import { allWithDecisions, counts } from '@/db/repo'
 import { Button, Frame, TopBar } from '@/ui'
 import { IconSearch } from '@/ui/icons'
 import Filters from './Filters'
@@ -9,7 +9,9 @@ import ReviewList from './ReviewList'
 import RowSheet from './RowSheet'
 import BulkBar from './BulkBar'
 import ReviewTabs from './ReviewTabs'
-import { inTab, matchesSearch, resetForReview, type ReviewTab } from './model'
+import { inTab, matchesSearch, type ReviewTab } from './model'
+import { prepareReswipe } from './reswipe'
+import { toast } from '@/ui/toast'
 
 export default function ReviewScreen() {
   const rows = useLiveQuery(() => allWithDecisions(), [])
@@ -50,7 +52,7 @@ export default function ReviewScreen() {
   return <Frame>
     <TopBar title="Review" backTo="/" right={<span className="flex items-center gap-3">
       <span>{totals?.total ?? 0}</span>
-      <button className="h-10 underline underline-offset-4" onClick={() => selecting ? clearSelection() : setSelecting(true)}>{selecting ? 'Cancel' : 'Select'}</button>
+      <button className="min-h-11 min-w-11 px-2 underline underline-offset-4" onClick={() => selecting ? clearSelection() : setSelecting(true)}>{selecting ? 'Cancel' : 'Select'}</button>
     </span>} />
     <ReviewTabs value={tab} onChange={(value) => {
       setParams({ tab: value }, { replace: true }); setSegment('all'); setTypes([]); setTags([])
@@ -66,13 +68,12 @@ export default function ReviewScreen() {
         onType={(value) => setTypes(toggleFilter(types, value))} onTag={(value) => setTags(toggleFilter(tags, value))} />
       <div className="mt-2 flex min-h-11 items-center justify-between gap-3">
       <p className="text-xs text-ink-2 tabular" role="status">{filtered.length} {filtered.length === 1 ? 'contact' : 'contacts'}</p>
-      {filtered.length > 0 && <Button variant="ghost" className="px-0! text-[13px]!" disabled={busy} onClick={async () => {
+      {filtered.length > 0 && <Button variant="ghost" className="px-0! text-[13px]!" loading={busy && filtered.length > 500} disabled={busy} onClick={async () => {
         setBusy(true); setError('')
         try {
-          const reset = resetForReview(filtered, tab)
-          await saveDecisions(reset.decisions)
-          navigate(`/deck/${reset.pass}`)
-        } catch { setError('Could not reset these contacts. Please try again.') }
+          const { pass, ids } = await prepareReswipe(filtered, tab)
+          navigate(`/deck/${pass}`, { state: { only: ids } })
+        } catch { setError('Could not reset these contacts. Nothing was changed. Please try again.'); toast('Nothing was changed') }
         finally { setBusy(false) }
       }}>Re-swipe these</Button>}
       </div>

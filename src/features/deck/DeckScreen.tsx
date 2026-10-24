@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { motion } from 'framer-motion'
 import { PASS_META } from '@/domain/taxonomy'
 import type { Direction, Pass } from '@/domain/types'
@@ -20,7 +20,8 @@ import { useCoach } from '@/hooks/useCoach'
 import { DeckCoach } from './DeckCoach'
 
 export default function DeckScreen({ pass }: { pass: Pass }) {
-  return <DeckSession key={pass} pass={pass} />
+  const location = useLocation()
+  return <DeckSession key={`${pass}-${location.key}`} pass={pass} />
 }
 
 function DeckSession({ pass }: { pass: Pass }) {
@@ -28,9 +29,13 @@ function DeckSession({ pass }: { pass: Pass }) {
   const coach = useCoach(pass)
   // After a Work/Personal swipe in triage, offer status/type right away (see FollowUpSheet).
   const [followUp, setFollowUp] = useState<FollowUpTarget>()
+  const followUpBusy = useRef(false)
   const latestUndo = useRef(deck.undo)
   useLayoutEffect(() => { latestUndo.current = deck.undo }, [deck.undo])
-  const undo = useCallback(() => { dismissToast(); setFollowUp(undefined); void latestUndo.current() }, [])
+  const undo = useCallback(() => {
+    if (followUpBusy.current) return
+    dismissToast(); setFollowUp(undefined); void latestUndo.current()
+  }, [])
   const onSwipe = async (direction: Direction) => {
     coach.dismiss()
     dismissToast()
@@ -46,14 +51,17 @@ function DeckSession({ pass }: { pass: Pass }) {
     }
   }
   useKeyboard({ swipe: () => {}, toggleChip: () => {}, focusTag: () => {}, undo, disabled: !!deck.top || deck.pending || !!followUp })
-  return <Frame className="h-dvh overflow-hidden">
-    <TopBar title={PASS_META[pass].title} backTo="/" right={<span>{deck.done} / {deck.total}</span>} progress={deck.progress} />
+  return <Frame className="deck-screen h-dvh overflow-hidden">
+    <TopBar title={PASS_META[pass].title + (deck.scopeLabel ? ` · ${deck.scopeLabel}` : '')} backTo="/" right={<span>{deck.done} / {deck.total}</span>} progress={deck.progress} />
     {deck.error && <p role="alert" className="mb-2 text-sm text-ink-2">{deck.error}</p>}
     {deck.loading ? <div role="status" aria-label="Loading contacts" className="flex-1 rounded-[20px] border border-rule bg-paper-2" />
-      : deck.empty ? <Empty title="No contacts yet."><Link className="underline underline-offset-4" to="/import">Import contacts</Link></Empty>
+      : deck.empty ? <Empty title="No contacts yet."><Link className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4" to="/import">Import contacts</Link></Empty>
         : deck.top && deck.draft ? <ActiveDeck key={`${deck.top.contact.id}-${deck.top.decision.updatedAt}`} pass={pass} deck={deck} coach={coach} onSwipe={onSwipe} undo={undo} locked={!!followUp} />
-          : <>{deck.finished && <DeckEnd pass={pass} />}{deck.canUndo && <button className="h-10 self-start text-sm text-ink-2" onClick={undo}>undo</button>}</>}
-    <FollowUpSheet target={followUp} onClose={() => setFollowUp(undefined)} />
+          : <>{deck.finished && <DeckEnd pass={pass} />}{deck.canUndo && <button className="h-11 min-w-11 self-start text-sm text-ink-2" onClick={undo}>undo</button>}</>}
+    <FollowUpSheet target={followUp} onBusyChange={(busy) => { followUpBusy.current = busy }} onClose={(saved) => {
+      if (saved && followUp) deck.amendUndo(saved, followUp.decision.updatedAt)
+      setFollowUp(undefined)
+    }} />
   </Frame>
 }
 

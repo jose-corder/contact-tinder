@@ -3,8 +3,6 @@ import { BUCKET_META, decisionLabels, PERSONAL_RELATION_META, WORK_STATUS_META }
 
 export default function DecisionLabels({ decision }: { decision: Decision }) {
   const labels = decisionLabels(decision)
-  // Undecided contacts can carry tags too; decisionLabels intentionally omits those.
-  if (!decision.bucket) labels.push(...decision.customTags)
   return <ul aria-label="Labels" className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-ink-2">
     {labels.map((label) => {
       const status = decision.bucket === 'work' && decision.workStatus ? WORK_STATUS_META[decision.workStatus] : undefined

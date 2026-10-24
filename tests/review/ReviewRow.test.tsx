@@ -45,7 +45,12 @@ describe('Review row actions', () => {
     const { rerender } = render(<ul><ReviewRow {...props} /></ul>)
     fireEvent.keyDown(screen.getByRole('button', { name: 'View Bo' }), { key: 'ArrowLeft' })
     expect(screen.getByRole('button', { name: 'Move Bo to Delete' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Move Bo to Delete' })).toHaveStyle({ width: '44px', height: '44px' })
     rerender(<ul><ReviewRow {...props} selecting /></ul>)
     expect(screen.queryByRole('button', { name: 'Move Bo to Delete' })).not.toBeInTheDocument()
+    const label = screen.getByRole('checkbox', { name: 'Select Bo' }).closest('label')!
+    expect(label).toHaveClass('min-h-11', 'min-w-11', 'p-3')
+    fireEvent.click(label)
+    expect(props.onToggle).toHaveBeenCalledExactlyOnceWith('Bo')
   })
 })

@@ -20,7 +20,7 @@ describe('contact picker', () => {
     const contacts = await pickContacts()
     expect(select).toHaveBeenCalledWith(['name', 'email', 'tel'], { multiple: true })
     expect(contacts).toHaveLength(2)
-    expect(contacts[0]).toMatchObject({ displayName: 'Ada', source: 'picker', raw: '', phoneKeys: ['+15551234567'], emailKeys: ['ada@example.com'] })
+    expect(contacts[0]).toMatchObject({ displayName: 'Ada', source: 'picker', raw: '', phoneKeys: ['US:5551234567'] /* Finding #3: invalid national exchange is ambiguous. */, emailKeys: ['ada@example.com'] })
     expect(contacts[1].displayName).toBe('other@example.com')
     expect((await pickContacts())[0].id).toBe(contacts[0].id)
   })

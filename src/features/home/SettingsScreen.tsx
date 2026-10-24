@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router'
 import { getMeta, resetAll, setMeta } from '@/db/repo'
+import { db } from '@/db/schema'
 import { backupJson } from '@/export/json'
 import { downloadText } from '@/export/share'
 import RestoreInput from '@/features/export/RestoreInput'
@@ -17,6 +18,10 @@ export default function SettingsScreen() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const lastBackupAt = useLiveQuery(() => getMeta<string | null>('lastBackupAt', null), [])
+  const eraseCounts = useLiveQuery(async () => {
+    const [contacts, decisions, tags] = await Promise.all([db.contacts.count(), db.decisions.count(), db.tags.count()])
+    return `${contacts} contact${contacts === 1 ? '' : 's'}, ${decisions} sorting decision${decisions === 1 ? '' : 's'}, and ${tags} tag${tags === 1 ? '' : 's'}`
+  }, [])
   const navigate = useNavigate()
   return <Frame>
     <TopBar title="Settings" backTo="/" />
@@ -66,10 +71,12 @@ export default function SettingsScreen() {
         finally { setBusy(false) }
       }}>Back up (.json)</Button>
       <RestoreInput label="Restore" />
-      <p className="text-xs text-ink-2">Backups include contacts and sorting decisions. Photos are omitted.</p>
+      <p className="text-sm text-ink-2">Replace makes this device match the backup exactly; Merge keeps what is already here.</p>
+      <p className="text-xs text-ink-2">Backups include contacts, sorting decisions, and original vCard fields, which may contain photos. Separate photo thumbnails are omitted; existing thumbnails are kept for restored contacts.</p>
     </section>
     <section className="border-b border-rule py-5">
       <h2 className="eyebrow mb-3">Danger zone</h2>
+      <p className="text-sm text-ink-2">{eraseCounts ? `Reset will erase ${eraseCounts}, plus app session metadata.` : 'Counting data…'}</p>
       <Button variant="ghost" className="px-0" onClick={() => { setError(''); setConfirm(true) }}>Reset all data</Button>
     </section>
     <section className="space-y-3 py-5 text-sm text-ink-2">
@@ -80,8 +87,9 @@ export default function SettingsScreen() {
     {!confirm && error && <p role="alert">{error}</p>}
     <Sheet open={confirm} onClose={() => { if (!busy) setConfirm(false) }} title="Reset all data?">
       <p className="mb-5 text-ink-2">This removes all contacts, sorting decisions, and tags from this browser. This cannot be undone. Export a backup first if you want to keep them.</p>
+      <p className="mb-5 text-ink-2">{eraseCounts ? `Will erase ${eraseCounts}, plus app session metadata.` : 'Counting data…'}</p>
       {error && <p role="alert" className="mb-3">{error}</p>}
-      <Button full disabled={busy} onClick={async () => {
+      <Button full disabled={busy || !eraseCounts} onClick={async () => {
         setBusy(true); setError('')
         try { await resetAll(); navigate('/') }
         catch { setError('Could not reset data. Please try again.') }

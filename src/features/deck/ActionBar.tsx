@@ -10,8 +10,8 @@ export function ActionBar({ pass, canUndo, undo, triggerSwipe, disabled }: {
 }) {
   return <>
   <div className="flex shrink-0 items-start justify-between gap-1 pt-1" aria-label="Swipe actions">
-    <div className="flex h-14 w-10 shrink-0 items-center">
-      {canUndo && <button type="button" onClick={undo} disabled={disabled} className="h-10 w-10 text-[13px] text-ink-2 disabled:opacity-40">undo</button>}
+    <div className="flex h-14 w-11 shrink-0 items-center">
+      {canUndo && <button type="button" onClick={undo} disabled={disabled} className="h-11 w-11 text-[13px] text-ink-2 disabled:opacity-40">undo</button>}
     </div>
     {actions.map(([direction, Icon]) => {
       const outcome = PASS_META[pass].swipes[direction]

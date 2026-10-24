@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { allWithDecisions, saveDecisions } from '@/db/repo'
-import { BUCKET_META, isUnsorted } from '@/domain/taxonomy'
+import { BUCKET_META, isUnsorted, PASS_ORDER } from '@/domain/taxonomy'
 import { isUnsortedRow } from '@/export/vcf'
 import { Button, Frame } from '@/ui'
 import { homeProgress } from './progress'
@@ -18,6 +18,7 @@ export default function HomeScreen() {
   const progress = useMemo(() => homeProgress(rows ?? []), [rows])
   const current = progress.current
   const unsorted = rows?.filter(isUnsortedRow).length ?? 0
+  const skipped = rows?.filter(({ decision }) => PASS_ORDER.some((pass) => isUnsorted(decision, pass))).length ?? 0
   return <Frame>
     <header className="pb-8 pt-10">
       <h1 className="font-serif text-[56px] leading-none tracking-tight">Contacts.</h1>
@@ -27,17 +28,24 @@ export default function HomeScreen() {
       <ProgressOverview progress={progress} total={rows.length} />
       <section className="rounded-[20px] border border-rule bg-paper-2 p-5">
         <p className="eyebrow mb-3">{current ? 'Pick up where you left off' : 'Your address book'}</p>
-        <h2 className="mb-5 font-serif text-2xl tabular">{current ? `${current.title} · ${current.done} of ${current.total}` : 'All sorted.'}</h2>
-        <Button full disabled={busy} onClick={async () => {
-          if (!current) { navigate('/review'); return }
+        <h2 className="mb-5 font-serif text-2xl tabular">{current ? `${current.title} · ${current.done} of ${current.total}` :
+          skipped ? `All decks done · ${skipped} skipped waiting in Review` : 'All sorted.'}</h2>
+        {current ? <Button full onClick={() => navigate(`/deck/${current.pass}`)}>Continue</Button> :
+          <Link to={skipped ? '/review?tab=unsorted' : '/review'} className="flex min-h-11 items-center justify-center rounded-full bg-ink px-5 font-medium text-paper">Review</Link>}
+        {!current && skipped > 0 && <Button full variant="ghost" loading={busy} onClick={async () => {
           setBusy(true); setError('')
           try {
-            // A skipped-out pass is still incomplete. Resume makes its cards available again.
-            await saveDecisions(rows.filter(({ decision }) => isUnsorted(decision, current.pass)).map(({ decision }) =>
-              ({ ...decision, skips: { ...decision.skips, [current.pass]: 0 }, updatedAt: Date.now() })))
-            navigate(`/deck/${current.pass}`)
-          } catch { setError('Could not resume. Please try again.'); setBusy(false) }
-        }}>{current ? 'Continue' : 'Review'}</Button>
+            // Finding #23: only this explicit action revives twice-skipped cards.
+            const pass = PASS_ORDER.find((p) => rows.some(({ decision }) => isUnsorted(decision, p)))!
+            await saveDecisions(rows.filter(({ decision }) => PASS_ORDER.some((p) => isUnsorted(decision, p))).map(({ decision }) => {
+              const skips = { ...decision.skips }
+              for (const p of PASS_ORDER) if (isUnsorted(decision, p)) skips[p] = 0
+              return { ...decision, skips, updatedAt: Date.now() }
+            }))
+            navigate(`/deck/${pass}`)
+          } catch { setError('Could not retry skipped contacts. Nothing was changed. Please try again.') }
+          finally { setBusy(false) }
+        }}>Retry skipped</Button>}
         {error && <p role="alert" className="mt-3 text-sm">{error}</p>}
       </section>
       <nav aria-label="Contact counts" className="my-7 border-t border-rule">

@@ -22,7 +22,7 @@ export function ChipRow({ pass, draft, toggleChip, toggleTag, inputRef, open, se
     setQuery('')
     setOpen(false)
   }
-  return <div className="max-h-[180px] shrink-0 overflow-y-auto py-3" aria-label="Contact tags">
+  return <div className="deck-chips max-h-[180px] shrink-0 overflow-y-auto py-3" aria-label="Contact tags">
     <div className="flex flex-wrap gap-2">
       {meta.chips.map((chip) => <Chip key={chip.key} label={chip.label} selected={selected.includes(chip.key)} color={meta.chipColor} disabled={disabled} onClick={() => toggleChip(chip.key)} />)}
       {draft.customTags.map((tag) => <Chip className="max-w-full truncate" key={tag} label={tag} selected color="var(--ink)" disabled={disabled} onClick={() => toggleTag(tag)} />)}
@@ -30,7 +30,7 @@ export function ChipRow({ pass, draft, toggleChip, toggleTag, inputRef, open, se
     </div>
     {open && <div className="mt-2">
       <input ref={inputRef} aria-label="Custom tag" value={query} maxLength={64} disabled={disabled}
-        placeholder="Add a tag" className="h-9 w-full rounded-full border border-rule bg-paper px-3.5 font-sans text-[13px] outline-offset-2"
+        placeholder="Add a tag" className="h-11 w-full rounded-full border border-rule bg-paper px-3.5 font-sans text-[13px] outline-offset-2"
         onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => {
           if (event.key === 'Enter') { event.preventDefault(); add(query) }
           if (event.key === 'Escape') { event.preventDefault(); setOpen(false); setQuery('') }

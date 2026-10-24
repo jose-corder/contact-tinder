@@ -1,17 +1,18 @@
+import { defaultCountry as regionCountry } from './region'
 import Papa from 'papaparse'
 import type { Contact, EmailEntry, PhoneEntry } from '@/domain/types'
 import { makeContact } from './contact'
 
-export function parseCsv(text: string): Contact[] {
+export function parseCsv(text: string, defaultCountry: string = regionCountry()): Contact[] {
   const parsed = Papa.parse<Record<string, string>>(text.replace(/^\uFEFF/, ''), {
     header: true, skipEmptyLines: true, transformHeader: (header) => header.trim(),
   })
   const error = parsed.errors.find((e) => e.code !== 'UndetectableDelimiter')
   if (error) throw new Error(`CSV ${error.row === undefined ? '' : `row ${error.row + 2}: `}${error.message}`)
-  return parsed.data.flatMap((row) => { const contact = csvContact(row); return contact ? [contact] : [] })
+  return parsed.data.flatMap((row) => { const contact = csvContact(row, defaultCountry); return contact ? [contact] : [] })
 }
 
-export function csvContact(row: Record<string, string>): Contact | undefined {
+export function csvContact(row: Record<string, string>, defaultCountry: string = regionCountry()): Contact | undefined {
     const entries = Object.entries(row).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
     const get = (known: string[], fuzzy?: RegExp) => {
       for (const name of known) {
@@ -23,7 +24,9 @@ export function csvContact(row: Record<string, string>): Contact | undefined {
     const givenName = get(['first name', 'given name'], /first|given/i)
     const familyName = get(['last name', 'family name'], /last|family/i)
     const middleName = get(['middle name', 'additional name'], /middle/i)
-    const org = get(['organization name', 'organization 1 - name', 'company'], /org|company/i)
+    const company = get(['organization', 'organization name', 'organization 1 - name', 'company'], /org|company/i)
+    const department = get(['department', 'organization department', 'organization 1 - department'])
+    const org = [company, department].filter(Boolean).join(' · ') || undefined
     const title = get(['organization title', 'organization 1 - title', 'job title'], /title|job/i)
     const notes = get(['notes', 'note'], /note/i)
     const name = get(['name', 'full name', 'display name'])
@@ -44,6 +47,6 @@ export function csvContact(row: Record<string, string>): Contact | undefined {
         else phones.push({ value, type })
       }
     }
-    const contact = makeContact({ displayName: name, givenName, familyName, org, title, notes, phones, emails }, 'csv')
+    const contact = makeContact({ displayName: name, givenName, familyName, org, title, notes, phones, emails }, 'csv', defaultCountry)
     return contact
 }

@@ -2,14 +2,21 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import * as repo from '@/db/repo'
 import { emptyDecision } from '@/domain/types'
+import { applySwipe } from '@/domain/taxonomy'
 import { useUndo, type UndoEntry } from '@/hooks/useUndo'
 
 const entry = (index: number): UndoEntry => {
   const id = String(index)
-  const decision = emptyDecision(id)
-  return { item: { contact: { id, displayName: id, phones: [], emails: [], raw: '', source: 'demo', importedAt: 1, phoneKeys: [], emailKeys: [] }, decision }, prevDecision: decision, direction: 'right' }
+  const decision = emptyDecision(id, 1)
+  return { item: { contact: { id, displayName: id, phones: [], emails: [], raw: '', source: 'demo', importedAt: 1, phoneKeys: [], emailKeys: [] }, decision }, prevDecision: decision, writtenDecision: applySwipe(decision, 'triage', 'right', 2), direction: 'right' }
 }
-beforeEach(async () => { await repo.resetAll() })
+// Finding #6: undo must start from the version actually written by the swipe.
+beforeEach(async () => {
+  await repo.resetAll()
+  const entries = Array.from({ length: 22 }, (_, i) => entry(i))
+  await repo.upsertContacts(entries.map((e) => e.item.contact))
+  await repo.saveDecisions(entries.map((e) => e.writtenDecision))
+})
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 it('retains only the last twenty decisions, saves snapshots, and returns the exit direction', async () => {

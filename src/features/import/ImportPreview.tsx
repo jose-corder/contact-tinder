@@ -4,7 +4,7 @@ import { Avatar, Button } from '@/ui'
 export function ImportProgressView({ progress }: { progress: ImportProgress }) {
   const fraction = progress.total ? progress.parsed / progress.total : progress.parsed / (progress.parsed + 200)
   const verb = { reading: 'read', parsing: 'parsed', deduping: 'checked', saving: 'saved' }[progress.phase]
-  return <div role="status" className="my-6 space-y-3" aria-live="polite">
+  return <div className="my-6 space-y-3">
     <div className="flex items-center justify-between gap-2">
       <span className="eyebrow text-ink-2">{progress.phase}</span>
       <span className="tabular text-sm">{progress.parsed.toLocaleString()} contacts {verb}</span>
@@ -26,6 +26,7 @@ export default function ImportPreview({ preview, busy, onConfirm, onCancel }: {
     </> : <>
       <h2 className="font-serif text-2xl">Ready when you are.</h2>
       <p className="tabular mt-2 text-sm text-ink-2">{preview.total.toLocaleString()} contacts found · {preview.merged.toLocaleString()} duplicates will merge · {preview.photos.toLocaleString()} with photos</p>
+      {preview.possibleDuplicates.length > 0 && <p className="mt-2 text-sm text-ink-2">{preview.possibleDuplicates.length} possible duplicates kept apart · review later</p>}
       <ul className="my-4 divide-y divide-rule">
         {preview.contacts.slice(0, 3).map((contact, index) => <li key={`${contact.id}-${index}`} className="flex min-h-16 items-center gap-3 py-2">
           <Avatar name={contact.displayName} photo={contact.photo} size={32} />

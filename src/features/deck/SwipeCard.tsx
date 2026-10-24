@@ -79,10 +79,10 @@ export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onF
           <div className="flex flex-wrap gap-x-3 text-[12px] tracking-wide text-ink-2 uppercase">
             <span>{sources[contact.source]}</span><span>added {year(contact.importedAt)}</span>{edited && <span>edited {edited}</span>}
           </div>
-          {!preview && <button ref={toggleRef} type="button" className="mt-2 min-h-8 text-xs text-ink-2" onClick={(event) => { event.stopPropagation(); flip(true) }}>View all fields</button>}
+          {!preview && <button ref={toggleRef} type="button" className="mt-2 min-h-11 min-w-11 text-xs text-ink-2" onClick={(event) => { event.stopPropagation(); flip(true) }}>View all fields</button>}
         </div>
       </motion.div>
-      {!preview && <motion.div initial={false} className={faceClass} aria-hidden={!flipped} inert={!flipped}
+      {!preview && <motion.div data-deck-details initial={false} className={faceClass} aria-hidden={!flipped} inert={!flipped}
         style={{ rotateY: reduced ? 0 : 180, pointerEvents: flipped ? 'auto' : 'none' }}
         animate={{ opacity: reduced ? (flipped ? 1 : 0) : 1 }} transition={{ duration: 0.12 }}>
         {opened && <>
@@ -92,7 +92,7 @@ export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onF
             <CardFields contact={contact} full hold={hold} />
             <p className="text-xs text-ink-2">{sources[contact.source]} · added {new Date(contact.importedAt).toLocaleDateString()}{contact.rev && ' · last edited ' + contact.rev}</p>
           </div>
-          <button ref={backRef} type="button" className="hairline mt-3 min-h-10 shrink-0 pt-2 text-left text-xs text-ink-2" onClick={(event) => { event.stopPropagation(); flip(false) }}>Back</button>
+          <button ref={backRef} type="button" className="hairline mt-3 min-h-11 min-w-11 shrink-0 pt-2 text-left text-xs text-ink-2" onClick={(event) => { event.stopPropagation(); flip(false) }}>Back</button>
         </>}
       </motion.div>}
     </motion.div>

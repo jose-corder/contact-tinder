@@ -11,8 +11,8 @@ describe('text exports', () => {
     Object.assign(r.contact, { displayName: 'Ana, Lane', givenName: 'Ana', familyName: 'Lane', org: 'Studio', title: 'Lead',
       phones: [{ value: '111' }, { value: '222' }], emails: [{ value: 'a@example.com' }], notes: 'Line 1\nLine 2' })
     const parsed = Papa.parse<string[]>(csvText([r])).data
-    expect(parsed[0]).toEqual(['Name', 'Given name', 'Family name', 'Organization', 'Title', 'Phones', 'Emails', 'Phone 1', 'Phone 2', 'Phone 3', 'Email 1', 'Email 2', 'Bucket', 'Work status', 'Work types', 'Relation', 'Personal types', 'Tags', 'Notes', 'Source', 'Added'])
-    expect(parsed[1]).toEqual(['Ana, Lane', 'Ana', 'Lane', 'Studio', 'Lead', '111; 222', 'a@example.com', '111', '222', '', 'a@example.com', '', 'Work', 'Current', 'Client', '', '', 'vip; local', 'Line 1\nLine 2', 'csv', '1970-01-01T00:00:00.000Z'])
+    expect(parsed[0]).toEqual(['Name', 'Given name', 'Family name', 'Organization', 'Department', 'Title' /* Finding #15 */, 'Phones', 'Emails', 'Phone 1', 'Phone 2', 'Phone 3', 'Email 1', 'Email 2', 'Bucket', 'Work status', 'Work types', 'Relation', 'Personal types', 'Tags', 'Notes', 'Source', 'Added'])
+    expect(parsed[1]).toEqual(['Ana, Lane', 'Ana', 'Lane', 'Studio', '', 'Lead' /* Finding #15 */, '111; 222', 'a@example.com', '111', '222', '', 'a@example.com', '', 'Work', 'Current', 'Client', '', '', 'vip; local', 'Line 1\nLine 2', 'csv', '1970-01-01T00:00:00.000Z'])
     expect(Papa.parse(csvText([]), { skipEmptyLines: true }).data).toHaveLength(1)
   })
   it('sorts delete contacts by name and omits missing phone/email parts', () => {

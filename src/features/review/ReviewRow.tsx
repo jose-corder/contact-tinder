@@ -72,8 +72,10 @@ export default memo(function ReviewRow({ row: { contact, decision }, selecting, 
         style={{ x, touchAction: 'pan-y' }} className="relative flex h-full items-center gap-3 bg-paper"
         onDragStart={() => { cancel(); dragged.current = true; setRevealed(true) }}
         onDragEnd={(_, info) => reveal(x.get() < -35 || info.velocity.x < -300)}>
-        {selecting && <input type="checkbox" aria-label={`Select ${contact.displayName}`} checked={selected} onChange={() => onToggle(contact.id)}
-          className="h-5 w-5 shrink-0 accent-ink" />}
+        {selecting && <label className="flex min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center p-3">
+          <input type="checkbox" aria-label={`Select ${contact.displayName}`} checked={selected} onChange={() => onToggle(contact.id)}
+            className="h-5 w-5 accent-ink" />
+        </label>}
         <button type="button" className="flex h-full min-w-0 flex-1 touch-pan-y items-center gap-3 text-left"
           aria-label={`${selecting ? 'Select' : 'View'} ${contact.displayName}`} aria-description="Swipe left or press Left Arrow for quick actions."
           onKeyDown={(event) => {

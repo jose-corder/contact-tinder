@@ -15,7 +15,8 @@ describe('review pass resets', () => {
       row('personal', { bucket: 'personal', personalTypes: ['neighbor'], skips: { triage: 0, work: 0, personal: 2 } }),
     ]
     const result = resetForReview(rows, 'unsorted')
-    expect(result.pass).toBe('work')
+    // Finding #21: pass order wins over row/alphabetical order.
+    expect(result.pass).toBe('triage')
     expect(result.decisions.map((d) => d.skips)).toEqual(Array(3).fill({ triage: 0, work: 0, personal: 0 }))
     expect(result.decisions[0].workTypes).toEqual(['vendor'])
     expect(result.decisions[0].customTags).toEqual(['vip'])
@@ -25,5 +26,11 @@ describe('review pass resets', () => {
     expect(resetForReview([row('d', { bucket: 'delete', skips: { triage: 2, work: 0, personal: 0 } })], 'delete').decisions[0].bucket).toBeUndefined()
     expect(resetForReview([row('w', { bucket: 'work', workStatus: 'old' })], 'work').decisions[0].workStatus).toBeUndefined()
     expect(resetForReview([row('p', { bucket: 'personal', relation: 'family' })], 'personal').decisions[0].relation).toBeUndefined()
+  })
+  it('review_reswipe_scopes_real_decks_and_orders_mixed_passes: Work precedes Personal', () => {
+    const personal = row('Amy', { bucket: 'personal', skips: { triage: 0, work: 0, personal: 2 } })
+    const work = row('Zoe', { bucket: 'work', skips: { triage: 0, work: 2, personal: 0 } })
+    expect(resetForReview([personal, work], 'unsorted').pass).toBe('work')
+    expect(resetForReview([work, personal], 'unsorted').pass).toBe('work')
   })
 })

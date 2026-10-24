@@ -1,3 +1,4 @@
+import { metadata } from '@/import/metadata'
 import type { Contact } from '@/domain/types'
 import { emailKey, phoneKey } from '@/import/dedupe'
 import { decodeQuotedPrintable, logicalLines, property, unescapeValue } from '@/import/vcardCodec'
@@ -12,7 +13,7 @@ export function missingEntries(contact: Contact) {
   }
   const phones = new Set<string>()
   const emails = new Set<string>()
-  const phoneIdentity = (value: string) => phoneKey(value) ?? value.trim()
+  const phoneIdentity = (value: string) => phoneKey(value, metadata(contact).defaultCountry) ?? value.trim()
   const emailIdentity = (value: string) => emailKey(value) ?? value.trim().toLowerCase()
   for (const line of logicalLines(relevant.join('\n'))) {
     const prop = property(line)
@@ -23,7 +24,7 @@ export function missingEntries(contact: Contact) {
     if (prop.name === 'EMAIL') emails.add(emailIdentity(value.replace(/^mailto:/i, '')))
   }
   return {
-    phones: contact.phones.filter((entry) => !phones.has(phoneIdentity(entry.value))),
+    phones: contact.phones.filter((entry) => !phones.has(phoneIdentity(entry.e164 || entry.value))),
     emails: contact.emails.filter((entry) => !emails.has(emailIdentity(entry.value))),
   }
 }

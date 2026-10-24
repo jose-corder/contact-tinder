@@ -1,43 +1,43 @@
 import type { ContactWithDecision } from '@/db/repo'
 import type { Contact } from '@/domain/types'
+import { escapeText, foldLine, sourceCategories, complementaryLines, utf8LiteralCharsets } from './vcardLines'
 import { missingEntries } from './mergedFields'
 import { decisionLabels, isUnsorted, PASS_ORDER, BUCKET_META, WORK_STATUS_META, WORK_TYPE_META, PERSONAL_RELATION_META, PERSONAL_TYPE_META } from '@/domain/taxonomy'
 
-function escapeText(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/\r\n|\r|\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;')
-}
-
 export function buildVcard(contact: Contact, labels: string[]): string {
-  const categories = `CATEGORIES:${labels.map(escapeText).join(',')}`
+  const allLabels = [...new Set([...sourceCategories(contact), ...labels])]
+  const categories = `CATEGORIES:${allLabels.map(escapeText).join(',')}`
   if (contact.raw) {
     const newline = contact.raw.includes('\r\n') ? '\r\n' : '\n'
     let removing = false
-    const lines = contact.raw.split(newline).filter((line) => {
+    const lines = utf8LiteralCharsets(contact.raw).split(/\r\n|\n|\r/).filter((line) => {
       if (/^[ \t]/.test(line)) return !removing
       removing = /^(?:[^:;.]+\.)?CATEGORIES(?:;[^:]*)?:/i.test(line)
       return !removing
     })
     const end = lines.findIndex((line) => /^END:VCARD[ \t]*$/i.test(line))
-    const missing = missingEntries(contact)
+    const extras = complementaryLines(contact)
+    const missing = missingEntries({ ...contact, raw: contact.raw + newline + extras.join(newline) })
     if (end >= 0) lines.splice(end, 0,
-      ...missing.phones.map((p) => `TEL;TYPE=${safeType(p.type, 'CELL')}:${escapeText(p.value)}`),
-      ...missing.emails.map((e) => `EMAIL;TYPE=${safeType(e.type, 'INTERNET')}:${escapeText(e.value)}`),
-      ...(labels.length ? [categories] : []))
+      ...extras,
+      ...missing.phones.map((p) => foldLine(`TEL;TYPE=${safeType(p.type, 'CELL')}:${escapeText(p.e164 || p.value)}`)),
+      ...missing.emails.map((e) => foldLine(`EMAIL;TYPE=${safeType(e.type, 'INTERNET')}:${escapeText(e.value)}`)),
+      ...(allLabels.length ? [foldLine(categories)] : []))
     return lines.join(newline)
   }
   const lines = [
     'BEGIN:VCARD', 'VERSION:3.0',
     `N:${escapeText(contact.familyName ?? '')};${escapeText(contact.givenName ?? '')};;;`,
     `FN:${escapeText(contact.displayName)}`,
-    `ORG:${escapeText(contact.org ?? '')}`, `TITLE:${escapeText(contact.title ?? '')}`,
-    ...contact.phones.map((p) => `TEL;TYPE=${safeType(p.type, 'CELL')}:${escapeText(p.value)}`),
+    `ORG:${(contact.org ?? '').split(' · ').map(escapeText).join(';')}`, `TITLE:${escapeText(contact.title ?? '')}`,
+    ...contact.phones.map((p) => `TEL;TYPE=${safeType(p.type, 'CELL')}:${escapeText(p.e164 || p.value)}`),
     ...contact.emails.map((e) => `EMAIL;TYPE=${safeType(e.type, 'INTERNET')}:${escapeText(e.value)}`),
     `NOTE:${escapeText(contact.notes ?? '')}`,
     `REV:${escapeText(contact.rev ?? new Date(contact.importedAt).toISOString())}`,
     `UID:${escapeText(contact.id)}`,
     categories, 'END:VCARD',
   ]
-  return lines.join('\r\n') + '\r\n'
+  return lines.map(foldLine).join('\r\n') + '\r\n'
 }
 
 function safeType(type: string | undefined, fallback: string): string {
@@ -81,14 +81,20 @@ export function groupFiles(rows: ContactWithDecision[]): ExportFile[] {
   }
   add('unsorted', isUnsortedRow, 'Unsorted')
   const used = new Set<string>()
-  const tags = [...new Set(rows.flatMap(({ decision }) => decision.customTags))].sort()
+  const tagged = new Map<string, ContactWithDecision[]>()
+  for (const row of rows) for (const tag of new Set(row.decision.customTags)) {
+    const members = tagged.get(tag) ?? []
+    members.push(row)
+    tagged.set(tag, members)
+  }
+  const tags = [...tagged.keys()].sort()
   for (const tag of tags) {
     const slug = tag.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'tag'
     let unique = slug
     let suffix = 2
     while (used.has(unique)) unique = `${slug}-${suffix++}`
     used.add(unique)
-    add(`tag-${unique}`, ({ decision }) => decision.customTags.includes(tag), `Tagged ${tag}`)
+    groups.push({ filename: `tag-${unique}.vcf`, rows: tagged.get(tag)!, description: `Tagged ${tag}`, colors: [] })
   }
   return groups
 }

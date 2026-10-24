@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router'
+import { toast } from '@/ui/toast'
 import ImportScreen from '@/features/import/ImportScreen'
 import { importContacts, importDemo, previewFiles, commitPreview, type ImportResult, type ImportPreview } from '@/import'
 import { isContactPickerSupported, pickContacts } from '@/import/contactPicker'
@@ -10,7 +11,7 @@ vi.mock('@/import', () => ({ importContacts: vi.fn(), importDemo: vi.fn(), previ
 vi.mock('@/import/contactPicker', () => ({ isContactPickerSupported: vi.fn(), pickContacts: vi.fn() }))
 vi.mock('@/ui/toast', () => ({ toast: vi.fn() }))
 
-const result: ImportResult = { added: 2, merged: 1, total: 3, errors: [] }
+const result: ImportResult = { added: 2, merged: 1, total: 3, errors: [], possibleDuplicates: [], decisionsMigrated: 0 }
 const preview: ImportPreview = { ...result, photos: 0, skipped: 0, allAlreadyImported: false,
   contacts: ['Ada', 'Grace', 'Lin'].map((displayName) => makeContact({ displayName, org: 'Studio', phones: [], emails: [] }, 'vcf')!) }
 
@@ -34,6 +35,22 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('Import screen', () => {
+  it('import_announces_completion_once', async () => {
+    vi.mocked(importDemo).mockResolvedValue({ ...result, possibleDuplicates: [{ ids: ['a', 'b'], reason: 'Names differ' }],
+      storageNote: 'Device storage is getting full.' })
+    const { container } = show()
+    expect(container.querySelectorAll('[aria-live="polite"]')).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Try with 40 demo contacts' }))
+    await screen.findByText('2 imported · 1 merged')
+    const announcer = screen.getByRole('status')
+    expect(announcer).toHaveTextContent('2 imported · 1 merged')
+    expect(announcer.querySelector('button')).toBeNull()
+    expect(container.querySelectorAll('[aria-live="polite"]')).toHaveLength(1)
+    expect(toast).not.toHaveBeenCalled()
+    expect(screen.getByText('1 possible duplicates kept apart · review later')).toBeInTheDocument()
+    expect(screen.getByText('Device storage is getting full.')).toBeInTheDocument()
+  })
+
   it('keeps the headline, privacy, formats, and tabbed instructions', () => {
     show()
     expect(screen.getByRole('heading', { name: 'Bring your contacts.' })).toBeInTheDocument()
@@ -114,7 +131,8 @@ describe('Import screen', () => {
     expect(screen.getByLabelText('Choose contact files')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Try with 40 demo contacts' })).toBeDisabled()
     await act(async () => finish(preview))
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    // Finding #30: keep one stable announcer mounted.
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
   })
 
   it('keeps demo import one tap', async () => {

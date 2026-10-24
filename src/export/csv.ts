@@ -4,9 +4,9 @@ import { BUCKET_META, WORK_STATUS_META, WORK_TYPE_META, PERSONAL_RELATION_META, 
 
 export function csvText(rows: ContactWithDecision[]): string {
   return Papa.unparse({
-    fields: ['Name', 'Given name', 'Family name', 'Organization', 'Title', 'Phones', 'Emails', 'Phone 1', 'Phone 2', 'Phone 3', 'Email 1', 'Email 2', 'Bucket', 'Work status', 'Work types', 'Relation', 'Personal types', 'Tags', 'Notes', 'Source', 'Added'],
+    fields: ['Name', 'Given name', 'Family name', 'Organization', 'Department', 'Title', 'Phones', 'Emails', 'Phone 1', 'Phone 2', 'Phone 3', 'Email 1', 'Email 2', 'Bucket', 'Work status', 'Work types', 'Relation', 'Personal types', 'Tags', 'Notes', 'Source', 'Added'],
     data: rows.map(({ contact: c, decision: d }) => [
-      c.displayName, c.givenName ?? '', c.familyName ?? '', c.org ?? '', c.title ?? '',
+      c.displayName, c.givenName ?? '', c.familyName ?? '', c.org?.split(' · ')[0] ?? '', c.org?.split(' · ').slice(1).join(' · ') ?? '', c.title ?? '',
       c.phones.map((p) => p.value).join('; '), c.emails.map((e) => e.value).join('; '),
       ...[0, 1, 2].map((index) => c.phones[index]?.value ?? ''),
       ...[0, 1].map((index) => c.emails[index]?.value ?? ''),

@@ -12,7 +12,7 @@ describe('vCard imports', () => {
     const [contact] = parseVcf('\uFEFF' + text)
     expect(contact).toMatchObject({
       displayName: 'Ada Lovelace', givenName: 'Ada', familyName: 'Lovelace',
-      org: 'Analytical; Engines', title: 'Mathematician', rev: '2024-03-15T12:00:00.000Z', source: 'vcf',
+      org: 'Analytical; Engines · Research' /* Finding #15 */, title: 'Mathematician', rev: '2024-03-15T12:00:00.000Z', source: 'vcf',
       phones: [{ value: '+1 (555) 123-4567', type: 'CELL', e164: '+15551234567' }],
       emails: [{ value: 'Ada@Example.com', type: 'HOME' }],
       phoneKeys: ['+15551234567'], emailKeys: ['ada@example.com'],
@@ -28,7 +28,7 @@ describe('vCard imports', () => {
   it('reads multiple Google cards and escaped structured values without UIDs', () => {
     const contacts = parseVcf(fixture('google'))
     expect(contacts).toHaveLength(2)
-    expect(contacts[0]).toMatchObject({ displayName: 'Jane Doe, Jr.', familyName: 'Doe, Jr.', org: 'Studio, Inc.' })
+    expect(contacts[0]).toMatchObject({ displayName: 'Jane Doe, Jr.', familyName: 'Doe, Jr.', org: 'Studio, Inc. · Design' /* Finding #15 */ })
     expect(contacts[0].notes).toBe('Comma, semicolon; slash\\ and newline\ndone')
     expect(contacts[1].displayName).toBe('Luis Rivera')
     expect(contacts.map((c) => c.raw).join('')).toBe(fixture('google'))
@@ -37,7 +37,7 @@ describe('vCard imports', () => {
   it('decodes Outlook 2.1 UTF-8 quoted printable and soft line breaks', () => {
     const [contact] = parseVcf(fixture('outlook'))
     expect(contact).toMatchObject({
-      displayName: 'José García', givenName: 'José', familyName: 'García', org: 'Café',
+      displayName: 'José García', givenName: 'José', familyName: 'García', org: 'Café · Ventas', /* Finding #15 */
       notes: 'Primera línea\nsegunda', phones: [{ value: '+1 202 555 0199', type: 'CELL' }],
       emails: [{ value: 'jose@example.com', type: 'INTERNET' }],
     })

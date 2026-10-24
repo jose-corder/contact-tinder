@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import './deck.css'
-import { saveDecision } from '@/db/repo'
+import { StaleDecisionError } from '@/db/repo'
+import { saveDeckDecision } from '@/hooks/deckSession'
+import { toast } from '@/ui/toast'
 import { PASS_META, PERSONAL_RELATION_META, WORK_STATUS_META, toggleChip, toggleCustomTag } from '@/domain/taxonomy'
 import type { Contact, Decision, PersonalRelation, PersonalType, WorkStatus, WorkType } from '@/domain/types'
 import { Avatar, Button, Chip, Sheet } from '@/ui'
@@ -15,43 +17,56 @@ export interface FollowUpTarget {
   decision: Decision
 }
 
-export function FollowUpSheet({ target, onClose }: {
+export function FollowUpSheet({ target, onClose, onBusyChange }: {
   target: FollowUpTarget | undefined
   /** Called with the saved decision after Done, or undefined after Later / dismiss. */
   onClose: (saved?: Decision) => void
+  onBusyChange?: (busy: boolean) => void
 }) {
+  const [busy, setBusy] = useState(false)
+  const saving = useRef(false)
+  const changeBusy = (value: boolean) => {
+    saving.current = value
+    setBusy(value)
+    onBusyChange?.(value)
+  }
+  const dismiss = () => { if (!saving.current) onClose() }
   return (
-    <Sheet open={!!target} onClose={() => onClose()} title={target ? `${target.decision.bucket} contact` : undefined}>
-      {target && <FollowUpBody key={target.contact.id} target={target} onClose={onClose} />}
+    <Sheet open={!!target} onClose={dismiss} title={target ? `${target.decision.bucket} contact` : undefined}>
+      {target && <FollowUpBody key={target.contact.id} target={target} onClose={onClose} busy={busy} setBusy={changeBusy} dismiss={dismiss} />}
     </Sheet>
   )
 }
 
-function FollowUpBody({ target, onClose }: { target: FollowUpTarget; onClose: (saved?: Decision) => void }) {
+function FollowUpBody({ target, onClose, busy, setBusy, dismiss }: {
+  target: FollowUpTarget; onClose: (saved?: Decision) => void; busy: boolean
+  setBusy: (busy: boolean) => void; dismiss: () => void
+}) {
   const bucket = target.decision.bucket === 'personal' ? 'personal' : 'work'
   const meta = PASS_META[bucket]
   const [draft, setDraft] = useState<Decision>(target.decision)
   const [tagOpen, setTagOpen] = useState(false)
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const inputRef = useRef<HTMLInputElement>(null)
   const primaryRef = useRef<HTMLDivElement>(null)
+  const alive = useRef(true)
   useEffect(() => {
+    alive.current = true
     // The shared Sheet sets its initial focus in a parent effect; select the chip after it.
     let active = true
     queueMicrotask(() => { if (active) primaryRef.current?.querySelector('button')?.focus({ preventScroll: true }) })
-    return () => { active = false }
+    return () => { active = false; alive.current = false }
   }, [])
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault(); event.stopPropagation()
-        if (!busy) onClose()
+        dismiss()
       }
     }
     window.addEventListener('keydown', keydown, true)
     return () => window.removeEventListener('keydown', keydown, true)
-  }, [busy, onClose])
+  }, [dismiss])
 
   const primary: Array<{ key: WorkStatus | PersonalRelation; label: string; color: string }> =
     bucket === 'work'
@@ -68,14 +83,24 @@ function FollowUpBody({ target, onClose }: { target: FollowUpTarget; onClose: (s
   }
 
   const done = async () => {
+    if (busy || !primaryValue) return
     setBusy(true)
     setError(undefined)
     try {
-      await saveDecision(draft)
-      onClose(draft)
-    } catch {
+      const decision = { ...draft, updatedAt: Math.max(Date.now(), target.decision.updatedAt + 1) }
+      await saveDeckDecision(decision, { expectedUpdatedAt: target.decision.updatedAt })
+      if (!alive.current) return
+      onClose(decision)
+    } catch (error) {
+      if (!alive.current) return
+      if (error instanceof StaleDecisionError) {
+        toast('This contact changed elsewhere — skipped')
+        onClose()
+        return
+      }
       setError('Could not save. Please try again.')
-      setBusy(false)
+    } finally {
+      if (alive.current) setBusy(false)
     }
   }
 
@@ -94,9 +119,10 @@ function FollowUpBody({ target, onClose }: { target: FollowUpTarget; onClose: (s
       <div className="eyebrow mb-2 text-ink-2">{bucket === 'work' ? 'Status' : 'Relation'}</div>
       <motion.div ref={primaryRef} initial={{ opacity: 0, y: prefersReducedMotion() ? 0 : 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: prefersReducedMotion() ? 0.12 : 0.15 }} className="mb-4 flex flex-wrap gap-2" role="group" aria-label={bucket === 'work' ? 'Status' : 'Relation'}>
         {primary.map((p) => (
-          <Chip key={p.key} label={p.label} selected={primaryValue === p.key} color={p.color} disabled={busy} onClick={() => setPrimary(p.key)} />
+          <Chip className="deck-chip" key={p.key} label={p.label} selected={primaryValue === p.key} color={p.color} disabled={busy} onClick={() => setPrimary(p.key)} />
         ))}
       </motion.div>
+      {!primaryValue && <p className="-mt-2 mb-3 text-xs text-ink-2">Choose a {bucket === 'work' ? 'status' : 'relation'} to finish, or leave it for Later.</p>}
 
       <div className="eyebrow text-ink-2">Type</div>
       <ChipRow
@@ -113,12 +139,13 @@ function FollowUpBody({ target, onClose }: { target: FollowUpTarget; onClose: (s
       {error && <p role="alert" className="mb-2 text-sm text-stamp-delete">{error}</p>}
 
       <div className="mt-2 flex items-center gap-3">
-        <Button variant="ghost" className="px-0!" disabled={busy} onClick={() => onClose()}>Later</Button>
-        <Button className="flex-1" disabled={busy} onClick={() => void done()}>Done</Button>
+        <Button variant="ghost" className="min-w-11 px-0!" disabled={busy} onClick={dismiss}>Later</Button>
+        <Button className="flex-1" disabled={busy || !primaryValue} onClick={() => void done()}>{primaryValue ? 'Done' : bucket === 'work' ? 'Choose a status' : 'Choose a relation'}</Button>
       </div>
       <button
         type="button"
-        className="mt-3 text-xs text-ink-2 underline underline-offset-4"
+        className="mt-3 min-h-11 min-w-11 text-xs text-ink-2 underline underline-offset-4"
+        disabled={busy}
         onClick={() => { setFollowUpEnabled(false); onClose() }}
       >
         Don't ask after swipes; I'll sort types in the {meta.title} deck

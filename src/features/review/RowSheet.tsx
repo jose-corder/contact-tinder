@@ -6,7 +6,8 @@ import { BUCKET_META, WORK_STATUS_META, WORK_TYPE_META, PERSONAL_RELATION_META, 
 import { Avatar, Button, Chip, Rule, Sheet } from '@/ui'
 import ContactValue from './ContactValue'
 import DecisionLabels from './DecisionLabels'
-import { resetForReview } from './model'
+import { prepareReswipe } from './reswipe'
+import { emailHref, phoneHref } from './safeLinks'
 
 export default function RowSheet({ row, onClose }: { row: ContactWithDecision; onClose: () => void }) {
   const { contact } = row
@@ -34,8 +35,8 @@ export default function RowSheet({ row, onClose }: { row: ContactWithDecision; o
         {contact.familyName && <div><dt className="text-ink-2">Family name</dt><dd>{contact.familyName}</dd></div>}
         {contact.org && <div><dt className="text-ink-2">Organization</dt><dd>{contact.org}</dd></div>}
         {contact.title && <div><dt className="text-ink-2">Title</dt><dd>{contact.title}</dd></div>}
-        {contact.phones.map((phone, i) => <ContactValue key={`phone-${i}`} label={`Phone${phone.type ? ` · ${phone.type}` : ''}`} value={phone.value} href={`tel:${phone.e164 || phone.value}`} />)}
-        {contact.emails.map((email, i) => <ContactValue key={`email-${i}`} label={`Email${email.type ? ` · ${email.type}` : ''}`} value={email.value} href={`mailto:${email.value}`} />)}
+        {contact.phones.map((phone, i) => <ContactValue key={`phone-${i}`} label={`Phone${phone.type ? ` · ${phone.type}` : ''}`} value={phone.value} href={phoneHref(phone.value, phone.e164)} />)}
+        {contact.emails.map((email, i) => <ContactValue key={`email-${i}`} label={`Email${email.type ? ` · ${email.type}` : ''}`} value={email.value} href={emailHref(email.value)} />)}
         {contact.notes && <div><dt className="text-ink-2">Notes</dt><dd className="whitespace-pre-wrap">{contact.notes}</dd></div>}
         <div><dt className="text-ink-2">Source</dt><dd>{contact.source}</dd></div>
         <div><dt className="text-ink-2">Added</dt><dd>{new Date(contact.importedAt).toLocaleString()}</dd></div>
@@ -87,9 +88,8 @@ export default function RowSheet({ row, onClose }: { row: ContactWithDecision; o
         <Button variant="ghost" className="px-0 underline underline-offset-4" onClick={async () => {
           setBusy(true); setError('')
           try {
-            const reset = resetForReview([{ contact, decision }], decision.bucket ?? 'unsorted')
-            await saveDecision(reset.decisions[0])
-            navigate(`/deck/${reset.pass}`)
+            const { pass, ids } = await prepareReswipe([{ contact, decision }], decision.bucket ?? 'unsorted')
+            navigate(`/deck/${pass}`, { state: { only: ids } })
           } catch { setError('Could not return this contact to the deck. Please try again.'); setBusy(false) }
         }}>Jump to deck</Button>
         {!confirm ? <Button variant="ghost" onClick={() => setConfirm(true)}>Remove from app</Button> :

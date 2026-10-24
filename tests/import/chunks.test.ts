@@ -9,7 +9,8 @@ beforeEach(resetAll)
 
 describe('chunked import and preview', () => {
   it('imports 5,000 synthetic cards in under 7 seconds, yields, dedupes and saves batches of 500', async () => {
-    const text = Array.from({ length: 5000 }, (_, i) => `BEGIN:VCARD\r\nVERSION:3.0\r\nUID:${i}\r\nFN:Person ${i}\r\nEMAIL:person${i % 4500}@example.com\r\nNOTE:${'x'.repeat(1000)}\r\nEND:VCARD\r\n`).join('')
+    // Finding #1: duplicates in this performance fixture also share a name.
+    const text = Array.from({ length: 5000 }, (_, i) => `BEGIN:VCARD\r\nVERSION:3.0\r\nUID:${i}\r\nFN:Person ${i % 4500}\r\nEMAIL:person${i % 4500}@example.com\r\nNOTE:${'x'.repeat(1000)}\r\nEND:VCARD\r\n`).join('')
     const progress = vi.fn()
     const writes = vi.spyOn(repo, 'upsertContacts')
     let ticks = 0

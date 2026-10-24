@@ -1,3 +1,4 @@
+import { defaultCountry as regionCountry } from './region'
 import Papa from 'papaparse'
 import type { Contact, ContactSource } from '@/domain/types'
 import { csvContact } from './csv'
@@ -8,7 +9,7 @@ import { CHUNK_SIZE, yieldToBrowser, type OnProgress } from './progress'
 export interface ParsedContacts { contacts: Contact[]; skipped: number }
 
 /** Scan boundaries without copying a whole file or letting a broken card swallow its neighbour. */
-export async function parseVcfChunks(text: string, onProgress?: OnProgress, source: ContactSource = 'vcf'): Promise<ParsedContacts> {
+export async function parseVcfChunks(text: string, onProgress?: OnProgress, source: ContactSource = 'vcf', defaultCountry: string = regionCountry()): Promise<ParsedContacts> {
   const contacts: Contact[] = []
   let skipped = 0
   let start: number | undefined
@@ -24,7 +25,7 @@ export async function parseVcfChunks(text: string, onProgress?: OnProgress, sour
     const raw = text.slice(start, match.index + match[0].length)
     start = undefined
     try {
-      const contact = parseVcf(raw, source)[0]
+      const contact = parseVcf(raw, source, defaultCountry)[0]
       if (contact) {
         if (contact.photo) contact.photo = await resizePhoto(contact.photo)
         contacts.push(contact)
@@ -41,7 +42,7 @@ export async function parseVcfChunks(text: string, onProgress?: OnProgress, sour
 }
 
 /** Papa retains quoted/multiline CSV state across pauses; bad rows do not discard good rows. */
-export function parseCsvChunks(text: string, onProgress?: OnProgress): Promise<ParsedContacts> {
+export function parseCsvChunks(text: string, onProgress?: OnProgress, defaultCountry: string = regionCountry()): Promise<ParsedContacts> {
   return new Promise((resolve, reject) => {
     const contacts: Contact[] = []
     let skipped = 0
@@ -52,7 +53,7 @@ export function parseCsvChunks(text: string, onProgress?: OnProgress): Promise<P
       step(result, parser) {
         try {
           const invalid = result.errors.some((error) => error.code !== 'UndetectableDelimiter')
-          const contact = invalid ? undefined : csvContact(result.data)
+          const contact = invalid ? undefined : csvContact(result.data, defaultCountry)
           if (contact) contacts.push(contact)
           else skipped++
           if (++processed % CHUNK_SIZE === 0) {

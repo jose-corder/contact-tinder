@@ -1,4 +1,4 @@
-import { dumpAll, restoreAll, type Dump } from '@/db/repo'
+import { dumpAll, restoreAll, type Dump, type RestoreMode } from '@/db/repo'
 
 type RecordValue = Record<string, unknown>
 const object = (value: unknown): value is RecordValue => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -42,10 +42,19 @@ export async function backupJson(): Promise<string> {
   return JSON.stringify(await dumpAll(), null, 2)
 }
 
-export async function restoreJson(text: string): Promise<{ contacts: number; decisions: number }> {
+/**
+ * Restore a backup. `replace` (default) makes this device match the snapshot exactly;
+ * `merge` upserts the snapshot on top of what is already here. See repo.restoreAll.
+ */
+export async function restoreJson(text: string, mode: RestoreMode = 'replace'): Promise<{ contacts: number; decisions: number }> {
   let parsed: unknown
   try { parsed = JSON.parse(text) } catch { throw new Error('This file is not valid JSON.') }
   if (!validDump(parsed)) throw new Error('Invalid backup. Choose a Contacts. version 1 backup with valid contacts and decisions.')
-  await restoreAll(parsed)
+  const ids = new Set<string>()
+  for (const c of parsed.contacts) {
+    if (ids.has(c.id)) throw new Error('Invalid backup: duplicate contact ids.')
+    ids.add(c.id)
+  }
+  await restoreAll(parsed, mode)
   return { contacts: parsed.contacts.length, decisions: parsed.decisions.length }
 }

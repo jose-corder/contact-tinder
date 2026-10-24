@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router'
 import { Button, Frame, TopBar, cx } from '@/ui'
 import { IconUpload } from '@/ui/icons'
 import { importContacts, importDemo, previewFiles, commitPreview, type ImportResult, type ImportPreview as Preview, type ImportProgress } from '@/import'
-import { toast } from '@/ui/toast'
 import { isContactPickerSupported, pickContacts } from '@/import/contactPicker'
 import HowToExport from './HowToExport'
 import ImportPreview, { ImportProgressView } from './ImportPreview'
@@ -31,7 +30,6 @@ export default function ImportScreen() {
       else {
         setResult(next)
         setPreview(null)
-        if (next.total) toast(`${next.added.toLocaleString()} imported · ${next.merged.toLocaleString()} merged`)
       }
       setErrors(next.errors)
     } catch (error) {
@@ -93,14 +91,20 @@ export default function ImportScreen() {
           <Button variant="ghost" disabled={busy || !!preview} onClick={() => void run(() => importDemo(setProgress))}>Try with 40 demo contacts</Button>
         </div>
 
-        <div aria-live="polite" aria-atomic="true">
+        <p aria-live="polite" aria-atomic="true" role="status" className="mt-6 text-center font-serif text-2xl">
+          {busy && progress ? progress.phase + ': ' + progress.parsed.toLocaleString() + ' contacts ' +
+            ({ reading: 'read', parsing: 'parsed', deduping: 'checked', saving: 'saved' }[progress.phase])
+            : result?.total ? result.added + ' imported · ' + result.merged + ' merged' : ''}
+        </p>
+        <div>
           {busy && progress && <ImportProgressView progress={progress} />}
           {preview && <ImportPreview preview={preview} busy={busy}
             onConfirm={() => void run(() => commitPreview(preview, setProgress))}
             onCancel={() => { setPreview(null); setErrors([]) }} />}
           {result && result.total > 0 && (
             <section className="mt-6 rounded-[20px] border border-rule bg-paper-2 p-5 text-center">
-              <h2 className="mb-5 font-serif text-2xl">{result.added} imported · {result.merged} merged</h2>
+              {result.possibleDuplicates.length > 0 && <p className="mb-4 text-sm text-ink-2">{result.possibleDuplicates.length} possible duplicates kept apart · review later</p>}
+              {result.storageNote && <p className="mb-4 text-sm text-ink-2">{result.storageNote}</p>}
               <Button full size="lg" onClick={() => navigate('/deck/triage')}>Start triage</Button>
             </section>
           )}

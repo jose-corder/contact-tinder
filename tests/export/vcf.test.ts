@@ -25,12 +25,13 @@ describe('vCard export', () => {
     const c = { ...contact('a'), raw: 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ana\r\nEND:VCARD\r\n' }
     expect(buildVcard(c, ['Work', 'Current'])).toBe('BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ana\r\nCATEGORIES:Work,Current\r\nEND:VCARD\r\n')
   })
-  it('replaces all existing categories including folded continuations and parameters', () => {
+  it('preserves all existing categories including folded continuations and parameters', () => {
     const raw = 'BEGIN:VCARD\nCATEGORIES:old,\n folded\n\tmore\nFN:Ana\nCATEGORIES;LANGUAGE=en:other\nNOTE:keep\n this\nEND:VCARD'
-    expect(buildVcard({ ...contact('a'), raw }, ['Personal'])).toBe('BEGIN:VCARD\nFN:Ana\nNOTE:keep\n this\nCATEGORIES:Personal\nEND:VCARD')
+    expect(buildVcard({ ...contact('a'), raw }, ['Personal'])).toBe('BEGIN:VCARD\nFN:Ana\nNOTE:keep\n this\nCATEGORIES:old,foldedmore,other,Personal\nEND:VCARD') // Finding #11
   })
-  it('removes previous categories when labels are empty', () => {
-    expect(buildVcard({ ...contact('a'), raw: 'BEGIN:VCARD\nCATEGORIES:old\n folded\nEND:VCARD' }, [])).toBe('BEGIN:VCARD\nEND:VCARD')
+  // Finding #11: foreign categories survive without app labels.
+  it('preserves previous categories when labels are empty', () => {
+    expect(buildVcard({ ...contact('a'), raw: 'BEGIN:VCARD\nCATEGORIES:old\n folded\nEND:VCARD' }, [])).toBe('BEGIN:VCARD\nCATEGORIES:oldfolded\nEND:VCARD')
   })
   it('escapes commas and backslashes within labels', () => {
     expect(buildVcard(contact('a'), ['Name-drop flex, Client', 'a\\b'])).toContain('CATEGORIES:Name-drop flex\\, Client,a\\\\b\r\nEND:VCARD')

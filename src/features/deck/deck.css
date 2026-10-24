@@ -13,3 +13,13 @@
 
 [role='dialog']:has(.deck-followup-body) { display: flex; flex-direction: column; max-height: 85dvh; overflow: hidden; }
 [role='dialog']:has(.deck-followup-body) > div:has(.deck-followup-body) { min-height: 0; flex-shrink: 1; overflow-y: auto; }
+[role='dialog']:has(.deck-followup-body) > button,
+[role='dialog']:has(.deck-followup-body) > h2 { flex-shrink: 0; }
+
+/* Keep 36px chip visuals; the transparent 4px above/below is clickable. */
+.deck-chip, .deck-chips button { position: relative; min-width: 44px; margin-block: 4px; overflow: visible; }
+.deck-chip::after, .deck-chips button::after { content: ''; position: absolute; inset: -4px 0; }
+/* Expand the shared Back and toast Undo only while this deck is mounted. */
+.deck-screen header a[aria-label='Back'] { position: relative; }
+.deck-screen header a[aria-label='Back']::after { content: ''; position: absolute; inset: -2px; }
+body:has(.deck-screen) [role='status'] button { min-height: 44px; min-width: 44px; }

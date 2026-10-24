@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { getDecision, resetAll, saveDecisions, upsertContacts } from '@/db/repo'
 import ReviewScreen from '@/features/review/ReviewScreen'
@@ -16,7 +16,7 @@ beforeEach(async () => {
     phones: [{ value: `555-000${i}` }], emails: [{ value: `${r.contact.id}@example.com` }] })))
   await saveDecisions(seeded.map((r) => r.decision))
 })
-afterEach(cleanup)
+afterEach(() => { cleanup(); vi.useRealTimers() })
 
 function open(path = '/review') {
   render(<MemoryRouter initialEntries={[path]}><Routes>
@@ -63,8 +63,9 @@ describe('Review screen', () => {
     await saveDecisions([row('bea', { bucket: 'work', workStatus: 'old' }).decision])
     open('/review?tab=work')
     fireEvent.click(await screen.findByRole('button', { name: 'View Bo' }))
-    expect(screen.getByRole('link', { name: '555-0001' })).toHaveAttribute('href', 'tel:555-0001')
-    expect(screen.getByRole('link', { name: 'bo@example.com' })).toHaveAttribute('href', 'mailto:bo@example.com')
+    // Finding #27: dial separators are normalized and email addresses encoded.
+    expect(screen.getByRole('link', { name: '555-0001' })).toHaveAttribute('href', 'tel:5550001')
+    expect(screen.getByRole('link', { name: 'bo@example.com' })).toHaveAttribute('href', 'mailto:bo%40example.com')
     fireEvent.click(screen.getByRole('button', { name: 'Jump to deck' }))
     await screen.findByText('Deck destination')
     expect((await getDecision('bo')).workStatus).toBeUndefined()
@@ -123,21 +124,31 @@ describe('Review screen', () => {
   it('bulk moves selected contacts and clears selection', async () => {
     open()
     await screen.findByText('Ana')
+    expect(screen.getByRole('button', { name: 'Select' })).toHaveClass('min-h-11', 'min-w-11')
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveClass('min-h-11', 'min-w-11')
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Ana' }))
     fireEvent.click(screen.getByRole('button', { name: 'Move to…' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Personal' }))
     await waitFor(async () => expect((await getDecision('ana')).bucket).toBe('personal'))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument())
   })
-  it('selects a row after a 500ms long press without opening its details', async () => {
+  it('review_longpress_uses_fake_time', async () => {
     open()
     const button = await screen.findByRole('button', { name: 'View Ana' })
+    vi.useFakeTimers()
+    // Finding #31: release before the threshold must cancel selection.
     // jsdom does not implement PointerEvent on every supported version.
     const down = new Event('pointerdown', { bubbles: true })
     Object.defineProperties(down, { button: { value: 0 }, clientX: { value: 10 }, clientY: { value: 10 } })
     fireEvent(button, down)
-    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Select Ana' })).toBeChecked())
+    act(() => vi.advanceTimersByTime(499))
+    fireEvent.pointerUp(button)
+    act(() => vi.advanceTimersByTime(1))
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    fireEvent(button, down)
+    act(() => vi.advanceTimersByTime(500))
+    expect(screen.getByRole('checkbox', { name: 'Select Ana' })).toBeChecked()
     fireEvent.pointerUp(button)
     fireEvent.click(button)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

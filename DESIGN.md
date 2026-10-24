@@ -129,3 +129,15 @@ The authoritative types are in `src/domain/types.ts`. Summary:
 - Persistence in `src/db/repo.ts`: upsertContacts, deckContacts(pass), getDecision, saveDecision, counts, allWithDecisions, allTags, dumpAll/restoreAll, resetAll, getMeta/setMeta. Use `useLiveQuery` from dexie-react-hooks around these for reactive screens.
 - Undo is an in-memory stack of previous Decision snapshots (last 20); saveDecision is one transaction.
 - UI primitives in `src/ui/index.tsx`: Frame, TopBar, Rule, Button, IconButton, Chip, Avatar, Segmented, Sheet, Empty, cx. Icons in `src/ui/icons.tsx`. Theme and haptics helpers in `src/ui/theme.ts`.
+
+## Addendum: UX pass and QA hardening (2026-10-24)
+
+What shipped on top of the original spec, all inside the same design system:
+
+- **Deck.** Tap-vs-drag discrimination, dominant-axis locking, rubber-band on skip, flick commits; visible next-card peek; swipe toast ("Maria → Work · Undo"); first-run gesture coach per pass (`ct.coach.<pass>` in localStorage, replayable from Settings); 3D card flip to the full field list; desktop keyboard legend; stale-write protection (`StaleDecisionError`) with reconciliation when the tab becomes visible again; follow-up sheet requires a status/relation before Done and cannot be dismissed mid-save; scoped sessions from Review (`meta.deckScope`).
+- **Import.** Chunked parsing with progress and a preview-before-commit step; photo downscaling; dedupe only merges when identity evidence agrees (shared landline/family email with different names stays apart, reported as "possible duplicates"); region-aware phone keys; decisions migrate when records merge; charset detection (UTF-8 with windows-1252 fallback); Apple `X-ABLabel` labels and full ORG components kept; durable storage requested after import.
+- **Export.** Share-first on phones with per-platform hints, download fallback when share fails; "Clean address book" preset; merged contacts export the union of their fields; foreign CATEGORIES preserved and unioned with app labels; lines folded at 75 octets; lazy file preparation.
+- **Review / Home / Settings.** Paged list with sticky letter headers, row swipe quick actions with Undo, horizontal filter chips, richer row sheet with safe `tel:`/`mailto:` links, bulk tag and select-all, atomic bulk saves; Home dashboard with progress ring, pass stepper, install row; Continue never resets skips (explicit "Retry skipped" does); restore in Replace or Merge mode; reset shows what will be erased.
+- **Platform.** Version 0.2.0 with `VITE_APP_VERSION`; PWA update and offline toasts; manifest shortcuts, maskable and Apple icons; route transitions; accessible Sheet (focus trap, Escape, drag-to-dismiss); skip link; CI runs lint, typecheck, tests, build.
+
+QA_FINDINGS.md holds the adversarial review that drove the hardening; findings #8–#10 (restore semantics) are addressed by `restoreAll(dump, mode)` and backup validation.

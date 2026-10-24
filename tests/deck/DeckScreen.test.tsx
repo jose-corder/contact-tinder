@@ -9,6 +9,7 @@ import DeckScreen from '@/features/deck/DeckScreen'
 import { setFollowUpEnabled } from '@/ui/theme'
 import { dismissDeckCoaches } from './helpers'
 import * as feedback from '@/ui/toast'
+import * as deckPersistence from '@/hooks/deckSession'
 
 vi.mock('framer-motion', async (original) => {
   const actual = await original<typeof import('framer-motion')>()
@@ -117,10 +118,11 @@ describe('DeckScreen', () => {
   it('advances before persistence resolves and serializes the next decision', async () => {
     await seed()
     let finish!: () => void
-    const original = repo.saveDecision
-    vi.spyOn(repo, 'saveDecision').mockImplementationOnce(async (decision) => {
+    // Finding #6: delay before the atomic contact/version-check transaction.
+    const original = deckPersistence.saveDeckDecision
+    vi.spyOn(deckPersistence, 'saveDeckDecision').mockImplementationOnce(async (decision, options) => {
       await new Promise<void>((resolve) => { finish = resolve })
-      await original(decision)
+      await original(decision, options)
     })
     show()
     await action('Work')

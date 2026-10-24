@@ -7,8 +7,9 @@ const contact = (name: string, phones: string[] = [], emails: string[] = []) => 
 }, 'vcf')!
 
 describe('dedupe', () => {
-  it('matches normalized email even when names and phones differ', () => {
-    expect(mergeContacts([contact('New', ['2025550102'], [' ADA@EXAMPLE.COM '])], [contact('Ada', ['2025550101'], ['ada@example.com'])])).toMatchObject({ added: 0, merged: 1 })
+  // Finding #1: a shared email cannot override conflicting names.
+  it('keeps shared email owners apart when names differ', () => {
+    expect(mergeContacts([contact('New', ['2025550102'], [' ADA@EXAMPLE.COM '])], [contact('Ada', ['2025550101'], ['ada@example.com'])])).toMatchObject({ added: 1, merged: 0 })
   })
 
   it.each([true, false])('merges identical names when one side has no phone/email, incoming bare: %s', (bareIncoming) => {
@@ -31,10 +32,11 @@ describe('dedupe', () => {
     expect(result.toUpsert[0].id).not.toBe(a.id)
   })
 
-  it('allows conflicting primary emails when normalized phones match', () => {
+  // Finding #1: shared household phones need matching identity evidence.
+  it('keeps different names apart when normalized phones match', () => {
     const a = contact('Ada', ['2025550101'], ['ada@example.com'])
     const b = contact('Bob', ['+1 202 555 0101'], ['bob@example.com'])
-    expect(mergeContacts([b], [a])).toMatchObject({ added: 0, merged: 1 })
+    expect(mergeContacts([b], [a])).toMatchObject({ added: 1, merged: 0 })
   })
 
   it('does not let a name-only bridge join conflicting people', () => {
@@ -47,7 +49,7 @@ describe('dedupe', () => {
     const a = contact('A', ['2025550101'], ['a@example.com'])
     const b = contact('B', ['2025550101', '2025550102'], ['b@example.com'])
     const c = contact('C', ['2025550102'], ['c@example.com'])
-    expect(mergeContacts([a, b, c], []).toUpsert).toHaveLength(2)
+    expect(mergeContacts([a, b, c], []).toUpsert).toHaveLength(3) // Finding #1
   })
 
   it('keeps exact raw from the richer card in either order', () => {
@@ -58,24 +60,25 @@ describe('dedupe', () => {
   })
   it('normalizes parseable numbers even if the exchange is not valid', () => {
     expect(phoneKey('+1 (555) 123-4567')).toBe('+15551234567')
-    expect(phoneKey('555.123.4567')).toBe('+15551234567')
+    expect(phoneKey('555.123.4567')).toBe('US:5551234567') // Finding #3
     expect(phoneKey('020 7946 0958', 'GB')).toBe('+442079460958')
     expect(phoneKey('123')).toBeUndefined()
     expect(phoneKey('not a number')).toBeUndefined()
-    expect(phoneKey('12345678901234567890')).toBe('12345678901234567890')
+    expect(phoneKey('12345678901234567890')).toBe('US:12345678901234567890') // Finding #3
   })
 
   it('normalizes email and unique keys', () => {
     expect(emailKey(' ADA@Example.COM ')).toBe('ada@example.com')
     expect(emailKey('not-email')).toBeUndefined()
-    expect(keysFor([{ value: '555.123.4567' }, { value: '+1 (555) 123-4567' }], [
+    expect(keysFor([{ value: '202.555.0101' }, { value: '+1 (202) 555-0101' }], [
       { value: ' A@B.COM ' }, { value: 'a@b.com' }, { value: '' },
-    ])).toEqual({ phoneKeys: ['+15551234567'], emailKeys: ['a@b.com'] })
+    ])).toEqual({ phoneKeys: ['+12025550101'] /* Finding #3: use a valid national number. */, emailKeys: ['a@b.com'] })
   })
 
   it('merges formatted phones while retaining the existing identity and nonempty fields', () => {
-    const existing = { ...contact('Ada', ['+1 (555) 123-4567']), org: 'Original', raw: 'original card' }
-    const incoming = { ...contact('Ada L.', ['555.123.4567', '2025550123'], ['ada@example.com']),
+    const existing = { ...contact('Ada', ['+1 (202) 555-0101']), org: 'Original', raw: 'original card' }
+    const incoming = { ...contact('Ada', // Finding #1: matching identity in enrichment fixture.
+       ['202.555.0101', '2025550123'], ['ada@example.com']),
       title: 'Engineer', notes: 'Hello', photo: new Blob(['photo']), rev: '2024-01-01', org: 'Replacement' }
     const result = mergeContacts([incoming], [existing])
     expect(result).toMatchObject({ added: 0, merged: 1 })
@@ -87,9 +90,9 @@ describe('dedupe', () => {
   })
 
   it('collapses a transitive incoming chain even when the bridge is last', () => {
-    const first = contact('A', ['2025550101'])
-    const second = contact('B', [], ['b@example.com'])
-    const bridge = contact('C', ['2025550101'], ['b@example.com'])
+    const first = contact('Same', ['2025550101']) // Finding #1: bridge requires matching names.
+    const second = contact('Same', [], ['b@example.com'])
+    const bridge = contact('Same', ['2025550101'], ['b@example.com'])
     const result = mergeContacts([first, second, bridge], [])
     expect(result).toMatchObject({ added: 1, merged: 2 })
     expect(result.toUpsert).toHaveLength(1)
@@ -97,9 +100,10 @@ describe('dedupe', () => {
   })
 
   it('retains existing identity when a batch contains an earlier new duplicate', () => {
-    const existing = contact('Existing', [], ['person@example.com'])
-    const first = contact('First', ['2025550101'])
-    const bridge = contact('Bridge', ['2025550101'], ['PERSON@example.com'])
+    const existing = contact('Same', // Finding #1: matching identity across the bridge.
+       [], ['person@example.com'])
+    const first = contact('Same', ['2025550101'])
+    const bridge = contact('Same', ['2025550101'], ['PERSON@example.com'])
     const result = mergeContacts([first, bridge], [existing])
     expect(result).toMatchObject({ added: 0, merged: 2 })
     expect(result.toUpsert[0].id).toBe(existing.id)

@@ -15,8 +15,8 @@ export function CardFields({ contact, full, hold }: { contact: Contact; full?: b
 }
 
 function Field({ label, value, phone, full, href, onHold }: { label: string; value: string; phone?: boolean; full?: boolean; href?: string; onHold?: () => void }) {
-  return <><dt className="eyebrow truncate text-ink-2" title={label}>{label}</dt><dd className={'min-w-0 ' + (full ? 'break-words whitespace-pre-wrap ' : 'truncate ') + (phone ? 'tabular' : '')} title={value} onPointerDown={onHold} onContextMenu={phone ? (event) => event.preventDefault() : undefined}>
-    {href ? <a href={href} className="underline underline-offset-4" onClick={(event) => event.stopPropagation()}>{value}</a> : value}
+  return <><dt className="eyebrow truncate text-ink-2" title={label}>{label}</dt><dd className={'min-w-0 ' + (full ? 'break-words whitespace-pre-wrap ' : 'truncate ') + (phone ? 'tabular min-h-11 min-w-11 content-center' : '')} title={value} onPointerDown={onHold} onContextMenu={phone ? (event) => event.preventDefault() : undefined}>
+    {href ? <a href={href} className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4" onClick={(event) => event.stopPropagation()}>{value}</a> : value}
   </dd></>
 }
 

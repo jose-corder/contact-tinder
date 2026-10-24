@@ -15,10 +15,10 @@ describe('import persistence', () => {
 
   it('re-imports idempotently with fake-indexeddb and preserves decisions', async () => {
     const contacts = parseVcf(google)
-    expect(await importContacts(contacts)).toEqual({ added: 2, merged: 0, total: 2, errors: [] })
+    expect(await importContacts(contacts)).toEqual({ added: 2, merged: 0, total: 2, errors: [], possibleDuplicates: [], decisionsMigrated: 0 })
     const decision = { ...await repo.getDecision(contacts[0].id), bucket: 'work' as const }
     await repo.saveDecision(decision)
-    expect(await importContacts(parseVcf(google))).toEqual({ added: 0, merged: 2, total: 2, errors: [] })
+    expect(await importContacts(parseVcf(google))).toEqual({ added: 0, merged: 2, total: 2, errors: [], possibleDuplicates: [], decisionsMigrated: 0 })
     expect(await repo.allContacts()).toHaveLength(2)
     expect(await repo.getDecision(contacts[0].id)).toEqual(decision)
   })
@@ -47,9 +47,10 @@ describe('import persistence', () => {
     expect(await importFiles([files[0]])).toMatchObject({ added: 0, merged: 2 })
   })
 
-  it('uses file extension before sniffing and reads Blob.text where available', async () => {
+  it('uses file extension before sniffing and reads Blob.arrayBuffer where available', async () => {
     const file = new File([], 'contacts.csv')
-    Object.defineProperty(file, 'text', { value: vi.fn().mockResolvedValue('Name,Notes\nBEGIN:VCARD,Just a name') })
+    // Finding #13: decode original bytes, not Blob.text().
+    Object.defineProperty(file, 'arrayBuffer', { value: vi.fn().mockResolvedValue(new TextEncoder().encode('Name,Notes\nBEGIN:VCARD,Just a name').buffer) })
     expect(await importFiles([file])).toMatchObject({ added: 1 })
     expect((await repo.allContacts())[0].source).toBe('csv')
   })
@@ -58,7 +59,7 @@ describe('import persistence', () => {
     const demo = readFileSync(resolve('public/demo.vcf'), 'utf8')
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => demo })
     vi.stubGlobal('fetch', fetchMock)
-    expect(await importDemo()).toEqual({ added: 38, merged: 2, total: 40, errors: [] })
+    expect(await importDemo()).toEqual({ added: 38, merged: 2, total: 40, errors: [], possibleDuplicates: [], decisionsMigrated: 0 })
     expect(fetchMock).toHaveBeenCalledWith(`${import.meta.env.BASE_URL}demo.vcf`)
     expect((await repo.allContacts()).every((c) => c.source === 'demo')).toBe(true)
     expect(await importDemo()).toMatchObject({ added: 0, merged: 40 })
@@ -76,12 +77,14 @@ describe('import persistence', () => {
   })
 
   it('consolidates existing records bridged by an import', async () => {
-    const a = makeContact({ displayName: 'A', phones: [{ value: '2025550101' }], emails: [] }, 'csv')!
-    const b = makeContact({ displayName: 'B', phones: [], emails: [{ value: 'b@example.com' }] }, 'csv')!
+    const a = makeContact({ displayName: 'Same' /* Finding #1: a bridge needs matching identity. */, phones: [{ value: '2025550101' }], emails: [] }, 'csv')!
+    const b = makeContact({ displayName: 'Same', phones: [], emails: [{ value: 'b@example.com' }] }, 'csv')!
+    a.importedAt = 1
+    b.importedAt = 2
     await repo.upsertContacts([a, b])
     const decision = { ...await repo.getDecision(a.id), bucket: 'personal' as const }
     await repo.saveDecision(decision)
-    const bridge = makeContact({ displayName: 'C', phones: a.phones, emails: b.emails }, 'csv')!
+    const bridge = makeContact({ displayName: 'Same', phones: a.phones, emails: b.emails }, 'csv')!
     expect(await importContacts([bridge])).toMatchObject({ added: 0, merged: 1 })
     expect(await repo.allContacts()).toHaveLength(1)
     expect(await repo.getDecision(a.id)).toEqual(decision)

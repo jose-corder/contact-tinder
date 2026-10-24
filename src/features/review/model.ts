@@ -1,6 +1,7 @@
+// deck reads meta.deckScope when its pass matches and clears it on deck end
 import type { ContactWithDecision } from '@/db/repo'
 import type { Bucket, Decision, Pass } from '@/domain/types'
-import { setBucket } from '@/domain/taxonomy'
+import { isInDeck, PASS_ORDER, setBucket } from '@/domain/taxonomy'
 import { isUnsortedRow } from '@/export/vcf'
 
 export type ReviewTab = Bucket | 'unsorted'
@@ -15,15 +16,13 @@ export function matchesSearch({ contact: c }: ContactWithDecision, search: strin
 }
 
 export function resetForReview(rows: ContactWithDecision[], tab: ReviewTab): { decisions: Decision[]; pass: Pass } {
-  let first: Pass | undefined
   const decisions = rows.map(({ decision }) => {
     const pass: Pass = tab === 'work' || tab === 'personal' ? tab : tab === 'delete' || !decision.bucket ? 'triage'
       : decision.bucket === 'work' ? 'work' : 'personal'
-    first ??= pass
     const next = pass === 'triage' ? setBucket(decision, undefined) : { ...decision, updatedAt: Date.now() }
     if (pass === 'work') next.workStatus = undefined
     if (pass === 'personal') next.relation = undefined
     return { ...next, skips: { ...next.skips, [pass]: 0 } }
   })
-  return { decisions, pass: first ?? 'triage' }
+  return { decisions, pass: PASS_ORDER.find((pass) => decisions.some((d) => isInDeck(d, pass))) ?? 'triage' }
 }
