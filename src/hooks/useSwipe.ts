@@ -2,10 +2,11 @@ import { animate, useMotionValue, useTransform, type PanInfo } from 'framer-moti
 import { useEffect, useRef, useState } from 'react'
 import type { Direction } from '@/domain/types'
 import { haptic, prefersReducedMotion } from '@/ui/theme'
-import { flingTarget, resolveDirection, rotationFor, stampOpacity } from '@/features/deck/swipeMath'
+import { flingTarget, isDrag, lockAxis, resistDown, resolveDirection, rotationFor, stampOpacity, type Axis } from '@/features/deck/swipeMath'
 
-export function useSwipe({ onCommit, disabled, returnDirection }: {
+export function useSwipe({ onCommit, onDragStart, disabled, returnDirection }: {
   onCommit: (direction: Direction) => void
+  onDragStart?: () => void
   disabled?: boolean
   returnDirection?: Direction
 }) {
@@ -14,9 +15,11 @@ export function useSwipe({ onCommit, disabled, returnDirection }: {
   const y = useMotionValue(0)
   const opacity = useMotionValue(1)
   const width = useMotionValue(350)
+  const axis = useMotionValue<Axis | null>(null)
+  const dragged = useRef(false)
   const reduced = prefersReducedMotion()
   const rotate = useTransform(x, (value) => reduced ? 0 : rotationFor(value))
-  const stamp = (direction: Direction) => () => stampOpacity(x.get(), y.get(), width.get())[direction]
+  const stamp = (direction: Direction) => () => stampOpacity(x.get(), y.get(), width.get(), axis.get())[direction]
   const left = useTransform(stamp('left'))
   const right = useTransform(stamp('right'))
   const up = useTransform(stamp('up'))
@@ -25,6 +28,7 @@ export function useSwipe({ onCommit, disabled, returnDirection }: {
   const locked = useRef(false)
   const mounted = useRef(true)
   const controls = useRef<Array<{ stop: () => void }>>([])
+  const stop = () => controls.current.forEach((control) => control.stop())
 
   useEffect(() => {
     mounted.current = true
@@ -33,11 +37,7 @@ export function useSwipe({ onCommit, disabled, returnDirection }: {
     measure()
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : undefined
     if (node) observer?.observe(node)
-    return () => {
-      mounted.current = false
-      observer?.disconnect()
-      controls.current.forEach((control) => control.stop())
-    }
+    return () => { mounted.current = false; observer?.disconnect(); controls.current.forEach((control) => control.stop()) }
   }, [width])
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export function useSwipe({ onCommit, disabled, returnDirection }: {
   const triggerSwipe = async (direction: Direction) => {
     if (disabled || locked.current) return
     locked.current = true
-    controls.current.forEach((control) => control.stop())
+    stop()
     setCommitting(direction)
     haptic(10)
     if (reduced) controls.current = [animate(opacity, 0, { duration: 0.12, ease: 'easeOut' })]
@@ -67,18 +67,38 @@ export function useSwipe({ onCommit, disabled, returnDirection }: {
     await Promise.all(controls.current)
     if (!mounted.current) return
     onCommit(direction)
-    // The only card can return to itself after its first skip.
-    x.set(0)
-    y.set(0)
-    opacity.set(1)
+    x.set(0); y.set(0); opacity.set(1); axis.set(null)
     setCommitting(undefined)
     locked.current = false
   }
-  const onDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    const direction = resolveDirection(info.offset.x, info.offset.y, info.velocity.x, info.velocity.y, width.get())
-    if (direction && !disabled) void triggerSwipe(direction)
-    else controls.current = [animate(x, 0, { type: 'spring', stiffness: 500, damping: 35 }), animate(y, 0, { type: 'spring', stiffness: 500, damping: 35 })]
+  const cancel = () => {
+    if (locked.current) return
+    stop()
+    const transition = reduced ? { duration: 0.12 } : { type: 'spring' as const, stiffness: 500, damping: 35 }
+    if (reduced) { x.set(0); y.set(0); opacity.set(0); controls.current = [animate(opacity, 1, transition)] }
+    else controls.current = [animate(x, 0, transition), animate(y, 0, transition)]
+    dragged.current = false
+    // Keep the stamp axis through the return spring, reset at the next pointer down.
+  }
+  const onDrag = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    if (disabled || locked.current || !isDrag(info.offset.x, info.offset.y) && !dragged.current) return
+    if (!dragged.current) { stop(); dragged.current = true; onDragStart?.() }
+    axis.set(lockAxis(info.offset.x, info.offset.y, axis.get()))
+    x.set(info.offset.x)
+    y.set(resistDown(info.offset.y, width.get()))
+  }
+  const onDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    if (locked.current) return
+    if (!dragged.current && !isDrag(info.offset.x, info.offset.y)) return
+    if (event.type === 'pointercancel' || disabled) { cancel(); return }
+    axis.set(lockAxis(info.offset.x, info.offset.y, axis.get()))
+    const direction = resolveDirection(info.offset.x, resistDown(info.offset.y, width.get()), info.velocity.x, info.velocity.y, width.get(), axis.get())
+    dragged.current = false
+    if (direction) { x.set(info.offset.x); y.set(resistDown(info.offset.y, width.get())); void triggerSwipe(direction) }
+    else cancel()
   }
   return { cardRef, x, y, rotate, opacity, stamps: { left, right, up, down }, committing,
-    triggerSwipe, onDragEnd, drag: !disabled && !committing }
+    triggerSwipe, onDrag, onDragEnd, cancel,
+    onPointerDown: () => { if (!locked.current) { axis.set(null); dragged.current = false } },
+    drag: !disabled && !committing }
 }

@@ -59,3 +59,16 @@ describe('FollowUpSheet', () => {
     expect(onClose).toHaveBeenCalled()
   })
 })
+
+
+it('focuses the first chip on open and Escape closes as Later without saving edits', async () => {
+  const decision = applySwipe(emptyDecision('a'), 'triage', 'right')
+  await repo.saveDecision(decision)
+  const onClose = vi.fn()
+  render(<FollowUpSheet target={{ contact, decision }} onClose={onClose} />)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Old' })).toHaveFocus())
+  fireEvent.click(screen.getByRole('button', { name: 'Current' }))
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(onClose).toHaveBeenCalledExactlyOnceWith()
+  expect((await repo.getDecision('a')).workStatus).toBeUndefined()
+})

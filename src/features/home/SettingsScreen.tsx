@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { useNavigate } from 'react-router'
-import { resetAll } from '@/db/repo'
+import { getMeta, resetAll, setMeta } from '@/db/repo'
 import { backupJson } from '@/export/json'
 import { downloadText } from '@/export/share'
 import RestoreInput from '@/features/export/RestoreInput'
 import { Button, Frame, Segmented, Sheet, TopBar } from '@/ui'
+import { toast } from '@/ui/toast'
 import { getThemePref, setThemePref, hapticsEnabled, setHapticsEnabled, followUpEnabled, setFollowUpEnabled, type ThemePref } from '@/ui/theme'
 
 export default function SettingsScreen() {
@@ -14,6 +16,7 @@ export default function SettingsScreen() {
   const [confirm, setConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const lastBackupAt = useLiveQuery(() => getMeta<string | null>('lastBackupAt', null), [])
   const navigate = useNavigate()
   return <Frame>
     <TopBar title="Settings" backTo="/" />
@@ -38,21 +41,41 @@ export default function SettingsScreen() {
       }}>{followUp ? 'On' : 'Off'}</Button>
     </section>
     <section className="space-y-3 border-b border-rule py-5">
+      <h2 className="eyebrow">Gesture coach</h2>
+      <Button full variant="outline" onClick={() => {
+        try {
+          const storage = window.localStorage
+          const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index))
+          keys.forEach((key) => { if (key?.startsWith('ct.coach.')) storage.removeItem(key) })
+          toast('Coach will show on the next deck')
+        } catch { toast('Could not reset the coach. Please try again.') }
+      }}>Replay gesture coach</Button>
+    </section>
+    <section className="space-y-3 border-b border-rule py-5">
       <h2 className="eyebrow mb-3">Data</h2>
+      <p className="text-sm text-ink-2">Export a backup to keep a copy of your sorting decisions.</p>
+      <p className="text-xs text-ink-2">{lastBackupAt ? `Last backup: ${new Date(lastBackupAt).toLocaleDateString()}` : 'No backup exported yet.'}</p>
       <Button full variant="outline" disabled={busy} onClick={async () => {
         setBusy(true); setError('')
-        try { downloadText('contacts-backup.json', await backupJson(), 'application/json') }
+        try {
+          downloadText('contacts-backup.json', await backupJson(), 'application/json')
+          await setMeta('lastBackupAt', new Date().toISOString())
+          toast('Backup exported')
+        }
         catch { setError('Could not create a backup. Please try again.') }
         finally { setBusy(false) }
       }}>Back up (.json)</Button>
       <RestoreInput label="Restore" />
       <p className="text-xs text-ink-2">Backups include contacts and sorting decisions. Photos are omitted.</p>
-      <Button variant="ghost" className="text-stamp-delete" onClick={() => { setError(''); setConfirm(true) }}>Reset all data</Button>
+    </section>
+    <section className="border-b border-rule py-5">
+      <h2 className="eyebrow mb-3">Danger zone</h2>
+      <Button variant="ghost" className="px-0" onClick={() => { setError(''); setConfirm(true) }}>Reset all data</Button>
     </section>
     <section className="space-y-3 py-5 text-sm text-ink-2">
       <h2 className="eyebrow text-ink">About</h2>
       <p>Everything is stored in this browser. Nothing is uploaded.</p>
-      <p>Version: {import.meta.env.MODE}</p>
+      <p>Version: {import.meta.env.VITE_APP_VERSION ?? 'dev'}</p>
     </section>
     {!confirm && error && <p role="alert">{error}</p>}
     <Sheet open={confirm} onClose={() => { if (!busy) setConfirm(false) }} title="Reset all data?">

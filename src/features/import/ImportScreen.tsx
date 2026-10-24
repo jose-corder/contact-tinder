@@ -2,9 +2,11 @@ import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Button, Frame, TopBar, cx } from '@/ui'
 import { IconUpload } from '@/ui/icons'
-import { importContacts, importDemo, importFiles, type ImportResult } from '@/import'
+import { importContacts, importDemo, previewFiles, commitPreview, type ImportResult, type ImportPreview as Preview, type ImportProgress } from '@/import'
+import { toast } from '@/ui/toast'
 import { isContactPickerSupported, pickContacts } from '@/import/contactPicker'
 import HowToExport from './HowToExport'
+import ImportPreview, { ImportProgressView } from './ImportPreview'
 
 export default function ImportScreen() {
   const navigate = useNavigate()
@@ -13,16 +15,24 @@ export default function ImportScreen() {
   const [dragging, setDragging] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [errors, setErrors] = useState<string[]>([])
+  const [preview, setPreview] = useState<Preview | null>(null)
+  const [progress, setProgress] = useState<ImportProgress | null>(null)
 
-  async function run(operation: () => Promise<ImportResult>) {
+  async function run(operation: () => Promise<ImportResult | Preview>) {
     if (locked.current) return
     locked.current = true
     setBusy(true)
     setErrors([])
     setResult(null)
+    setProgress({ phase: 'reading', parsed: 0 })
     try {
       const next = await operation()
-      setResult(next)
+      if ('contacts' in next) setPreview(next.total ? next : null)
+      else {
+        setResult(next)
+        setPreview(null)
+        if (next.total) toast(`${next.added.toLocaleString()} imported · ${next.merged.toLocaleString()} merged`)
+      }
       setErrors(next.errors)
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
@@ -35,7 +45,7 @@ export default function ImportScreen() {
   }
 
   function loadFiles(files: File[]) {
-    if (files.length) void run(() => importFiles(files))
+    if (files.length && !preview) void run(() => previewFiles(files, setProgress))
   }
 
   return (
@@ -60,7 +70,7 @@ export default function ImportScreen() {
           }}
         >
           <input
-            type="file" multiple disabled={busy}
+            type="file" multiple disabled={busy || !!preview}
             accept=".vcf,.vcard,.csv,text/vcard,text/x-vcard,text/csv"
             aria-label="Choose contact files"
             className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait"
@@ -76,15 +86,18 @@ export default function ImportScreen() {
 
         <div className="mt-4 flex flex-col items-center gap-2">
           {isContactPickerSupported() && (
-            <Button variant="outline" full disabled={busy} onClick={() => void run(async () => importContacts(await pickContacts()))}>
+            <Button variant="outline" full disabled={busy || !!preview} onClick={() => void run(async () => importContacts(await pickContacts(), setProgress))}>
               Pick from phone
             </Button>
           )}
-          <Button variant="ghost" disabled={busy} onClick={() => void run(importDemo)}>Try with 40 demo contacts</Button>
+          <Button variant="ghost" disabled={busy || !!preview} onClick={() => void run(() => importDemo(setProgress))}>Try with 40 demo contacts</Button>
         </div>
 
         <div aria-live="polite" aria-atomic="true">
-          {busy && <p role="status" className="py-6 text-center text-ink-2">Importing your contacts…</p>}
+          {busy && progress && <ImportProgressView progress={progress} />}
+          {preview && <ImportPreview preview={preview} busy={busy}
+            onConfirm={() => void run(() => commitPreview(preview, setProgress))}
+            onCancel={() => { setPreview(null); setErrors([]) }} />}
           {result && result.total > 0 && (
             <section className="mt-6 rounded-[20px] border border-rule bg-paper-2 p-5 text-center">
               <h2 className="mb-5 font-serif text-2xl">{result.added} imported · {result.merged} merged</h2>

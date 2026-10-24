@@ -1,6 +1,9 @@
 import 'fake-indexeddb/auto'
 import '@testing-library/jest-dom/vitest'
 
+// jsdom has no viewport scroll implementation; components can still spy on this.
+Object.defineProperty(window, 'scrollTo', { value: () => {}, configurable: true, writable: true })
+
 // Node 22+ ships its own experimental `localStorage` global that is a no-op unless
 // started with --localstorage-file, and it shadows jsdom's. Give tests a real in-memory one.
 class MemoryStorage implements Storage {

@@ -190,7 +190,9 @@ export function toggleCustomTag(decision: Decision, tag: string, now = Date.now(
 
 /** All human-readable labels on a decision, for Review rows and exports (CATEGORIES). */
 export function decisionLabels(decision: Decision | undefined): string[] {
-  if (!decision?.bucket) return []
+  if (!decision) return []
+  // Custom tags survive even before triage (a skipped-twice card can still carry tags).
+  if (!decision.bucket) return [...decision.customTags]
   const out: string[] = [BUCKET_META[decision.bucket].label]
   if (decision.bucket === 'work') {
     if (decision.workStatus) out.push(WORK_STATUS_META[decision.workStatus].label)

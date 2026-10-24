@@ -44,10 +44,27 @@ export function applyTheme(pref: ThemePref = getThemePref()) {
   const root = document.documentElement
   if (pref === 'system') root.removeAttribute('data-theme')
   else root.setAttribute('data-theme', pref)
+  syncThemeColor()
 }
 
+/** Override the system media hints when the user chooses a manual theme. */
+export function syncThemeColor() {
+  const pref = document.documentElement.getAttribute('data-theme')
+  const dark = pref === 'dark' || (pref !== 'light' && !!window.matchMedia?.('(prefers-color-scheme: dark)').matches)
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((meta) => {
+    meta.content = dark ? '#121110' : '#F4EFE6'
+    meta.removeAttribute('media')
+  })
+}
+
+let stopThemeListener: (() => void) | undefined
 export function initTheme() {
+  stopThemeListener?.()
   applyTheme()
+  const media = window.matchMedia?.('(prefers-color-scheme: dark)')
+  media?.addEventListener('change', syncThemeColor)
+  stopThemeListener = () => media?.removeEventListener('change', syncThemeColor)
+  return stopThemeListener
 }
 
 export function hapticsEnabled(): boolean {

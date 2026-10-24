@@ -50,3 +50,46 @@ it('restores an undone card from its original side over 260ms', () => {
   expect(animate).toHaveBeenCalledWith(result.current.x, 0, { duration: 0.26, ease: 'easeOut' })
   expect(animate).toHaveBeenCalledWith(result.current.y, 0, { duration: 0.26, ease: 'easeOut' })
 })
+
+
+function pan(x: number, y: number, vx = 0, vy = 0): PanInfo {
+  return { point: { x, y }, delta: { x, y }, offset: { x, y }, velocity: { x: vx, y: vy } }
+}
+
+it('ignores a tap even with noisy velocity but commits an eight-pixel flick', async () => {
+  const onCommit = vi.fn()
+  const { result } = renderHook(() => useSwipe({ onCommit }))
+  await act(async () => { result.current.onDragEnd(new MouseEvent('mouseup'), pan(5, 0, 900)) })
+  expect(onCommit).not.toHaveBeenCalled()
+  expect(animate).not.toHaveBeenCalled()
+  await act(async () => { result.current.onDragEnd(new MouseEvent('mouseup'), pan(8, 0, 501)) })
+  expect(onCommit).toHaveBeenCalledExactlyOnceWith('right')
+})
+
+it('moves through motion values without rendering on every frame and starts coaching dismissal only once', () => {
+  let renders = 0
+  const onDragStart = vi.fn()
+  const { result } = renderHook(() => { renders++; return useSwipe({ onCommit: vi.fn(), onDragStart }) })
+  const baseline = renders
+  act(() => result.current.onDrag(new MouseEvent('mousemove'), pan(3, 0)))
+  expect(result.current.x.get()).toBe(0)
+  expect(onDragStart).not.toHaveBeenCalled()
+  act(() => {
+    result.current.onDrag(new MouseEvent('mousemove'), pan(12, 0))
+    result.current.onDrag(new MouseEvent('mousemove'), pan(20, 200))
+  })
+  expect(result.current.x.get()).toBe(20)
+  expect(result.current.y.get()).toBeCloseTo(49 + (200 - 49) * 0.55)
+  expect(onDragStart).toHaveBeenCalledTimes(1)
+  expect(renders).toBe(baseline)
+  act(() => result.current.onDragEnd(new MouseEvent('mouseup'), pan(20, 200)))
+  expect(result.current.committing).toBeUndefined()
+})
+
+it('cancels an interrupted gesture even past the commit threshold', async () => {
+  const onCommit = vi.fn()
+  const { result } = renderHook(() => useSwipe({ onCommit }))
+  await act(async () => { result.current.onDragEnd(new MouseEvent('pointercancel'), pan(300, 0, 1000)) })
+  expect(onCommit).not.toHaveBeenCalled()
+  expect(result.current.x.get()).toBe(0)
+})

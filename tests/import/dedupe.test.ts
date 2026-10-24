@@ -7,6 +7,55 @@ const contact = (name: string, phones: string[] = [], emails: string[] = []) => 
 }, 'vcf')!
 
 describe('dedupe', () => {
+  it('matches normalized email even when names and phones differ', () => {
+    expect(mergeContacts([contact('New', ['2025550102'], [' ADA@EXAMPLE.COM '])], [contact('Ada', ['2025550101'], ['ada@example.com'])])).toMatchObject({ added: 0, merged: 1 })
+  })
+
+  it.each([true, false])('merges identical names when one side has no phone/email, incoming bare: %s', (bareIncoming) => {
+    const bare = contact('Ada Lovelace')
+    const rich = contact('Ada Lovelace', ['2025550101'], ['ada@example.com'])
+    const result = mergeContacts([bareIncoming ? bare : rich], [bareIncoming ? rich : bare])
+    expect(result).toMatchObject({ added: 0, merged: 1 })
+    expect(result.toUpsert[0].phones).toHaveLength(1)
+  })
+
+  it('does not merge namesakes when both have contact details', () => {
+    expect(mergeContacts([contact('Ada', [], ['ada@one.com'])], [contact('Ada', [], ['ada@two.com'])]).added).toBe(1)
+  })
+
+  it('blocks same-domain conflicting primary emails despite a shared secondary email or UID', () => {
+    const a = contact('Ada', [], ['ada@example.com', 'office@shared.test'])
+    const b = contact('Bob', [], ['bob@example.com', 'office@shared.test'])
+    const result = mergeContacts([{ ...b, id: a.id }], [a])
+    expect(result).toMatchObject({ added: 1, merged: 0, superseded: [] })
+    expect(result.toUpsert[0].id).not.toBe(a.id)
+  })
+
+  it('allows conflicting primary emails when normalized phones match', () => {
+    const a = contact('Ada', ['2025550101'], ['ada@example.com'])
+    const b = contact('Bob', ['+1 202 555 0101'], ['bob@example.com'])
+    expect(mergeContacts([b], [a])).toMatchObject({ added: 0, merged: 1 })
+  })
+
+  it('does not let a name-only bridge join conflicting people', () => {
+    const a = contact('Same', [], ['ada@example.com'])
+    const b = contact('Same', [], ['bob@example.com'])
+    expect(mergeContacts([a, contact('Same'), b], []).toUpsert).toHaveLength(2)
+  })
+
+  it('does not bypass primary-email conflicts through an indirect phone bridge', () => {
+    const a = contact('A', ['2025550101'], ['a@example.com'])
+    const b = contact('B', ['2025550101', '2025550102'], ['b@example.com'])
+    const c = contact('C', ['2025550102'], ['c@example.com'])
+    expect(mergeContacts([a, b, c], []).toUpsert).toHaveLength(2)
+  })
+
+  it('keeps exact raw from the richer card in either order', () => {
+    const a = { ...contact('Ada', [], ['ada@example.com']), raw: 'BEGIN:VCARD\r\nFN:Ada\r\nEND:VCARD\r\n' }
+    const b = { ...a, org: 'Studio', photo: new Blob(['photo']), raw: 'BEGIN:VCARD\r\nFN:Ada\r\nORG:Studio\r\nPHOTO;ENCODING=b:aGk=\r\nEND:VCARD\r\n' }
+    expect(mergeContacts([b], [a]).toUpsert[0].raw).toBe(b.raw)
+    expect(mergeContacts([a], [b]).toUpsert[0].raw).toBe(b.raw)
+  })
   it('normalizes parseable numbers even if the exchange is not valid', () => {
     expect(phoneKey('+1 (555) 123-4567')).toBe('+15551234567')
     expect(phoneKey('555.123.4567')).toBe('+15551234567')

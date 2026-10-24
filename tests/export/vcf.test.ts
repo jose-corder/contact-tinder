@@ -1,8 +1,26 @@
 import { describe, expect, it } from 'vitest'
-import { buildVcard, groupFiles, vcfText } from '@/export/vcf'
+import { buildVcard, cleanFile, groupFiles, vcfText } from '@/export/vcf'
+import { BUCKET_META, WORK_STATUS_META, PERSONAL_RELATION_META } from '@/domain/taxonomy'
 import { contact, row } from './fixtures'
+import { parseVcf } from '@/import/vcard'
+import { mergeContacts } from '@/import/dedupe'
 
 describe('vCard export', () => {
+  it('exports all merged phone/email entries without changing the original raw or its photo', () => {
+    const raw = 'BEGIN:VCARD\r\nFN:Ada\r\nTEL;TYPE=CELL:2025550101\r\nEMAIL:ada@example.com\r\nPHOTO;ENCODING=b:aGk=\r\nEND:VCARD\r\n'
+    const extra = 'BEGIN:VCARD\r\nFN:Ada\r\nTEL:2025550102\r\nEMAIL:ada@example.com\r\nEMAIL:ada@home.test\r\nEND:VCARD\r\n'
+    const merged = mergeContacts(parseVcf(extra), parseVcf(raw)).toUpsert[0]
+    const before = merged.raw
+    const exported = parseVcf(buildVcard(merged, ['Work']))[0]
+    expect(exported.phones.map((p) => p.value)).toEqual(['2025550101', '2025550102'])
+    expect(exported.emails.map((e) => e.value)).toEqual(['ada@example.com', 'ada@home.test'])
+    expect(merged.raw).toBe(before)
+    expect(buildVcard(merged, ['Work'])).toContain('PHOTO;ENCODING=b:aGk=\r\n')
+  })
+
+  it('adds labels before END with trailing whitespace', () => {
+    expect(buildVcard({ ...contact('a'), raw: 'BEGIN:VCARD\nFN:A\nEND:VCARD \n' }, ['Work'])).toContain('CATEGORIES:Work\nEND:VCARD \n')
+  })
   it('inserts labels immediately before END and preserves CRLF', () => {
     const c = { ...contact('a'), raw: 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ana\r\nEND:VCARD\r\n' }
     expect(buildVcard(c, ['Work', 'Current'])).toBe('BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ana\r\nCATEGORIES:Work,Current\r\nEND:VCARD\r\n')
@@ -33,6 +51,19 @@ describe('vCard export', () => {
 })
 
 describe('vCard groups', () => {
+  it('includes every non-Delete contact in the clean preset, including unsorted', () => {
+    const clean = cleanFile([row('delete', { bucket: 'delete' }), row('work', { bucket: 'work' }), row('personal', { bucket: 'personal' }), row('undecided')])
+    expect(clean.filename).toBe('contacts-clean.vcf')
+    expect(clean.rows.map(({ contact }) => contact.id)).toEqual(['work', 'personal', 'undecided'])
+    expect(cleanFile([row('delete', { bucket: 'delete' })]).rows).toEqual([])
+  })
+
+  it('describes files and uses taxonomy colors for labels', () => {
+    const files = groupFiles([row('work', { bucket: 'work', workStatus: 'current' }), row('family', { bucket: 'personal', relation: 'family', customTags: ['lisbon'] })])
+    expect(files.find((f) => f.filename === 'work-current.vcf')).toMatchObject({ description: 'Work · Current', colors: [BUCKET_META.work.color, WORK_STATUS_META.current.color] })
+    expect(files.find((f) => f.filename === 'personal-family.vcf')).toMatchObject({ description: 'Personal · Family', colors: [BUCKET_META.personal.color, PERSONAL_RELATION_META.family.color] })
+    expect(files.find((f) => f.filename === 'tag-lisbon.vcf')?.description).toBe('Tagged lisbon')
+  })
   it('emits only nonempty files in order with correct memberships', () => {
     const rows = [
       row('delete', { bucket: 'delete' }),

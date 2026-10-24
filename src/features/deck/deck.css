@@ -1,0 +1,15 @@
+.deck-coach { background: color-mix(in srgb, var(--paper-2) 92%, transparent); }
+.deck-card { --card-highlight: rgba(255,255,255,.35); perspective: 1200px; }
+:root[data-theme='dark'] .deck-card,
+:root:not([data-theme='light']).dark-auto .deck-card { --card-highlight: rgba(255,255,255,.04); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .deck-card { --card-highlight: rgba(255,255,255,.04); }
+}
+.deck-face { box-shadow: inset 0 1px 0 var(--card-highlight), var(--shadow-card); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.deck-keyboard { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .deck-keyboard { display: block; }
+}
+
+[role='dialog']:has(.deck-followup-body) { display: flex; flex-direction: column; max-height: 85dvh; overflow: hidden; }
+[role='dialog']:has(.deck-followup-body) > div:has(.deck-followup-body) { min-height: 0; flex-shrink: 1; overflow-y: auto; }

@@ -1,3 +1,5 @@
+import { MAX_PHOTO_BYTES } from './photos'
+
 export function unescapeValue(value: string): string {
   return value.replace(/\\([nN,;\\])/g, (_, escaped: string) => /n/i.test(escaped) ? '\n' : escaped)
 }
@@ -79,7 +81,10 @@ export function photoBlob(value: string, params: Map<string, string[]>): Blob | 
   const mime = data?.[1] ?? params.get('MEDIATYPE')?.[0]
     ?? (format?.includes('/') ? format : format === 'png' ? 'image/png' : 'image/jpeg')
   try {
-    const binary = atob((data?.[2] ?? value).replace(/\s/g, ''))
+    const encoded = (data?.[2] ?? value).replace(/\s/g, '')
+    if (encoded.length > Math.ceil(MAX_PHOTO_BYTES / 3) * 4) return undefined
+    const binary = atob(encoded)
+    if (binary.length > MAX_PHOTO_BYTES) return undefined
     if (!binary.length) return undefined
     return new Blob([Uint8Array.from(binary, (char) => char.charCodeAt(0))], { type: mime })
   } catch { return undefined }

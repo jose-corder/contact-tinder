@@ -79,14 +79,14 @@ export function Toaster() {
             className="pointer-events-auto flex max-w-full items-center gap-3 rounded-full border border-rule bg-paper-2 py-2 pr-2 pl-4 font-sans text-[13px] text-ink shadow-card"
           >
             <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: toneColor[state.tone ?? 'default'] }} aria-hidden="true" />
-            <span className="truncate">{state.message}</span>
+            <span className="min-w-0 break-words">{state.message}</span>
             {state.action && (
               <button
                 type="button"
                 className="h-8 shrink-0 rounded-full bg-ink px-3 text-paper"
                 onClick={() => {
-                  state.action?.onClick()
                   dismissToast()
+                  state.action?.onClick()
                 }}
               >
                 {state.action.label}

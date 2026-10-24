@@ -11,8 +11,17 @@ function downloadFile(file: File): void {
   }
 }
 
+export function canShareFiles(files: File[]): boolean {
+  try { return files.length > 0 && typeof navigator.share === 'function' && !!navigator.canShare?.({ files }) }
+  catch { return false }
+}
+
+export function fileAction(files: File[]): 'Share' | 'Download' {
+  return canShareFiles(files) ? 'Share' : 'Download'
+}
+
 export async function shareOrDownload(files: File[], title = 'Contacts.'): Promise<'shared' | 'downloaded'> {
-  if (navigator.canShare?.({ files })) {
+  if (canShareFiles(files)) {
     await navigator.share({ files, title })
     return 'shared'
   }

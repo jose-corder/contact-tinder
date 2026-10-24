@@ -1,9 +1,10 @@
 // UI primitives. Keep these dumb and styled with tokens from index.css.
-import { AnimatePresence, motion } from 'framer-motion'
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { IconChevronLeft } from './icons'
+export { Sheet } from './Sheet'
+export { useMediaQuery } from './useMediaQuery'
 
 export function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(' ')
@@ -19,6 +20,8 @@ export function Frame({ children, className }: { children: ReactNode; className?
       style={{
         paddingTop: 'max(12px, env(safe-area-inset-top))',
         paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+        paddingLeft: 'max(20px, env(safe-area-inset-left))',
+        paddingRight: 'max(20px, env(safe-area-inset-right))',
       }}
     >
       {children}
@@ -75,13 +78,14 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant
   size?: ButtonSize
   full?: boolean
+  loading?: boolean
 }
 
-export function Button({ variant = 'primary', size = 'md', full, className, ...rest }: ButtonProps) {
+export function Button({ variant = 'primary', size = 'md', full, loading, disabled, children, className, ...rest }: ButtonProps) {
   return (
     <button
       className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-full font-sans font-medium transition-colors duration-150 disabled:opacity-40',
+        'relative inline-flex items-center justify-center gap-2 rounded-full font-sans font-medium transition-colors duration-150 active:scale-[0.98] disabled:opacity-40',
         size === 'md' ? 'h-11 px-5 text-[15px]' : 'h-13 px-6 text-base',
         variant === 'primary' && 'bg-ink text-paper hover:opacity-90',
         variant === 'outline' && 'border border-rule bg-transparent text-ink hover:bg-paper-2',
@@ -90,25 +94,34 @@ export function Button({ variant = 'primary', size = 'md', full, className, ...r
         className,
       )}
       {...rest}
-    />
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+    >
+      {loading ? <>
+        <span aria-hidden="true" className="invisible inline-flex items-center gap-2">{children}</span>
+        <span aria-hidden="true" className="button-spinner absolute size-4 rounded-full border border-current border-r-transparent" />
+      </> : children}
+      {loading && <VisuallyHidden>{children}</VisuallyHidden>}
+    </button>
   )
 }
 
 export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  label: string
+  label?: string
+  caption?: string
   size?: number
   /** CSS color for the glyph (and border on hover). */
   color?: string
 }
 
 /** Round hairline-bordered button for the action bar. */
-export function IconButton({ label, size = 56, color, className, style, children, ...rest }: IconButtonProps) {
-  return (
+export function IconButton({ label, caption, size = 56, color, className, style, children, ...rest }: IconButtonProps) {
+  const button = (
     <button
       aria-label={label}
       title={label}
       className={cx(
-        'inline-flex items-center justify-center rounded-full border border-rule bg-paper-2 transition-transform duration-150 active:scale-95 disabled:opacity-40',
+        'inline-flex items-center justify-center rounded-full border border-rule bg-paper-2 transition-transform duration-150 active:scale-[0.98] disabled:opacity-40',
         className,
       )}
       style={{ width: size, height: size, color: color ?? 'var(--ink)', ...style } as CSSProperties}
@@ -117,6 +130,7 @@ export function IconButton({ label, size = 56, color, className, style, children
       {children}
     </button>
   )
+  return caption ? <span className="inline-flex flex-col items-center gap-1.5">{button}<span className="eyebrow text-[11px]">{caption}</span></span> : button
 }
 
 // ----- chips -----
@@ -217,41 +231,15 @@ export function Segmented<T extends string>({
   )
 }
 
-// ----- bottom sheet -----
+// ----- misc -----
 
-export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title?: string; children: ReactNode }) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <>
-          <motion.div
-            className="fixed inset-0 z-40 bg-ink/30"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-          />
-          <motion.div
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-[440px] rounded-t-[20px] border border-rule bg-paper-2 px-5 pt-3 shadow-card"
-            style={{ paddingBottom: 'max(20px, env(safe-area-inset-bottom))' }}
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', stiffness: 400, damping: 40 }}
-          >
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-rule" />
-            {title && <div className="eyebrow mb-3">{title}</div>}
-            {children}
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  )
+export function VisuallyHidden({ className, ...props }: HTMLAttributes<HTMLSpanElement>) {
+  return <span className={cx('sr-only', className)} {...props} />
 }
 
-// ----- misc -----
+export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div aria-hidden="true" className={cx('skeleton rounded bg-paper-2', className)} {...props} />
+}
 
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (

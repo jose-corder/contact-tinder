@@ -18,13 +18,58 @@ beforeEach(async () => {
 })
 afterEach(cleanup)
 
-function open() {
-  render(<MemoryRouter initialEntries={['/review']}><Routes>
+function open(path = '/review') {
+  render(<MemoryRouter initialEntries={[path]}><Routes>
     <Route path="/review" element={<ReviewScreen />} />
     <Route path="/deck/:pass" element={<p>Deck destination</p>} />
   </Routes></MemoryRouter>)
 }
 describe('Review screen', () => {
+  it('preselects the URL tab and clears status, type, tag, and search filters together', async () => {
+    open('/review?tab=work')
+    await screen.findByText('Bo')
+    expect(screen.getByRole('tab', { name: /^Work/ })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('tab', { name: 'Current' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Client' }))
+    fireEvent.click(screen.getByRole('button', { name: 'vip' }))
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'absent' } })
+    expect(screen.getByText('0 contacts')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(screen.getByRole('searchbox')).toHaveValue('')
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Client' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('1 contact')).toBeInTheDocument()
+    expect(screen.getByText('Bo')).toBeInTheDocument()
+  })
+  it('selects all filtered contacts and adds a normalized tag without removing an existing one', async () => {
+    await upsertContacts([row('bea').contact])
+    await saveDecisions([row('bea', { bucket: 'work' }).decision])
+    open('/review?tab=work')
+    await screen.findByText('Bo')
+    fireEvent.click(screen.getByRole('button', { name: 'Select' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Select all in view' }))
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Tag…' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Tag selected contacts' }), { target: { value: ' VIP ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add tag' }))
+    await waitFor(async () => {
+      expect((await getDecision('bo')).customTags).toEqual(['vip'])
+      expect((await getDecision('bea')).customTags).toEqual(['vip'])
+      expect((await getDecision('ana')).customTags).toEqual([])
+    })
+  })
+  it('returns just the open contact to its deck without changing its neighbors', async () => {
+    await upsertContacts([row('bea').contact])
+    await saveDecisions([row('bea', { bucket: 'work', workStatus: 'old' }).decision])
+    open('/review?tab=work')
+    fireEvent.click(await screen.findByRole('button', { name: 'View Bo' }))
+    expect(screen.getByRole('link', { name: '555-0001' })).toHaveAttribute('href', 'tel:555-0001')
+    expect(screen.getByRole('link', { name: 'bo@example.com' })).toHaveAttribute('href', 'mailto:bo@example.com')
+    fireEvent.click(screen.getByRole('button', { name: 'Jump to deck' }))
+    await screen.findByText('Deck destination')
+    expect((await getDecision('bo')).workStatus).toBeUndefined()
+    expect((await getDecision('bea')).workStatus).toBe('old')
+  })
   it('switches bucket tabs and filters names, company, phone and email', async () => {
     open()
     expect(await screen.findByText('Ana')).toBeInTheDocument()

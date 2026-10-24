@@ -8,7 +8,10 @@ export function parseCsv(text: string): Contact[] {
   })
   const error = parsed.errors.find((e) => e.code !== 'UndetectableDelimiter')
   if (error) throw new Error(`CSV ${error.row === undefined ? '' : `row ${error.row + 2}: `}${error.message}`)
-  return parsed.data.flatMap((row) => {
+  return parsed.data.flatMap((row) => { const contact = csvContact(row); return contact ? [contact] : [] })
+}
+
+export function csvContact(row: Record<string, string>): Contact | undefined {
     const entries = Object.entries(row).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
     const get = (known: string[], fuzzy?: RegExp) => {
       for (const name of known) {
@@ -42,6 +45,5 @@ export function parseCsv(text: string): Contact[] {
       }
     }
     const contact = makeContact({ displayName: name, givenName, familyName, org, title, notes, phones, emails }, 'csv')
-    return contact ? [contact] : []
-  })
+    return contact
 }

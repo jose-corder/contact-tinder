@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { flingTarget, resolveDirection, rotationFor, stampOpacity } from '@/features/deck/swipeMath'
+import { flingTarget, isDrag, lockAxis, resistDown, resolveDirection, rotationFor, stampOpacity } from '@/features/deck/swipeMath'
 
 describe('swipe math', () => {
   it.each([
@@ -29,4 +29,30 @@ describe('swipe math', () => {
     expect(flingTarget('left', 0, 0, 390, 844).x).toBeLessThan(-390)
     expect(flingTarget('down', 0, 0, 390, 844).y).toBeGreaterThan(844)
   })
+})
+
+
+it('ignores sub-six-pixel movement and locks the dominant axis at twelve pixels', () => {
+  expect(isDrag(3, 4)).toBe(false)
+  expect(isDrag(6, 0)).toBe(true)
+  expect(lockAxis(11, 0, null)).toBeNull()
+  expect(lockAxis(12, 0, null)).toBe('x')
+  expect(lockAxis(0, -12, null)).toBe('y')
+  expect(lockAxis(20, 200, 'x')).toBe('x')
+  expect(stampOpacity(70, 120, 400, 'x')).toEqual({ left: 0, right: 0.5, up: 0, down: 0 })
+  expect(resolveDirection(20, 200, 0, 800, 400, 'x')).toBeNull()
+})
+
+it('applies 0.55 resistance only past forty percent of the downward threshold', () => {
+  expect(resistDown(-200, 400)).toBe(-200)
+  expect(resistDown(56, 400)).toBe(56)
+  expect(resistDown(156, 400)).toBe(111)
+  expect(resolveDirection(0, resistDown(140, 400), 0, 0, 400)).toBeNull()
+  expect(resolveDirection(0, resistDown(210, 400), 0, 0, 400)).toBe('down')
+})
+
+it('continues an already distant drag at a minimum average speed of 1200 px/s', () => {
+  const target = flingTarget('right', 800, 400, 390, 844)
+  expect((target.x - 800) / 0.32).toBeGreaterThanOrEqual(1200)
+  expect(target.y / target.x).toBe(0.5)
 })

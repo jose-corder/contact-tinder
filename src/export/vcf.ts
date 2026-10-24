@@ -1,6 +1,7 @@
 import type { ContactWithDecision } from '@/db/repo'
 import type { Contact } from '@/domain/types'
-import { decisionLabels, isUnsorted, PASS_ORDER } from '@/domain/taxonomy'
+import { missingEntries } from './mergedFields'
+import { decisionLabels, isUnsorted, PASS_ORDER, BUCKET_META, WORK_STATUS_META, WORK_TYPE_META, PERSONAL_RELATION_META, PERSONAL_TYPE_META } from '@/domain/taxonomy'
 
 function escapeText(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/\r\n|\r|\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;')
@@ -16,8 +17,12 @@ export function buildVcard(contact: Contact, labels: string[]): string {
       removing = /^(?:[^:;.]+\.)?CATEGORIES(?:;[^:]*)?:/i.test(line)
       return !removing
     })
-    const end = lines.findIndex((line) => /^END:VCARD$/i.test(line))
-    if (labels.length && end >= 0) lines.splice(end, 0, categories)
+    const end = lines.findIndex((line) => /^END:VCARD[ \t]*$/i.test(line))
+    const missing = missingEntries(contact)
+    if (end >= 0) lines.splice(end, 0,
+      ...missing.phones.map((p) => `TEL;TYPE=${safeType(p.type, 'CELL')}:${escapeText(p.value)}`),
+      ...missing.emails.map((e) => `EMAIL;TYPE=${safeType(e.type, 'INTERNET')}:${escapeText(e.value)}`),
+      ...(labels.length ? [categories] : []))
     return lines.join(newline)
   }
   const lines = [
@@ -39,7 +44,12 @@ function safeType(type: string | undefined, fallback: string): string {
   return type?.replace(/[^a-zA-Z0-9,-]/g, '') || fallback
 }
 
-export interface ExportFile { filename: string; rows: ContactWithDecision[] }
+export interface ExportFile { filename: string; rows: ContactWithDecision[]; description: string; colors: string[] }
+
+export function cleanFile(rows: ContactWithDecision[]): ExportFile {
+  return { filename: 'contacts-clean.vcf', rows: rows.filter(({ decision }) => decision.bucket !== 'delete'),
+    description: 'Everything except Delete, including unsorted contacts.', colors: [] }
+}
 
 export function isUnsortedRow({ decision }: ContactWithDecision): boolean {
   return !decision.bucket || PASS_ORDER.some((pass) => isUnsorted(decision, pass))
@@ -47,27 +57,29 @@ export function isUnsortedRow({ decision }: ContactWithDecision): boolean {
 
 export function groupFiles(rows: ContactWithDecision[]): ExportFile[] {
   const groups: ExportFile[] = []
-  const add = (filename: string, match: (row: ContactWithDecision) => boolean) => {
+  const add = (filename: string, match: (row: ContactWithDecision) => boolean, description: string, colors: string[] = []) => {
     const matches = rows.filter(match)
-    if (matches.length) groups.push({ filename: `${filename}.vcf`, rows: matches })
+    if (matches.length) groups.push({ filename: `${filename}.vcf`, rows: matches, description, colors })
   }
-  add('all-contacts', () => true)
-  add('delete', ({ decision: d }) => d.bucket === 'delete')
-  add('work', ({ decision: d }) => d.bucket === 'work')
+  add('all-contacts', () => true, 'Everything · includes Delete')
+  add('delete', ({ decision: d }) => d.bucket === 'delete', 'Delete', [BUCKET_META.delete.color])
+  add('work', ({ decision: d }) => d.bucket === 'work', 'Work', [BUCKET_META.work.color])
   for (const status of ['old', 'current', 'potential'] as const) {
-    add(`work-${status}`, ({ decision: d }) => d.bucket === 'work' && d.workStatus === status)
+    add(`work-${status}`, ({ decision: d }) => d.bucket === 'work' && d.workStatus === status,
+      `Work · ${WORK_STATUS_META[status].label}`, [BUCKET_META.work.color, WORK_STATUS_META[status].color])
   }
   for (const [type, slug] of [['client', 'client'], ['vendor', 'vendor'], ['relationship', 'relationship'], ['namedrop', 'name-drop-flex']] as const) {
-    add(`work-${slug}`, ({ decision: d }) => d.bucket === 'work' && d.workTypes.includes(type))
+    add(`work-${slug}`, ({ decision: d }) => d.bucket === 'work' && d.workTypes.includes(type), `Work · ${WORK_TYPE_META[type].label}`, [BUCKET_META.work.color])
   }
-  add('personal', ({ decision: d }) => d.bucket === 'personal')
+  add('personal', ({ decision: d }) => d.bucket === 'personal', 'Personal', [BUCKET_META.personal.color])
   for (const relation of ['friend', 'family', 'ex'] as const) {
-    add(`personal-${relation}`, ({ decision: d }) => d.bucket === 'personal' && d.relation === relation)
+    add(`personal-${relation}`, ({ decision: d }) => d.bucket === 'personal' && d.relation === relation,
+      `Personal · ${PERSONAL_RELATION_META[relation].label}`, [BUCKET_META.personal.color, PERSONAL_RELATION_META[relation].color])
   }
   for (const [type, slug] of [['acquaintance', 'acquaintance'], ['neighbor', 'neighbor'], ['service', 'service-provider']] as const) {
-    add(`personal-${slug}`, ({ decision: d }) => d.bucket === 'personal' && d.personalTypes.includes(type))
+    add(`personal-${slug}`, ({ decision: d }) => d.bucket === 'personal' && d.personalTypes.includes(type), `Personal · ${PERSONAL_TYPE_META[type].label}`, [BUCKET_META.personal.color])
   }
-  add('unsorted', isUnsortedRow)
+  add('unsorted', isUnsortedRow, 'Unsorted')
   const used = new Set<string>()
   const tags = [...new Set(rows.flatMap(({ decision }) => decision.customTags))].sort()
   for (const tag of tags) {
@@ -76,7 +88,7 @@ export function groupFiles(rows: ContactWithDecision[]): ExportFile[] {
     let suffix = 2
     while (used.has(unique)) unique = `${slug}-${suffix++}`
     used.add(unique)
-    add(`tag-${unique}`, ({ decision }) => decision.customTags.includes(tag))
+    add(`tag-${unique}`, ({ decision }) => decision.customTags.includes(tag), `Tagged ${tag}`)
   }
   return groups
 }

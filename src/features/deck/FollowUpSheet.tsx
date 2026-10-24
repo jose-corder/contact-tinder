@@ -1,11 +1,13 @@
 // Bottom sheet shown right after a Work or Personal swipe in triage so the user can
 // set status/relation and type without waiting for the later decks.
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
+import './deck.css'
 import { saveDecision } from '@/db/repo'
 import { PASS_META, PERSONAL_RELATION_META, WORK_STATUS_META, toggleChip, toggleCustomTag } from '@/domain/taxonomy'
 import type { Contact, Decision, PersonalRelation, PersonalType, WorkStatus, WorkType } from '@/domain/types'
-import { Button, Chip, Sheet } from '@/ui'
-import { setFollowUpEnabled } from '@/ui/theme'
+import { Avatar, Button, Chip, Sheet } from '@/ui'
+import { prefersReducedMotion, setFollowUpEnabled } from '@/ui/theme'
 import { ChipRow } from './ChipRow'
 
 export interface FollowUpTarget {
@@ -33,6 +35,23 @@ function FollowUpBody({ target, onClose }: { target: FollowUpTarget; onClose: (s
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const inputRef = useRef<HTMLInputElement>(null)
+  const primaryRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    // The shared Sheet sets its initial focus in a parent effect; select the chip after it.
+    let active = true
+    queueMicrotask(() => { if (active) primaryRef.current?.querySelector('button')?.focus({ preventScroll: true }) })
+    return () => { active = false }
+  }, [])
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault(); event.stopPropagation()
+        if (!busy) onClose()
+      }
+    }
+    window.addEventListener('keydown', keydown, true)
+    return () => window.removeEventListener('keydown', keydown, true)
+  }, [busy, onClose])
 
   const primary: Array<{ key: WorkStatus | PersonalRelation; label: string; color: string }> =
     bucket === 'work'
@@ -63,18 +82,21 @@ function FollowUpBody({ target, onClose }: { target: FollowUpTarget; onClose: (s
   const org = [target.contact.title, target.contact.org].filter(Boolean).join(' · ')
 
   return (
-    <div className="pb-1">
-      <div className="mb-4">
+    <div className="deck-followup-body min-h-0 overflow-y-auto overscroll-contain pb-1">
+      <div className="mb-4 flex items-center gap-3">
+        <Avatar name={target.contact.displayName} photo={target.contact.photo} size={40} />
+        <div className="min-w-0">
         <div className="font-serif text-2xl leading-tight text-ink">{target.contact.displayName}</div>
         {org && <div className="text-sm text-ink-2">{org}</div>}
+        </div>
       </div>
 
       <div className="eyebrow mb-2 text-ink-2">{bucket === 'work' ? 'Status' : 'Relation'}</div>
-      <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label={bucket === 'work' ? 'Status' : 'Relation'}>
+      <motion.div ref={primaryRef} initial={{ opacity: 0, y: prefersReducedMotion() ? 0 : 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: prefersReducedMotion() ? 0.12 : 0.15 }} className="mb-4 flex flex-wrap gap-2" role="group" aria-label={bucket === 'work' ? 'Status' : 'Relation'}>
         {primary.map((p) => (
           <Chip key={p.key} label={p.label} selected={primaryValue === p.key} color={p.color} disabled={busy} onClick={() => setPrimary(p.key)} />
         ))}
-      </div>
+      </motion.div>
 
       <div className="eyebrow text-ink-2">Type</div>
       <ChipRow

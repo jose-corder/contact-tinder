@@ -1,42 +1,60 @@
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { allWithDecisions, counts } from '@/db/repo'
-import { BUCKET_META, isInDeck, PASS_META, PASS_ORDER } from '@/domain/taxonomy'
+import { allWithDecisions, saveDecisions } from '@/db/repo'
+import { BUCKET_META, isUnsorted } from '@/domain/taxonomy'
 import { isUnsortedRow } from '@/export/vcf'
 import { Button, Frame } from '@/ui'
+import { homeProgress } from './progress'
+import ProgressOverview from './ProgressOverview'
+import FirstRun from './FirstRun'
+import InstallRow from './InstallRow'
 
 export default function HomeScreen() {
   const rows = useLiveQuery(() => allWithDecisions(), [])
-  const totals = useLiveQuery(counts)
   const navigate = useNavigate()
-  const pass = PASS_ORDER.find((p) => rows?.some(({ decision }) => isInDeck(decision, p)))
-  const passRows = rows?.filter(({ decision }) => pass === 'triage' || decision.bucket === pass) ?? []
-  const remaining = pass ? passRows.filter(({ decision }) => isInDeck(decision, pass)).length : 0
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const progress = useMemo(() => homeProgress(rows ?? []), [rows])
+  const current = progress.current
   const unsorted = rows?.filter(isUnsortedRow).length ?? 0
   return <Frame>
-    <header className="pb-10 pt-10">
+    <header className="pb-8 pt-10">
       <h1 className="font-serif text-[56px] leading-none tracking-tight">Contacts.</h1>
       <p className="mt-5 text-sm text-ink-2">Swipe. Sort. Stay in touch with the right people.</p>
     </header>
-    {!rows || !totals ? <p role="status">Loading contacts…</p> : totals.total === 0 ? <div className="space-y-4 py-8">
-      <Button full size="lg" onClick={() => navigate('/import')}>Import contacts</Button>
-      <p className="text-center text-sm text-ink-2">Nothing leaves this device.</p>
-    </div> : <>
-      <section className="rounded-[20px] border border-rule bg-paper-2 p-5 shadow-card">
-        <p className="eyebrow mb-3">{pass ? 'Pick up where you left off' : 'Your address book'}</p>
-        <h2 className="mb-5 font-serif text-2xl tabular">{pass ? `${PASS_META[pass].title} · ${passRows.length - remaining} of ${passRows.length}` : 'All sorted.'}</h2>
-        <Button full onClick={() => navigate(pass ? `/deck/${pass}` : '/review')}>{pass ? 'Continue' : 'Review'}</Button>
-        {!pass && unsorted > 0 && <p className="mt-3 text-sm text-ink-2">{unsorted} unsorted {unsorted === 1 ? 'contact awaits' : 'contacts await'} review.</p>}
+    {!rows ? <p role="status">Loading contacts…</p> : rows.length === 0 ? <FirstRun /> : <>
+      <ProgressOverview progress={progress} total={rows.length} />
+      <section className="rounded-[20px] border border-rule bg-paper-2 p-5">
+        <p className="eyebrow mb-3">{current ? 'Pick up where you left off' : 'Your address book'}</p>
+        <h2 className="mb-5 font-serif text-2xl tabular">{current ? `${current.title} · ${current.done} of ${current.total}` : 'All sorted.'}</h2>
+        <Button full disabled={busy} onClick={async () => {
+          if (!current) { navigate('/review'); return }
+          setBusy(true); setError('')
+          try {
+            // A skipped-out pass is still incomplete. Resume makes its cards available again.
+            await saveDecisions(rows.filter(({ decision }) => isUnsorted(decision, current.pass)).map(({ decision }) =>
+              ({ ...decision, skips: { ...decision.skips, [current.pass]: 0 }, updatedAt: Date.now() })))
+            navigate(`/deck/${current.pass}`)
+          } catch { setError('Could not resume. Please try again.'); setBusy(false) }
+        }}>{current ? 'Continue' : 'Review'}</Button>
+        {error && <p role="alert" className="mt-3 text-sm">{error}</p>}
       </section>
-      <dl className="my-8 border-t border-rule">
+      <nav aria-label="Contact counts" className="my-7 border-t border-rule">
         {(Object.keys(BUCKET_META) as Array<keyof typeof BUCKET_META>).map((key) =>
-          <div key={key} className="flex justify-between border-b border-rule py-3"><dt>{BUCKET_META[key].label}</dt><dd className="tabular">{totals.bucket[key]}</dd></div>)}
-        <div className="flex justify-between border-b border-rule py-3"><dt>Unsorted</dt><dd className="tabular">{unsorted}</dd></div>
-      </dl>
-      <nav aria-label="Contacts" className="flex flex-wrap justify-between gap-4 underline underline-offset-4">
-        <Link to="/review">Review</Link><Link to="/export">Export</Link><Link to="/import">Import more</Link>
+          <Link key={key} to={`/review?tab=${key}`} className="flex min-h-12 items-center justify-between border-b border-rule">
+            <span className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full" style={{ background: BUCKET_META[key].color }} />{BUCKET_META[key].label}</span>{' '}
+            <span className="font-serif text-xl tabular">{rows.filter(({ decision }) => decision.bucket === key).length}</span>
+          </Link>)}
+        <Link to="/review?tab=unsorted" className="flex min-h-12 items-center justify-between border-b border-rule">
+          <span className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-stamp-skip" />Unsorted</span>{' '}<span className="font-serif text-xl tabular">{unsorted}</span>
+        </Link>
+      </nav>
+      <nav aria-label="Contacts" className="flex flex-wrap justify-between gap-4 text-sm underline underline-offset-4">
+        <Link className="py-3" to="/review">Review</Link><Link className="py-3" to="/export">Export</Link><Link className="py-3" to="/import">Import more</Link>
       </nav>
     </>}
-    <footer className="mt-auto pt-12 pb-3"><Link to="/settings" className="text-sm text-ink-2 underline underline-offset-4">Settings</Link></footer>
+    <InstallRow />
+    <footer className="mt-auto pt-8 pb-3"><Link to="/settings" className="inline-flex min-h-11 items-center text-sm text-ink-2 underline underline-offset-4">Settings</Link></footer>
   </Frame>
 }

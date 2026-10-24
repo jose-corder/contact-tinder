@@ -36,8 +36,12 @@ export function findByEmailKeys(keys: string[]): Promise<Contact[]> {
   return keys.length ? db.contacts.where('emailKeys').anyOf(keys).toArray() : Promise.resolve([])
 }
 
+/** Remove contacts, their decisions, and their share of the tag vocabulary. One transaction. */
 export async function deleteContacts(ids: string[]): Promise<void> {
-  await db.transaction('rw', db.contacts, db.decisions, async () => {
+  if (ids.length === 0) return
+  await db.transaction('rw', db.contacts, db.decisions, db.tags, async () => {
+    const decisions = await db.decisions.bulkGet(ids)
+    for (const d of decisions) for (const t of d?.customTags ?? []) await bumpTag(t, -1)
     await db.contacts.bulkDelete(ids)
     await db.decisions.bulkDelete(ids)
   })
@@ -49,20 +53,51 @@ export async function getDecision(contactId: string): Promise<Decision> {
   return (await db.decisions.get(contactId)) ?? emptyDecision(contactId)
 }
 
-/** Persist a decision and keep the custom-tag vocabulary up to date. One transaction. */
-export async function saveDecision(decision: Decision): Promise<void> {
-  await db.transaction('rw', db.decisions, db.tags, async () => {
-    const prev = await db.decisions.get(decision.contactId)
-    await db.decisions.put(decision)
-    const before = new Set(prev?.customTags ?? [])
-    const after = new Set(decision.customTags)
-    for (const t of after) if (!before.has(t)) await bumpTag(t, +1)
-    for (const t of before) if (!after.has(t)) await bumpTag(t, -1)
-  })
+/** Thrown by saveDecision when the stored row changed since the caller read it. */
+export class StaleDecisionError extends Error {
+  readonly contactId: string
+  readonly stored: Decision | undefined
+
+  constructor(contactId: string, stored: Decision | undefined) {
+    super(`Decision for ${contactId} changed since it was read`)
+    this.name = 'StaleDecisionError'
+    this.contactId = contactId
+    this.stored = stored
+  }
 }
 
+export interface SaveOptions {
+  /**
+   * Optimistic concurrency: the `updatedAt` the caller last read (undefined = row did not exist).
+   * When given and the stored row differs, nothing is written and StaleDecisionError is thrown.
+   */
+  expectedUpdatedAt?: number | null
+}
+
+async function writeDecision(decision: Decision, options?: SaveOptions): Promise<void> {
+  const prev = await db.decisions.get(decision.contactId)
+  if (options && 'expectedUpdatedAt' in options) {
+    const expected = options.expectedUpdatedAt ?? undefined
+    if ((prev?.updatedAt ?? undefined) !== expected) throw new StaleDecisionError(decision.contactId, prev)
+  }
+  await db.decisions.put(decision)
+  const before = new Set(prev?.customTags ?? [])
+  const after = new Set(decision.customTags)
+  for (const t of after) if (!before.has(t)) await bumpTag(t, +1)
+  for (const t of before) if (!after.has(t)) await bumpTag(t, -1)
+}
+
+/** Persist a decision and keep the custom-tag vocabulary up to date. One transaction. */
+export async function saveDecision(decision: Decision, options?: SaveOptions): Promise<void> {
+  await db.transaction('rw', db.decisions, db.tags, () => writeDecision(decision, options))
+}
+
+/** Persist many decisions atomically: either every row is written or none is. */
 export async function saveDecisions(decisions: Decision[]): Promise<void> {
-  for (const d of decisions) await saveDecision(d)
+  if (decisions.length === 0) return
+  await db.transaction('rw', db.decisions, db.tags, async () => {
+    for (const d of decisions) await writeDecision(d)
+  })
 }
 
 export function allDecisions(): Promise<Decision[]> {
@@ -162,10 +197,29 @@ export async function dumpAll(): Promise<Dump> {
   }
 }
 
-export async function restoreAll(dump: Dump): Promise<void> {
+export type RestoreMode = 'replace' | 'merge'
+
+/**
+ * Restore a backup. `replace` (default) makes the database match the snapshot exactly:
+ * contacts and decisions not in the backup are removed. `merge` upserts on top of what exists.
+ * Photos are not in backups, so existing photo blobs are kept for contacts that are still present.
+ */
+export async function restoreAll(dump: Dump, mode: RestoreMode = 'replace'): Promise<void> {
   await db.transaction('rw', db.contacts, db.decisions, db.tags, async () => {
-    await db.contacts.bulkPut(dump.contacts as Contact[])
-    for (const d of dump.decisions) await saveDecision(d)
+    const ids = dump.contacts.map((c) => c.id)
+    const existing = await db.contacts.bulkGet(ids)
+    const photos = new Map<string, Blob>()
+    existing.forEach((c) => { if (c?.photo) photos.set(c.id, c.photo) })
+    if (mode === 'replace') {
+      await Promise.all([db.contacts.clear(), db.decisions.clear(), db.tags.clear()])
+    }
+    const contacts = dump.contacts.map((c) => {
+      const photo = photos.get(c.id)
+      return (photo ? { ...c, photo } : c) as Contact
+    })
+    await db.contacts.bulkPut(contacts)
+    const known = new Set(ids)
+    for (const d of dump.decisions) if (known.has(d.contactId)) await writeDecision(d)
   })
 }
 

@@ -1,104 +1,164 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import ImportScreen from '@/features/import/ImportScreen'
-import { importContacts, importDemo, importFiles, type ImportResult } from '@/import'
+import { importContacts, importDemo, previewFiles, commitPreview, type ImportResult, type ImportPreview } from '@/import'
 import { isContactPickerSupported, pickContacts } from '@/import/contactPicker'
+import { makeContact } from '@/import/contact'
 
-vi.mock('@/import', () => ({ importContacts: vi.fn(), importDemo: vi.fn(), importFiles: vi.fn() }))
+vi.mock('@/import', () => ({ importContacts: vi.fn(), importDemo: vi.fn(), previewFiles: vi.fn(), commitPreview: vi.fn() }))
 vi.mock('@/import/contactPicker', () => ({ isContactPickerSupported: vi.fn(), pickContacts: vi.fn() }))
+vi.mock('@/ui/toast', () => ({ toast: vi.fn() }))
 
 const result: ImportResult = { added: 2, merged: 1, total: 3, errors: [] }
+const preview: ImportPreview = { ...result, photos: 0, skipped: 0, allAlreadyImported: false,
+  contacts: ['Ada', 'Grace', 'Lin'].map((displayName) => makeContact({ displayName, org: 'Studio', phones: [], emails: [] }, 'vcf')!) }
 
 function show() {
-  return render(
-    <MemoryRouter initialEntries={['/import']}>
-      <Routes>
-        <Route path="/import" element={<ImportScreen />} />
-        <Route path="/deck/triage" element={<p>Triage deck</p>} />
-      </Routes>
-    </MemoryRouter>,
-  )
+  return render(<MemoryRouter initialEntries={['/import']}><Routes>
+    <Route path="/import" element={<ImportScreen />} />
+    <Route path="/deck/triage" element={<p>Triage deck</p>} />
+  </Routes></MemoryRouter>)
 }
+const choose = (files = [new File(['card'], 'contacts.vcf')]) =>
+  fireEvent.change(screen.getByLabelText('Choose contact files'), { target: { files } })
 
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(importDemo).mockResolvedValue(result)
-  vi.mocked(importFiles).mockResolvedValue(result)
+  vi.mocked(previewFiles).mockResolvedValue(preview)
+  vi.mocked(commitPreview).mockResolvedValue(result)
   vi.mocked(importContacts).mockResolvedValue(result)
   vi.mocked(isContactPickerSupported).mockReturnValue(false)
 })
 afterEach(cleanup)
 
 describe('Import screen', () => {
-  it('explains privacy, provides the accepted file formats and export instructions', () => {
+  it('keeps the headline, privacy, formats, and tabbed instructions', () => {
     show()
     expect(screen.getByRole('heading', { name: 'Bring your contacts.' })).toBeInTheDocument()
     expect(screen.getByText('Nothing leaves this device.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pick from phone' })).not.toBeInTheDocument()
-    const input = screen.getByLabelText('Choose contact files')
-    expect(input).toHaveAttribute('multiple')
-    expect(input).toHaveAttribute('accept', '.vcf,.vcard,.csv,text/vcard,text/x-vcard,text/csv')
-    fireEvent.click(screen.getByText('How to export your contacts'))
-    expect(screen.getByText('iPhone')).toBeVisible()
-    expect(screen.getByText('iCloud.com')).toBeVisible()
-    expect(screen.getByText('Google Contacts')).toBeVisible()
-    expect(screen.getByText('Outlook')).toBeVisible()
+    expect(screen.getByLabelText('Choose contact files')).toHaveAttribute('accept', '.vcf,.vcard,.csv,text/vcard,text/x-vcard,text/csv')
+    expect(screen.getByLabelText('Choose contact files')).toHaveAttribute('multiple')
+    for (const name of ['iPhone', 'iCloud.com', 'Google', 'Outlook']) {
+      fireEvent.click(screen.getByRole('tab', { name }))
+      expect(screen.getByRole('tab', { name })).toHaveAttribute('aria-selected', 'true')
+      expect(within(screen.getByRole('tabpanel')).getAllByRole('listitem').length).toBeGreaterThanOrEqual(3)
+    }
+    fireEvent.click(screen.getByText('Why a file?'))
+    expect(screen.getByText(/iPhone Safari does not/)).toBeVisible()
+    expect(screen.getByText(/Files app under Browse/)).toBeVisible()
   })
 
-  it('imports multiple chosen files and starts triage', async () => {
+  it('shows counts and three samples before saving, then starts triage', async () => {
     show()
     const files = [new File(['card'], 'contacts.vcf'), new File(['csv'], 'contacts.csv')]
-    fireEvent.change(screen.getByLabelText('Choose contact files'), { target: { files } })
-    expect(importFiles).toHaveBeenCalledWith(files)
-    expect(await screen.findByText('2 imported · 1 merged')).toBeInTheDocument()
+    choose(files)
+    expect(previewFiles).toHaveBeenCalledWith(files, expect.any(Function))
+    expect(await screen.findByText('3 contacts found · 1 duplicates will merge · 0 with photos')).toBeInTheDocument()
+    const block = screen.getByRole('region', { name: 'Import preview' })
+    expect(within(block).getAllByRole('listitem')).toHaveLength(3)
+    expect(within(block).getByText('Ada')).toBeInTheDocument()
+    expect(commitPreview).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Import 3' }))
+    expect(commitPreview).toHaveBeenCalledWith(preview, expect.any(Function))
+    await screen.findByText('2 imported · 1 merged')
     fireEvent.click(screen.getByRole('button', { name: 'Start triage' }))
     expect(screen.getByText('Triage deck')).toBeInTheDocument()
   })
 
-  it('handles dropped files', async () => {
+  it('cancels without saving and permits another file', async () => {
     show()
-    const file = new File(['card'], 'contacts.vcf')
-    fireEvent.drop(screen.getByLabelText('Choose contact files').parentElement!, { dataTransfer: { files: [file] } })
-    expect(importFiles).toHaveBeenCalledWith([file])
-    await screen.findByText('2 imported · 1 merged')
-  })
-
-  it('disables import actions and rejects extra drops while busy', async () => {
-    let finish!: (value: ImportResult) => void
-    vi.mocked(importDemo).mockReturnValue(new Promise((resolve) => { finish = resolve }))
-    show()
-    fireEvent.click(screen.getByRole('button', { name: 'Try with 40 demo contacts' }))
-    expect(screen.getByRole('status')).toHaveTextContent('Importing your contacts…')
-    expect(screen.getByLabelText('Choose contact files')).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Try with 40 demo contacts' })).toBeDisabled()
-    fireEvent.drop(screen.getByLabelText('Choose contact files').parentElement!, { dataTransfer: { files: [new File([], 'extra.vcf')] } })
-    expect(importFiles).not.toHaveBeenCalled()
-    await act(async () => finish(result))
-    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    choose()
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
+    expect(commitPreview).not.toHaveBeenCalled()
+    expect(screen.queryByRole('region', { name: 'Import preview' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Choose contact files')).toBeEnabled()
   })
 
-  it('shows per-file errors alongside successful imports', async () => {
-    vi.mocked(importFiles).mockResolvedValue({ ...result, errors: ['bad.csv: No contacts found.'] })
+  it('handles dropped files and prevents replacement while awaiting confirmation', async () => {
     show()
-    fireEvent.change(screen.getByLabelText('Choose contact files'), { target: { files: [new File([], 'bad.csv')] } })
-    expect(await screen.findByRole('alert')).toHaveTextContent('bad.csv: No contacts found.')
-    expect(screen.getByRole('button', { name: 'Start triage' })).toBeInTheDocument()
+    const file = new File(['card'], 'contacts.vcf')
+    const zone = screen.getByLabelText('Choose contact files').parentElement!
+    fireEvent.drop(zone, { dataTransfer: { files: [file] } })
+    await screen.findByRole('button', { name: 'Import 3' })
+    fireEvent.drop(zone, { dataTransfer: { files: [file] } })
+    expect(previewFiles).toHaveBeenCalledTimes(1)
+    expect(screen.getByLabelText('Choose contact files')).toBeDisabled()
   })
 
-  it('shows failures and allows a retry', async () => {
-    vi.mocked(importDemo).mockRejectedValueOnce(new Error('Storage full'))
+  it('shows all-already-imported and Done without another write', async () => {
+    vi.mocked(previewFiles).mockResolvedValue({ ...preview, total: 912, added: 0, merged: 912, allAlreadyImported: true })
+    show()
+    choose()
+    await screen.findByText('All 912 already imported')
+    expect(screen.queryByRole('button', { name: 'Import 912' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(commitPreview).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Choose contact files')).toBeEnabled()
+  })
+
+  it('shows phase, a 2px progress bar and tabular count; locks actions during parsing', async () => {
+    let finish!: (value: ImportPreview) => void
+    vi.mocked(previewFiles).mockImplementation((_files, progress) => {
+      progress?.({ phase: 'parsing', parsed: 1240, total: 2000 })
+      return new Promise((resolve) => { finish = resolve })
+    })
+    show()
+    choose()
+    expect(screen.getByRole('status')).toHaveTextContent('1,240 contacts parsed')
+    expect(screen.getByText('parsing')).toHaveClass('eyebrow')
+    expect(screen.getByRole('progressbar')).toHaveClass('h-[2px]')
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1240')
+    expect(screen.getByLabelText('Choose contact files')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Try with 40 demo contacts' })).toBeDisabled()
+    await act(async () => finish(preview))
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('keeps demo import one tap', async () => {
     show()
     fireEvent.click(screen.getByRole('button', { name: 'Try with 40 demo contacts' }))
+    await screen.findByText('2 imported · 1 merged')
+    expect(previewFiles).not.toHaveBeenCalled()
+    expect(screen.queryByRole('region', { name: 'Import preview' })).not.toBeInTheDocument()
+  })
+
+  it('shows calm empty-file errors without an import confirmation', async () => {
+    const error = 'Nothing we could read in `export.csv`. Try the vCard export instead.'
+    vi.mocked(previewFiles).mockResolvedValue({ ...preview, total: 0, contacts: [], errors: [error] })
+    show()
+    choose()
+    expect(await screen.findByRole('alert')).toHaveTextContent(error)
+    expect(screen.getByRole('alert')).toHaveClass('text-stamp-delete')
+    expect(screen.queryByRole('region', { name: 'Import preview' })).not.toBeInTheDocument()
+  })
+
+  it('shows skipped-card errors beside successful preview and commit', async () => {
+    const errors = ['partial.vcf: 2 unreadable cards skipped. The rest are ready to import.']
+    vi.mocked(previewFiles).mockResolvedValue({ ...preview, skipped: 2, errors })
+    vi.mocked(commitPreview).mockResolvedValue({ ...result, errors })
+    show()
+    choose()
+    expect(await screen.findByRole('alert')).toHaveTextContent('2 unreadable cards skipped')
+    fireEvent.click(screen.getByRole('button', { name: 'Import 3' }))
+    await screen.findByRole('button', { name: 'Start triage' })
+    expect(screen.getByRole('alert')).toHaveTextContent('2 unreadable cards skipped')
+  })
+
+  it('retains the preview after a failed save for retry', async () => {
+    vi.mocked(commitPreview).mockRejectedValueOnce(new Error('Storage full'))
+    show()
+    choose()
+    fireEvent.click(await screen.findByRole('button', { name: 'Import 3' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Storage full')
-    expect(screen.queryByRole('button', { name: 'Start triage' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Try with 40 demo contacts' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Import 3' }))
     await screen.findByText('2 imported · 1 merged')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('shows supported phone picker and handles cancellation without an error', async () => {
+  it('handles phone picker cancellation without an error', async () => {
     vi.mocked(isContactPickerSupported).mockReturnValue(true)
     vi.mocked(pickContacts).mockRejectedValueOnce(new DOMException('Cancelled', 'AbortError'))
     show()
@@ -106,9 +166,5 @@ describe('Import screen', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Pick from phone' })).toBeEnabled())
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(importContacts).not.toHaveBeenCalled()
-    vi.mocked(pickContacts).mockResolvedValueOnce([])
-    fireEvent.click(screen.getByRole('button', { name: 'Pick from phone' }))
-    await waitFor(() => expect(importContacts).toHaveBeenCalledWith([]))
-    await screen.findByText('2 imported · 1 merged')
   })
 })

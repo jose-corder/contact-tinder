@@ -7,6 +7,8 @@ import { applySwipe } from '@/domain/taxonomy'
 import type { Contact, Pass } from '@/domain/types'
 import DeckScreen from '@/features/deck/DeckScreen'
 import { setFollowUpEnabled } from '@/ui/theme'
+import { dismissDeckCoaches } from './helpers'
+import * as feedback from '@/ui/toast'
 
 vi.mock('framer-motion', async (original) => {
   const actual = await original<typeof import('framer-motion')>()
@@ -26,7 +28,7 @@ async function action(label: string) {
 }
 
 // These tests exercise the raw deck; the post-swipe type sheet has its own test file.
-beforeEach(async () => { await repo.resetAll(); setFollowUpEnabled(false) })
+beforeEach(async () => { await repo.resetAll(); setFollowUpEnabled(false); dismissDeckCoaches(); feedback.dismissToast() })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 describe('DeckScreen', () => {
@@ -56,6 +58,7 @@ describe('DeckScreen', () => {
     expect(await screen.findByText('Triage done.')).toBeInTheDocument()
     expect((await repo.getDecision('a')).skips.triage).toBe(2)
     expect(await screen.findByText('1 skipped twice · find them under Review → Unsorted')).toBeInTheDocument()
+    expect(screen.getByText('2 of 3 sorted in this pass')).toBeInTheDocument()
     await action('undo')
     expect(await screen.findByText('2 / 3')).toBeInTheDocument()
     expect((await repo.getDecision('a')).skips.triage).toBe(1)
@@ -162,4 +165,70 @@ describe('DeckScreen', () => {
     expect(screen.queryByRole('button', { name: 'undo' })).not.toBeInTheDocument()
     await act(async () => {})
   })
+})
+
+
+it.each([['Delete', 'delete'], ['Work', 'work'], ['Personal', 'personal'], ['Skip', 'default']] as const)('announces %s once, with the right tone and a working toast Undo', async (label, tone) => {
+  await seed()
+  const notify = vi.spyOn(feedback, 'toast')
+  show()
+  render(<feedback.Toaster />)
+  await action(label)
+  await waitFor(() => expect(notify).toHaveBeenCalledWith('Ana → ' + label, expect.objectContaining({ tone, action: { label: 'Undo', onClick: expect.any(Function) } })))
+  expect(screen.getAllByRole('status')).toHaveLength(1)
+  expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+  expect(screen.getByRole('status')).toHaveTextContent('Ana → ' + label)
+  await action('Undo')
+  expect(await screen.findByRole('article', { name: 'Ana contact card' })).toBeInTheDocument()
+  expect((await repo.getDecision('a')).bucket).toBeUndefined()
+  expect((await repo.getDecision('a')).skips.triage).toBe(0)
+})
+
+it('keeps the toast undo current after more than one decision', async () => {
+  await seed()
+  const notify = vi.spyOn(feedback, 'toast')
+  show()
+  await action('Work')
+  await action('Personal')
+  await waitFor(() => expect(notify).toHaveBeenCalledTimes(2))
+  await act(async () => { notify.mock.lastCall?.[1]?.action?.onClick() })
+  await waitFor(() => expect(screen.getByRole('article', { name: 'Bo contact card' })).toBeInTheDocument())
+  expect((await repo.getDecision('a')).bucket).toBe('work')
+  expect((await repo.getDecision('b')).bucket).toBeUndefined()
+})
+
+it('does not reload contacts or recount the database on each swipe', async () => {
+  await seed()
+  const load = vi.spyOn(repo, 'deckContacts'), count = vi.spyOn(repo, 'counts')
+  show()
+  await screen.findByRole('article', { name: 'Ana contact card' })
+  const loads = load.mock.calls.length, counts = count.mock.calls.length
+  await action('Work')
+  await action('Delete')
+  expect(load).toHaveBeenCalledTimes(loads)
+  expect(count).toHaveBeenCalledTimes(counts)
+})
+
+it('shows a new pass coach and consumes its dismissal tap without flipping', async () => {
+  await seed()
+  window.localStorage.removeItem('ct.coach.triage')
+  show()
+  expect(await screen.findByRole('complementary', { name: 'Swipe guide' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'View all fields' }))
+  expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument()
+  expect(window.localStorage.getItem('ct.coach.triage')).toBe('seen')
+})
+
+
+it.each([
+  ['work', 'Old', 'work'], ['work', 'Current', 'work'], ['work', 'Potential', 'work'],
+  ['personal', 'Ex', 'personal'], ['personal', 'Friend', 'personal'], ['personal', 'Family', 'personal'],
+] as const)('announces the %s pass outcome %s using the given name', async (pass, label, tone) => {
+  await repo.upsertContacts([{ ...contact('a', 'Santos, Maria'), givenName: 'Maria Elena' }])
+  await repo.saveDecision(applySwipe(await repo.getDecision('a'), 'triage', pass === 'work' ? 'right' : 'up'))
+  const notify = vi.spyOn(feedback, 'toast')
+  show(pass)
+  await action(label)
+  await waitFor(() => expect(notify).toHaveBeenCalledWith('Maria → ' + label, expect.objectContaining({ tone })))
 })

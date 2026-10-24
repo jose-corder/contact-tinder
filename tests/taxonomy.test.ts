@@ -65,4 +65,10 @@ describe('taxonomy', () => {
     d = applySwipe(d, 'personal', 'right')
     expect(decisionLabels(d)).toEqual(['Personal', 'Friend', 'padel group'])
   })
+
+  it('keeps custom tags as labels before triage', () => {
+    const d = toggleCustomTag(emptyDecision('a'), 'vip')
+    expect(decisionLabels(d)).toEqual(['vip'])
+    expect(decisionLabels(undefined)).toEqual([])
+  })
 })

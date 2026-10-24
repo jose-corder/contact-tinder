@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { motion } from 'framer-motion'
 import { PASS_META } from '@/domain/taxonomy'
@@ -14,7 +14,10 @@ import { NextCard } from './NextCard'
 import { Stamp } from './Stamp'
 import { SwipeCard } from './SwipeCard'
 import { FollowUpSheet, type FollowUpTarget } from './FollowUpSheet'
-import { followUpEnabled } from '@/ui/theme'
+import { followUpEnabled, prefersReducedMotion } from '@/ui/theme'
+import { dismissToast, toast } from '@/ui/toast'
+import { useCoach } from '@/hooks/useCoach'
+import { DeckCoach } from './DeckCoach'
 
 export default function DeckScreen({ pass }: { pass: Pass }) {
   return <DeckSession key={pass} pass={pass} />
@@ -22,59 +25,80 @@ export default function DeckScreen({ pass }: { pass: Pass }) {
 
 function DeckSession({ pass }: { pass: Pass }) {
   const deck = useDeck(pass)
+  const coach = useCoach(pass)
   // After a Work/Personal swipe in triage, offer status/type right away (see FollowUpSheet).
   const [followUp, setFollowUp] = useState<FollowUpTarget>()
-  const undo = () => { setFollowUp(undefined); void deck.undo() }
+  const latestUndo = useRef(deck.undo)
+  useLayoutEffect(() => { latestUndo.current = deck.undo }, [deck.undo])
+  const undo = useCallback(() => { dismissToast(); setFollowUp(undefined); void latestUndo.current() }, [])
   const onSwipe = async (direction: Direction) => {
+    coach.dismiss()
+    dismissToast()
     const result = await deck.swipe(direction)
+    if (result) {
+      const outcome = PASS_META[pass].swipes[direction]
+      const firstName = result.item.contact.givenName?.trim().split(/\s+/)[0] || result.item.contact.displayName.trim().split(/\s+/)[0] || 'Contact'
+      const tone = outcome.kind === 'skip' ? 'default' : outcome.kind === 'bucket' ? outcome.value : pass === 'work' ? 'work' : 'personal'
+      toast(firstName + ' → ' + outcome.label, { tone, action: { label: 'Undo', onClick: undo } })
+    }
     if (pass === 'triage' && result && followUpEnabled() && (result.decision.bucket === 'work' || result.decision.bucket === 'personal')) {
       setFollowUp({ contact: result.item.contact, decision: result.decision })
     }
   }
   useKeyboard({ swipe: () => {}, toggleChip: () => {}, focusTag: () => {}, undo, disabled: !!deck.top || deck.pending || !!followUp })
   return <Frame className="h-dvh overflow-hidden">
-    <TopBar title={PASS_META[pass].title} backTo="/" right={<span aria-live="polite">{deck.done} / {deck.total}</span>} progress={deck.progress} />
+    <TopBar title={PASS_META[pass].title} backTo="/" right={<span>{deck.done} / {deck.total}</span>} progress={deck.progress} />
     {deck.error && <p role="alert" className="mb-2 text-sm text-ink-2">{deck.error}</p>}
     {deck.loading ? <div role="status" aria-label="Loading contacts" className="flex-1 rounded-[20px] border border-rule bg-paper-2" />
       : deck.empty ? <Empty title="No contacts yet."><Link className="underline underline-offset-4" to="/import">Import contacts</Link></Empty>
-        : deck.top && deck.draft ? <ActiveDeck key={`${deck.top.contact.id}-${deck.top.decision.updatedAt}`} pass={pass} deck={deck} onSwipe={onSwipe} undo={undo} locked={!!followUp} />
+        : deck.top && deck.draft ? <ActiveDeck key={`${deck.top.contact.id}-${deck.top.decision.updatedAt}`} pass={pass} deck={deck} coach={coach} onSwipe={onSwipe} undo={undo} locked={!!followUp} />
           : <>{deck.finished && <DeckEnd pass={pass} />}{deck.canUndo && <button className="h-10 self-start text-sm text-ink-2" onClick={undo}>undo</button>}</>}
     <FollowUpSheet target={followUp} onClose={() => setFollowUp(undefined)} />
   </Frame>
 }
 
-function ActiveDeck({ pass, deck, onSwipe, undo, locked }: {
-  pass: Pass; deck: ReturnType<typeof useDeck>; onSwipe: (direction: Direction) => Promise<void>; undo: () => void; locked: boolean
+function ActiveDeck({ pass, deck, coach, onSwipe, undo, locked }: {
+  coach: ReturnType<typeof useCoach>; pass: Pass; deck: ReturnType<typeof useDeck>; onSwipe: (direction: Direction) => Promise<void>; undo: () => void; locked: boolean
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [tagOpen, setTagOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
-  const swipe = useSwipe({ onCommit: (direction) => { void onSwipe(direction) }, disabled: deck.pending || locked,
+  const swipe = useSwipe({ onDragStart: coach.dismiss, onCommit: (direction) => { void onSwipe(direction) }, disabled: deck.pending || locked,
     returnDirection: deck.returning?.id === deck.top?.contact.id ? deck.returning.direction : undefined })
   const disabled = deck.pending || !!swipe.committing || locked
   const meta = PASS_META[pass]
+  const triggerSwipe = (direction: Direction) => { coach.dismiss(); void swipe.triggerSwipe(direction) }
   useKeyboard({
-    swipe: (direction) => { void swipe.triggerSwipe(direction) }, undo, disabled,
+    swipe: triggerSwipe, undo, disabled: disabled || detailsOpen,
     toggleChip: (index) => {
+      coach.dismiss()
       const chip = meta.chips[index]
       if (chip) deck.toggleChip(chip.key)
       else { const tag = deck.draft?.customTags[index - meta.chips.length]; if (tag) deck.toggleTag(tag) }
     },
-    focusTag: () => { setTagOpen(true); inputRef.current?.focus() },
+    focusTag: () => { coach.dismiss(); setTagOpen(true); inputRef.current?.focus() },
   })
   if (!deck.top || !deck.draft) return null
   return <>
-    <div className="relative min-h-0 flex-1">
+    <div className="relative mb-[10px] min-h-0 flex-1" onClickCapture={(event) => {
+      if (coach.visible) { event.preventDefault(); event.stopPropagation(); coach.dismiss() }
+    }}>
       {deck.next && <NextCard contact={deck.next.contact} advancing={!!swipe.committing} />}
       <motion.div ref={swipe.cardRef} className="absolute inset-0 z-10" style={{ x: swipe.x, y: swipe.y, rotate: swipe.rotate, opacity: swipe.opacity, touchAction: detailsOpen ? 'pan-y' : 'none' }}
-        drag={swipe.drag && !detailsOpen} dragMomentum={false} onDragEnd={swipe.onDragEnd}>
-        <SwipeCard contact={deck.top.contact} onFlip={setDetailsOpen} />
+        onPointerDown={swipe.onPointerDown}
+        onPan={swipe.drag && !detailsOpen ? swipe.onDrag : undefined}
+        onPanEnd={!detailsOpen ? swipe.onDragEnd : undefined}
+        onPointerCancel={detailsOpen ? undefined : swipe.cancel}>
+        <motion.div className="h-full" animate={{ x: coach.visible && !prefersReducedMotion() ? [0, 8, 0] : 0 }} transition={{ duration: coach.visible ? 0.6 : 0.12, ease: 'easeInOut' }}>
+          <SwipeCard contact={deck.top.contact} onFlip={setDetailsOpen} />
+        </motion.div>
         {(Object.keys(meta.swipes) as Direction[]).map((direction) => <Stamp key={direction} direction={direction} label={meta.swipes[direction].label} color={meta.swipes[direction].color} opacity={swipe.committing === direction ? 1 : swipe.committing ? 0 : swipe.stamps[direction]} />)}
       </motion.div>
+      {coach.visible && <DeckCoach pass={pass} dismiss={coach.dismiss} />}
     </div>
-    <motion.div className="relative z-20 shrink-0" style={{ x: swipe.x, y: swipe.y, opacity: swipe.opacity }}>
+    <motion.div className="relative z-20 shrink-0" onClickCapture={() => { if (coach.visible) coach.dismiss() }} style={{ x: swipe.x, y: swipe.y, opacity: swipe.opacity }}>
       <ChipRow pass={pass} draft={deck.draft} toggleChip={deck.toggleChip} toggleTag={deck.toggleTag} inputRef={inputRef} open={tagOpen} setOpen={setTagOpen} disabled={disabled} />
     </motion.div>
-    <ActionBar pass={pass} canUndo={deck.canUndo} undo={undo} triggerSwipe={(direction) => { void swipe.triggerSwipe(direction) }} disabled={disabled} />
+    <ActionBar pass={pass} canUndo={deck.canUndo} undo={undo} triggerSwipe={triggerSwipe} disabled={disabled} />
   </>
 }

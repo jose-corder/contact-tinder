@@ -1,8 +1,12 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import { deleteContacts, saveDecision, type ContactWithDecision } from '@/db/repo'
 import type { Bucket, Decision, PersonalRelation, PersonalType, WorkStatus, WorkType } from '@/domain/types'
 import { BUCKET_META, WORK_STATUS_META, WORK_TYPE_META, PERSONAL_RELATION_META, PERSONAL_TYPE_META, normalizeTag, setBucket, toggleChip, toggleCustomTag } from '@/domain/taxonomy'
 import { Avatar, Button, Chip, Rule, Sheet } from '@/ui'
+import ContactValue from './ContactValue'
+import DecisionLabels from './DecisionLabels'
+import { resetForReview } from './model'
 
 export default function RowSheet({ row, onClose }: { row: ContactWithDecision; onClose: () => void }) {
   const { contact } = row
@@ -11,6 +15,7 @@ export default function RowSheet({ row, onClose }: { row: ContactWithDecision; o
   const [confirm, setConfirm] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const navigate = useNavigate()
   async function save(next: Decision) {
     setBusy(true); setError('')
     try { await saveDecision(next); setDecision(next) }
@@ -20,16 +25,17 @@ export default function RowSheet({ row, onClose }: { row: ContactWithDecision; o
   return <Sheet open onClose={() => { if (!busy) onClose() }} title="Contact details">
     <div className="max-h-[75dvh] overflow-y-auto overscroll-contain pb-2">
       <div className="flex items-center gap-3">
-        <Avatar name={contact.displayName} photo={contact.photo} size={48} />
+        <Avatar name={contact.displayName} photo={contact.photo} size={56} />
         <h2 className="min-w-0 break-words font-serif text-2xl">{contact.displayName}</h2>
       </div>
+      <DecisionLabels decision={decision} />
       <dl className="my-5 space-y-3 break-words text-sm">
         {contact.givenName && <div><dt className="text-ink-2">Given name</dt><dd>{contact.givenName}</dd></div>}
         {contact.familyName && <div><dt className="text-ink-2">Family name</dt><dd>{contact.familyName}</dd></div>}
         {contact.org && <div><dt className="text-ink-2">Organization</dt><dd>{contact.org}</dd></div>}
         {contact.title && <div><dt className="text-ink-2">Title</dt><dd>{contact.title}</dd></div>}
-        {contact.phones.map((phone, i) => <div key={`phone-${i}`}><dt className="text-ink-2">Phone{phone.type ? ` · ${phone.type}` : ''}</dt><dd><a href={`tel:${phone.value}`}>{phone.value}</a></dd></div>)}
-        {contact.emails.map((email, i) => <div key={`email-${i}`}><dt className="text-ink-2">Email{email.type ? ` · ${email.type}` : ''}</dt><dd><a href={`mailto:${email.value}`}>{email.value}</a></dd></div>)}
+        {contact.phones.map((phone, i) => <ContactValue key={`phone-${i}`} label={`Phone${phone.type ? ` · ${phone.type}` : ''}`} value={phone.value} href={`tel:${phone.e164 || phone.value}`} />)}
+        {contact.emails.map((email, i) => <ContactValue key={`email-${i}`} label={`Email${email.type ? ` · ${email.type}` : ''}`} value={email.value} href={`mailto:${email.value}`} />)}
         {contact.notes && <div><dt className="text-ink-2">Notes</dt><dd className="whitespace-pre-wrap">{contact.notes}</dd></div>}
         <div><dt className="text-ink-2">Source</dt><dd>{contact.source}</dd></div>
         <div><dt className="text-ink-2">Added</dt><dd>{new Date(contact.importedAt).toLocaleString()}</dd></div>
@@ -78,7 +84,15 @@ export default function RowSheet({ row, onClose }: { row: ContactWithDecision; o
             <Button variant="outline" type="submit" disabled={!tag.trim()}>Add</Button>
           </form>
         </div>
-        {!confirm ? <Button variant="ghost" className="text-stamp-delete" onClick={() => setConfirm(true)}>Remove from app</Button> :
+        <Button variant="ghost" className="px-0 underline underline-offset-4" onClick={async () => {
+          setBusy(true); setError('')
+          try {
+            const reset = resetForReview([{ contact, decision }], decision.bucket ?? 'unsorted')
+            await saveDecision(reset.decisions[0])
+            navigate(`/deck/${reset.pass}`)
+          } catch { setError('Could not return this contact to the deck. Please try again.'); setBusy(false) }
+        }}>Jump to deck</Button>
+        {!confirm ? <Button variant="ghost" onClick={() => setConfirm(true)}>Remove from app</Button> :
           <div className="space-y-3 border-t border-rule pt-4">
             <p className="text-sm text-ink-2">Remove this contact and its decisions from this app? Your phone's address book is unchanged.</p>
             <Button full onClick={async () => {
