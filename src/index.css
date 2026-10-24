@@ -89,7 +89,8 @@
   --radius-card: 20px;
 }
 
-/* ---------- base ---------- */
+/* ---------- base (layered so Tailwind utilities win) ---------- */
+@layer base {
 html,
 body,
 #root {
@@ -167,4 +168,5 @@ input {
 ::selection {
   background: var(--ink);
   color: var(--paper);
+}
 }

@@ -52,8 +52,8 @@ export function SwipeCard({ contact, preview = false, onFlip }: { contact: Conta
         <div className="hairline shrink-0" />
         <dl className="grid shrink-0 grid-cols-[76px_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2 text-[15px]">
           {flipped && [['Given name', contact.givenName], ['Family name', contact.familyName], ['Role', contact.title], ['Org', contact.org]].map(([label, value]) => value && <Field key={label} label={label!} value={value} />)}
-          {phones.map((phone, index) => <Field key={`phone-${index}`} label={phone.type || 'Phone'} value={phone.value} phone onHold={() => { cancel(); press.current = setTimeout(() => void copy(phone.value), 500) }} />)}
-          {emails.map((email, index) => <Field key={`email-${index}`} label={email.type || 'Email'} value={email.value} />)}
+          {phones.map((phone, index) => <Field key={`phone-${index}`} label={friendlyType(phone.type, 'Phone')} value={phone.value} phone onHold={() => { cancel(); press.current = setTimeout(() => void copy(phone.value), 500) }} />)}
+          {emails.map((email, index) => <Field key={`email-${index}`} label={friendlyType(email.type, 'Email')} value={email.value} />)}
         </dl>
         {contact.notes && <p className={`break-words text-[15px] text-ink-2 ${flipped ? 'whitespace-pre-wrap' : 'line-clamp-2'}`}>{contact.notes}</p>}
       </div>
@@ -70,4 +70,13 @@ export function SwipeCard({ contact, preview = false, onFlip }: { contact: Conta
 
 function Field({ label, value, phone, onHold }: { label: string; value: string; phone?: boolean; onHold?: () => void }) {
   return <><dt className="eyebrow truncate text-ink-2" title={label}>{label}</dt><dd className={`min-w-0 truncate ${phone ? 'tabular' : ''}`} title={value} onPointerDown={onHold} onContextMenu={phone ? (event) => event.preventDefault() : undefined}>{value}</dd></>
+}
+
+/** Turn vCard TYPE params (CELL, INTERNET, pref, voice...) into a short human label. */
+export function friendlyType(type: string | undefined, fallback: string): string {
+  const t = (type ?? '').toLowerCase().split(/[,;\s]+/).filter((p) => p && !['internet', 'pref', 'voice', 'x-mobile'].includes(p))
+  const map: Record<string, string> = { cell: 'Mobile', mobile: 'Mobile', iphone: 'Mobile', main: 'Main', work: 'Work', home: 'Home', fax: 'Fax', other: fallback }
+  const first = t[0]
+  if (!first) return fallback
+  return map[first] ?? first.charAt(0).toUpperCase() + first.slice(1)
 }

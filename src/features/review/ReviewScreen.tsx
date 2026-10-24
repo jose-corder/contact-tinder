@@ -58,7 +58,7 @@ export default function ReviewScreen() {
       <Filters tab={tab} rows={segmentRows} segment={segment} types={types} tags={tags}
         onSegment={(value) => { setSegment(value); setTags([]) }}
         onType={(value) => setTypes(toggleFilter(types, value))} onTag={(value) => setTags(toggleFilter(tags, value))} />
-      {filtered.length > 0 && <Button variant="ghost" className="mt-2 px-0 text-sm" disabled={busy} onClick={async () => {
+      {filtered.length > 0 && <Button variant="ghost" className="mt-2 px-0! text-sm" disabled={busy} onClick={async () => {
         setBusy(true); setError('')
         try {
           const reset = resetForReview(filtered, tab)
