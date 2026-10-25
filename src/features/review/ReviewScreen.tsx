@@ -14,9 +14,14 @@ import ReviewTabs from './ReviewTabs'
 import { inTab, matchesSearch, type ReviewTab } from './model'
 import { prepareReswipe } from './reswipe'
 import { useReviewContext } from './useReviewContext'
+import { usePairModeFocus } from './usePairModeFocus'
+import { useMergeRecovery } from '@/features/import/useMergeRecovery'
 
 export default function ReviewScreen() {
   const [retry, setRetry] = useState(0)
+  const mergeRecovery = useMergeRecovery()
+  const recovery = <><RecoveryBar />{mergeRecovery.error && <InlineNotice tone="error">{mergeRecovery.error}
+    <Button variant="ghost" onClick={mergeRecovery.retry}>Retry merge recovery</Button></InlineNotice>}</>
   const data = useLiveQuery(async () => {
     try { return { rows: await allWithDecisions(), duplicates: (await readPossibleDuplicates()).filter(pair => !pair.resolved), error: '' } }
     catch { return { rows: undefined, error: 'Could not load contacts. Try again.' } }
@@ -25,8 +30,9 @@ export default function ReviewScreen() {
   const desktop = useMediaQuery('(min-width: 1024px)')
   const navigate = useNavigate()
   const { tab, changeTab, limit, setLimit, params, setParams, search, setSearch, segment, setSegment,
-    types, setTypes, tags, setTags, setSelectedId } = useReviewContext(!!rows)
+    types, setTypes, tags, setTags, setSelectedId, listTop } = useReviewContext(!!rows)
   const duplicatesOnly = params.get('dupes') === '1'
+  usePairModeFocus(duplicatesOnly, tab, listTop)
   const tabLabel = tab.charAt(0).toUpperCase() + tab.slice(1)
   const [openId, setOpenId] = useState<string>()
   const [selection, setSelection] = useState<{ scope: string; ids: Set<string> }>()
@@ -60,7 +66,7 @@ export default function ReviewScreen() {
     ids: new Set(previous?.scope === scope ? previous.ids : []).add(id),
   })), [scope])
   if (duplicatesOnly) return <PairReview pairs={data?.duplicates ?? []} rows={rows} backTo={'/review?tab=' + tab}
-    error={data?.error} onRetry={() => setRetry(value => value + 1)} />
+    recovery={recovery} error={data?.error} onRetry={() => setRetry(value => value + 1)} />
   return <ScrollFallback><Frame className="lg:max-w-[960px]">
     <h1 className="sr-only">Review contacts</h1>
     <div className="grid gap-6 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
@@ -74,7 +80,7 @@ export default function ReviewScreen() {
           options={(['delete', 'work', 'personal', 'unsorted'] as ReviewTab[]).map(value => ({ value,
             label: value.charAt(0).toUpperCase() + value.slice(1), count: (rows ?? []).filter(row => inTab(row, value)).length,
           }))} />
-        <RecoveryBar />
+        {recovery}
         <label className="sticky top-0 z-10 flex min-h-12 items-center gap-2 border-b border-rule bg-paper">
           <IconSearch size={18} />
           <input type="search" aria-label={'Search in ' + tabLabel} placeholder={'Search in ' + tabLabel + ' (' + baseRows.length + ')'}
@@ -82,8 +88,8 @@ export default function ReviewScreen() {
         </label>
         <div role="tabpanel" id={'review-' + tab} aria-labelledby={'review-' + tab + '-tab'}>
           {(duplicatesOnly || !!data?.duplicates?.length) && <div className="space-y-2 py-2">
-            <Chip label="Possible duplicates" selected={duplicatesOnly} onClick={() => {
-              clearSelection(); setParams(previous => { if (duplicatesOnly) previous.delete('dupes'); else previous.set('dupes', '1'); return previous }, { replace: true })
+            <Chip id="review-duplicates" label="Possible duplicates" selected={duplicatesOnly} onClick={() => {
+              clearSelection(); setParams(previous => { previous.set('dupes', '1'); return previous }, { preventScrollReset: true })
             }} />
           </div>}
           <Filters tab={tab} rows={baseRows} segment={segment} types={types} tags={tags} active={activeFilters} onClear={clearFilters}

@@ -41,14 +41,14 @@ export async function canUndoDecisions(snapshot: UndoSnapshot): Promise<boolean>
 
 /** #55/#61: validate the complete batch before any exact write, in one transaction. */
 export async function undoDecisions({ before, after, recoveryId }: UndoSnapshot) {
-  await db.transaction('rw', db.decisions, db.tags, async () => {
+  await db.transaction('rw', db.decisions, db.tags, db.contacts, async () => {
     const stored = await db.decisions.bulkGet(after.map(d => d.contactId))
     after.forEach((d, index) => {
       if (!sameDecision(stored[index], d)) throw new StaleDecisionError(d.contactId, stored[index])
     })
     for (const decision of before) {
       const expected = after.find(d => d.contactId === decision.contactId)!
-      await saveDecision(decision, { exact: true, expectedUpdatedAt: expected.updatedAt })
+      await saveDecision(decision, { exact: true, expectedDecision: expected, requireContact: true })
     }
   })
   if (recoveryId) recoveryStore.remove(recoveryId)

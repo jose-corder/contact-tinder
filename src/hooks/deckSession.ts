@@ -1,17 +1,13 @@
-import { allDecisions, allWithDecisions, counts, deckContacts, getMeta, saveDecision, setMeta, StaleDecisionError, type ContactWithDecision, type SaveOptions } from '@/db/repo'
+import { allDecisions, allWithDecisions, counts, deckContacts, getMeta, saveDecision, setMeta, type ContactWithDecision, type SaveOptions } from '@/db/repo'
 import { db } from '@/db/schema'
 import type { Decision, Pass } from '@/domain/types'
+import { resetSavedSkips } from './resetSkips'
 
 export interface DeckItem extends ContactWithDecision { persisted: boolean }
 export interface DeckScope { pass: Pass; ids: string[]; createdAt: number; mode?: 'reclassify' }
 
 export function saveDeckDecision(decision: Decision, options: SaveOptions): Promise<void> {
-  return db.transaction('rw', db.contacts, db.decisions, db.tags, async () => {
-    // Reset can remove a contact whose decision never existed. A null version
-    // alone cannot detect that case; check existence in the same transaction.
-    if (!await db.contacts.get(decision.contactId)) throw new StaleDecisionError(decision.contactId, undefined)
-    await saveDecision(decision, options)
-  })
+  return saveDecision(decision, { ...options, requireContact: true })
 }
 
 /** Membership and existence must come from the same snapshot, including after reset. */
@@ -44,17 +40,9 @@ export async function clearDeckScope(scope: DeckScope) {
 }
 
 /** #47: retry only this session's outstanding IDs, preserving every saved label. */
-export function resetSessionSkips(pass: Pass, ids: string[]): Promise<DeckItem[]> {
-  return db.transaction('rw', db.contacts, db.decisions, db.tags, async () => {
-    const selected = new Set(ids)
-    const rows = (await allWithDecisions()).filter(row => selected.has(row.contact.id) && (pass === 'triage' || row.decision.bucket === pass))
-    const items: DeckItem[] = []
-    for (const row of rows) {
-      const decision = { ...row.decision, skips: { ...row.decision.skips, [pass]: 0 },
-        updatedAt: Math.max(Date.now(), row.decision.updatedAt + 1) }
-      await saveDecision(decision, { exact: true })
-      items.push({ ...row, decision, persisted: true })
-    }
-    return items
-  })
+export async function resetSessionSkips(pass: Pass, ids: string[]): Promise<DeckItem[]> {
+  const selected = new Set(ids)
+  const rows = await resetSavedSkips([pass], decision => selected.has(decision.contactId) &&
+    (pass === 'triage' || decision.bucket === pass))
+  return rows.map(row => ({ ...row, persisted: true }))
 }

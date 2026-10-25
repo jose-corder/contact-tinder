@@ -100,7 +100,8 @@ it.each([1, 2])('#61: %s-row Undo restores legacy decisions exactly, including t
   await undoDecisions({ before, after })
   expect(await repo.allDecisions()).toEqual(before)
   for (const decision of before) {
-    expect(save).toHaveBeenCalledWith(decision, { exact: true, expectedUpdatedAt: 18 })
+    // #61: the repository now guards full content and contact existence.
+    expect(save).toHaveBeenCalledWith(decision, { exact: true, expectedDecision: after.find(d => d.contactId === decision.contactId), requireContact: true })
     expect(isInDeck(await repo.getDecision(decision.contactId), 'personal')).toBe(true)
   }
   expect(await db.tags.toArray()).toEqual(tags)
@@ -109,6 +110,8 @@ it.each([1, 2])('#61: %s-row Undo restores legacy decisions exactly, including t
 })
 
 it('#55: failure during the second exact write rolls back the first and permits retry', async () => {
+  // #61: recovery fixtures represent existing contacts, not orphan decisions.
+  await repo.upsertContacts(['A', 'B'].map(id => row(id).contact))
   const before = ['A', 'B'].map(id => row(id, { bucket: 'work', customTags: ['old'], updatedAt: 1 }).decision)
   const after = before.map(d => ({ ...setBucket(d, 'personal', 2), customTags: ['new'] }))
   await repo.saveDecisions(after)

@@ -1,5 +1,5 @@
 // UI primitives. Keep these dumb and styled with tokens from index.css.
-import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { IconChevronLeft } from './icons'
@@ -91,6 +91,7 @@ type ButtonVariant = 'primary' | 'outline' | 'ghost'
 type ButtonSize = 'md' | 'lg'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  ref?: Ref<HTMLButtonElement>
   variant?: ButtonVariant
   size?: ButtonSize
   full?: boolean

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { allWithDecisions, getMeta, saveDecisions, setMeta } from '@/db/repo'
+import { allWithDecisions, getMeta, setMeta } from '@/db/repo'
+import { resetSavedSkips } from '@/hooks/resetSkips'
 import { BUCKET_META, isUnsorted, PASS_ORDER } from '@/domain/taxonomy'
 import { isUnsortedRow } from '@/export/vcf'
 import { Button, Frame, InlineNotice, LabelDot, Skeleton } from '@/ui'
@@ -56,13 +57,9 @@ export default function HomeScreen() {
           setBusy(true); setError('')
           try {
             // Finding #23: only this explicit action revives twice-skipped cards.
-            const pass = PASS_ORDER.find((p) => rows.some(({ decision }) => isUnsorted(decision, p)))!
-            await saveDecisions(rows.filter(({ decision }) => PASS_ORDER.some((p) => isUnsorted(decision, p))).map(({ decision }) => {
-              const skips = { ...decision.skips }
-              for (const p of PASS_ORDER) if (isUnsorted(decision, p)) skips[p] = 0
-              return { ...decision, skips, updatedAt: Date.now() }
-            }))
-            navigate(`/deck/${pass}`)
+            const reset = await resetSavedSkips()
+            const pass = homeProgress(reset).current?.pass
+            if (pass) navigate(`/deck/${pass}`)
           } catch { setError('Could not retry skipped contacts. Nothing was changed. Please try again.') }
           finally { setBusy(false) }
         }}>Retry skipped</Button>}

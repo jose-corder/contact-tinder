@@ -81,7 +81,7 @@ it.each(["Keep A's", "Keep B's", 'Combine'])('#58/#61: %s previews the persisted
   const exported = vcfText((await repo.allWithDecisions()).filter(item => item.contact.id === 'A'))
   expect(exported).toContain(personal ? 'Personal,Family,Neighbor' : 'Work,Current,Client')
   expect(await repo.contactById('B')).toBeUndefined()
-  expect(screen.getByText('Merged A and B')).toBeVisible()
+  expect(await screen.findByText('Merged A and B')).toBeVisible() // #65: hydrate from the committed repository entry.
   await waitFor(() => expect(screen.getByRole('button', { name: 'Undo' })).toBeEnabled())
   fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
   await waitFor(async () => expect(await repo.contactById('B')).toEqual(items[1].contact))
@@ -99,8 +99,7 @@ it('#58: merge recovery rejects subsequent edits and remains listed for dismissa
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   const decision = await repo.getDecision('A')
   await act(async () => { await repo.saveDecision({ ...decision, customTags: ['later edit'] }, { exact: true }) })
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Undo' })).toBeEnabled())
-  fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+  // #65: both recovery surfaces now observe conflicts before the Undo click.
   expect(await screen.findByRole('button', { name: 'Changed since' })).toBeDisabled()
   expect((await repo.getDecision('A')).customTags).toEqual(['later edit'])
   expect(await repo.contactById('B')).toBeUndefined()

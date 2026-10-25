@@ -66,7 +66,8 @@ it.each(['Keep both', 'Dismiss', 'Merge'])('#54: %s resolves the pair durably an
   expect((await readPossibleDuplicates()).filter(pair => !pair.resolved)).toHaveLength(0)
   if (action === 'Merge') {
     expect(await repo.contactById('Incoming')).toBeUndefined()
-    expect(screen.getByRole('region', { name: 'Pending recoveries' })).toHaveTextContent('Merged Existing and Incoming')
+    // #65: merge recovery is hydrated from the committed repository snapshot.
+    expect(await screen.findByRole('region', { name: 'Pending recoveries' })).toHaveTextContent('Merged Existing and Incoming')
   } else expect((await readPossibleDuplicates())[0].resolved).toBe(action === 'Keep both' ? 'kept' : 'dismissed')
   view.unmount()
   render(<MemoryRouter initialEntries={['/review?dupes=1']}><ReviewScreen /></MemoryRouter>)

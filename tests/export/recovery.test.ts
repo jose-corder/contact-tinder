@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '@/db/schema'
 import { allContacts, allDecisions, dumpAll, getMeta, resetAll, saveDecision, upsertContacts } from '@/db/repo'
-import { dbRevision, previewRestore, restoreJson, undoRestore } from '@/export/json'
+import { dbRevision, previewRestore, restoreJson, restoreRevision, undoRestore } from '@/export/json'
 import { restoreHistory } from '@/export/json'
 import { contact, row } from './fixtures'
 
@@ -40,7 +40,8 @@ describe('safe restore recovery (#1/#52)', () => {
     expect(await undoRestore(restoreId, result.revision)).toBe(true)
     expect((await allContacts()).map((c) => c.id)).toEqual(['before'])
     const recovery = (await restoreHistory()).at(-1)!
-    expect(recovery).toMatchObject({ snapshot: { dump: { contacts: newer.contacts } }, revisionAfter: await dbRevision() })
+    // #52: rollback's revision also guards duplicate-pair metadata.
+    expect(recovery).toMatchObject({ snapshot: { dump: { contacts: newer.contacts } }, revisionAfter: await restoreRevision() })
     expect(recovery.id).not.toBe(restoreId)
     expect(await undoRestore(recovery.id)).toBe(true)
     expect((await dumpAll()).contacts).toEqual(newer.contacts)

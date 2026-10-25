@@ -19,6 +19,7 @@ export default function RowSheet({ row, onClose, pane = false }: { row: ContactW
   const [deckError, setDeckError] = useState('')
   const [removeError, setRemoveError] = useState('')
   const locked = useRef(false)
+  const removeButton = useRef<HTMLButtonElement>(null)
   const navigate = useNavigate()
   useEffect(() => { setDecision(row.decision) }, [row.decision])
   async function save(next: Decision) {
@@ -42,7 +43,7 @@ export default function RowSheet({ row, onClose, pane = false }: { row: ContactW
     catch { setRemoveError('Could not remove this contact. Please try again.') }
     finally { locked.current = false; setBusy(false) }
   }
-  const footer = <SheetFooterActions secondary={{ label: 'Remove from app', onClick: () => setConfirm(true), disabled: busy || confirm }}
+  const footer = <SheetFooterActions secondary={{ ref: removeButton, label: 'Remove from app', onClick: () => setConfirm(true), disabled: busy || confirm }}
     primary={{ label: 'Done', onClick: close, disabled: busy }} />
   const content = <ScrollFallback>
     <ContactIdentity contact={contact} />
@@ -62,10 +63,10 @@ export default function RowSheet({ row, onClose, pane = false }: { row: ContactW
       {deckError && <InlineNotice tone="error">{deckError}</InlineNotice>}
     </div>
     {confirm && <fieldset disabled={busy} aria-busy={busy}>
-      <SheetConfirm title="Remove from app?" tone="danger"
+      <SheetConfirm title="Remove from app?" tone="danger" returnFocusTo={removeButton}
         body="Remove this contact and its decisions from this app? Your phone's address book is unchanged."
         confirmLabel="Confirm removal" cancelLabel="Cancel removal" onConfirm={() => void remove()} onCancel={() => setConfirm(false)} />
-      {removeError && <InlineNotice tone="error">{removeError}</InlineNotice>}
+      {removeError && <div tabIndex={0}><InlineNotice tone="error">{removeError}</InlineNotice></div>}
     </fieldset>}
   </ScrollFallback>
   return pane ? <section aria-label="Contact details" className="flex min-w-0 flex-col rounded-[20px] border border-rule bg-paper-2 p-5">

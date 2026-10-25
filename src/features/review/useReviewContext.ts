@@ -71,7 +71,7 @@ export function useReviewContext(ready: boolean) {
     // The pathname owns this session record; query changes keep the listener.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [save])
-  return { tab, limit, setLimit, params, setParams, search, setSearch, segment, setSegment, types, setTypes, tags, setTags, setSelectedId,
+  return { tab, limit, setLimit, params, setParams, search, setSearch, segment, setSegment, types, setTypes, tags, setTags, setSelectedId, listTop: context.current.top,
     changeTab: (value: ReviewTab) => {
     context.current = { ...context.current, tab: value, top: window.scrollY, limit: 60, selectedId: undefined, focusId: undefined }
     setSelectedId(undefined)

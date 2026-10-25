@@ -21,7 +21,7 @@ it('deck_stale_snapshot_does_not_overwrite_another_tab: existing and never-store
   await repo.saveDecision(other)
   const save = vi.spyOn(repo, 'saveDecision'), notify = vi.spyOn(feedback, 'toast')
   await act(async () => { await view.result.current.swipe('right') })
-  expect(save).toHaveBeenCalledWith(expect.anything(), { expectedUpdatedAt: null })
+  expect(save).toHaveBeenCalledWith(expect.anything(), { expectedUpdatedAt: null, requireContact: true })
   expect(await repo.getDecision('a')).toEqual(other)
   expect(view.result.current.top?.contact.id).toBe('b')
   expect(notify).toHaveBeenCalledWith('This contact changed elsewhere — skipped')
@@ -32,7 +32,7 @@ it('deck_stale_snapshot_does_not_overwrite_another_tab: existing and never-store
   const moved = applySwipe(await repo.getDecision('b'), 'triage', 'up', 11)
   await repo.saveDecision(moved)
   await act(async () => { await work.result.current.swipe('down') })
-  expect(save).toHaveBeenLastCalledWith(expect.anything(), { exact: true, expectedUpdatedAt: 10 })
+  expect(save).toHaveBeenLastCalledWith(expect.anything(), { exact: true, expectedUpdatedAt: 10, requireContact: true })
   expect(await repo.getDecision('b')).toEqual(moved)
   expect(work.result.current.remaining).toBe(0)
   expect(work.result.current.canUndo).toBe(false)
@@ -57,7 +57,7 @@ it('undo_stale_snapshot_gives_up_without_overwriting_or_reinserting', async () =
   expect(await repo.getDecision('a')).toEqual(other)
   expect(result.current.canUndo).toBe(false)
   expect(result.current.top?.contact.id).toBe('b')
-  expect(notify).toHaveBeenCalledWith('This contact changed elsewhere — skipped')
+  expect(notify).toHaveBeenCalledWith('Changed since — not undone')
 })
 
 it('undo_repeated_skips_tracks_the_restored_version', async () => {

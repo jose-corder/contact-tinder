@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useLayoutEffect, useId, useRef, useState } from 'react'
 import type { RestoreMode } from '@/db/repo'
 import { previewRestore, restoreJson, type RestorePreview } from '@/export/json'
 import { readText } from '@/import/readFile'
@@ -16,7 +16,8 @@ export default function RestoreInput({ label = 'Choose backup file' }: { label?:
   const locked = useRef(false)
   const heading = useRef<HTMLHeadingElement>(null)
   const modeName = useId()
-  useEffect(() => { if (review) heading.current?.focus() }, [review])
+  // #52: the preview is ready for keyboard review as soon as it is committed to the DOM.
+  useLayoutEffect(() => { if (review) heading.current?.focus() }, [review])
 
   async function commit() {
     if (!review || locked.current) return

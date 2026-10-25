@@ -88,6 +88,7 @@ export function useRestoreRecovery() {
     {conflict && preview && <section aria-label="Review rollback" className="space-y-3 rounded-[20px] border border-control p-4">
       <h3 ref={heading} tabIndex={-1} className="font-serif t-heading">Review rollback</h3>
       <InlineNotice tone="info">Changes since the restore will be lost: +{preview.added} added · {changed} changed · {preview.removed} removed</InlineNotice>
+      {preview.pairChanges > 0 && <p className="t-body">{preview.pairChanges} duplicate {preview.pairChanges === 1 ? 'decision' : 'decisions'} since the restore will be lost</p>}
       <Button full loading={busy} onClick={() => void undo(conflict.restoreId, conflict.revision)}>Roll back data</Button>
       <Button full variant="ghost" disabled={busy} onClick={() => setConflict(null)}>Keep current data</Button>
     </section>}

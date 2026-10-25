@@ -1,7 +1,8 @@
-import { dumpAll, restoreAll, setMeta, type Dump, type RestoreMode } from '@/db/repo'
+import { dumpAll, getMeta, restoreAll, setMeta, type Dump, type RestoreMode } from '@/db/repo'
 import { db } from '@/db/schema'
 import { hash } from '@/import/hash'
-import { readStoredPairs } from '@/import/duplicates'
+import { readStoredPairs, type DuplicatePair } from '@/import/duplicates'
+import { recoveryStore } from '@/ui/recoveryStore'
 import { canonical, recoveryId, recoveryHistory, saveRecoveryHistory, RESTORE_UNDO_MS, type RestoreEntry } from './recovery'
 export { RESTORE_UNDO_MS, restoreHistory, recoveryHistory, type RestoreEntry, type RecoveryEntry, type MergeEntry } from './recovery'
 
@@ -76,14 +77,22 @@ export interface RestorePreview {
   added: number
   changed: number
   removed: number
+  pairChanges: number
   /** Mode-independent identities. Removed applies only to Replace. */
   details: { addedIds: string[]; changedIds: string[]; removedIds: string[]; decisionRemovedIds: string[] }
 }
 
 /** Read-only comparison with a consistent live snapshot; no file selection writes. */
-export async function previewRestore(text: string): Promise<RestorePreview> {
+export async function previewRestore(text: string, pairs?: DuplicatePair[]): Promise<RestorePreview> {
   const backup = parseBackup(text)
-  const live = await db.transaction('r', db.contacts, db.decisions, () => dumpAll())
+  const { live, pairChanges } = await db.transaction('r', db.contacts, db.decisions, db.meta, async () => {
+    const live = await dumpAll()
+    if (!pairs) return { live, pairChanges: 0 }
+    const stored = new Map((await readStoredPairs()).map(pair => [pair.id, canonical(pair)]))
+    const target = new Map(pairs.map(pair => [pair.id, canonical(pair)]))
+    const ids = new Set([...stored.keys(), ...target.keys()])
+    return { live, pairChanges: [...ids].filter(id => stored.get(id) !== target.get(id)).length }
+  })
   const contacts = new Map(live.contacts.map((c) => [c.id, c]))
   const decisions = new Map(live.decisions.map((d) => [d.contactId, canonical(d)]))
   const incoming = new Map(backup.contacts.map((c) => [c.id, c]))
@@ -96,7 +105,7 @@ export async function previewRestore(text: string): Promise<RestorePreview> {
   const removedIds = live.contacts.filter((c) => !incoming.has(c.id)).map((c) => c.id)
   const decisionRemovedIds = live.decisions.filter((d) => incoming.has(d.contactId) && !incomingDecisions.has(d.contactId)).map((d) => d.contactId)
   return { exportedAt: backup.exportedAt, contacts: backup.contacts.length, decisions: backup.decisions.length,
-    added: addedIds.length, changed: changedIds.length, removed: removedIds.length,
+    added: addedIds.length, changed: changedIds.length, removed: removedIds.length, pairChanges,
     details: { addedIds, changedIds, removedIds, decisionRemovedIds } }
 }
 
@@ -115,6 +124,20 @@ async function snapshotState() {
   return { dump: await dumpAll(), pairs: await readStoredPairs(), photos: (await db.contacts.toArray()).flatMap((c) => c.photo ? [{ id: c.id, photo: c.photo }] : []) }
 }
 
+/** #52: export revisions stay stable; rollback approvals also guard stored pair decisions. */
+export async function restoreRevision(): Promise<string> {
+  return db.transaction('r', db.contacts, db.decisions, db.meta, async () =>
+    `${await dbRevision()}:pairs:${hash(canonical(await getMeta('possibleDuplicates', [])))}`)
+}
+
+/** #65: only remove the runtime action after persistence succeeds. */
+export async function removeRecoveryEntry(id: string): Promise<void> {
+  await db.transaction('rw', db.meta, async () => {
+    await saveRecoveryHistory((await recoveryHistory()).filter(entry => entry.id !== id))
+  })
+  recoveryStore.remove(id)
+}
+
 export async function restoreJson(text: string, mode: RestoreMode = 'replace'): Promise<{ contacts: number; decisions: number; restoreId: string }> {
   const parsed = parseBackup(text)
   const id = recoveryId()
@@ -123,7 +146,7 @@ export async function restoreJson(text: string, mode: RestoreMode = 'replace'): 
     const history = await recoveryHistory()
     await restoreAll(parsed, mode)
     const entry: RestoreEntry = { id, kind: 'restore', at: Date.now(), mode, snapshot,
-      backupAt: parsed.exportedAt, revisionAfter: await dbRevision() }
+      backupAt: parsed.exportedAt, revisionAfter: await restoreRevision() }
     await saveRecoveryHistory([...history, entry])
   })
   return { contacts: parsed.contacts.length, decisions: parsed.decisions.length, restoreId: id }
@@ -142,13 +165,13 @@ export async function undoRestore(id: string, approvedRevision?: string): Promis
       await saveRecoveryHistory(remaining)
       return false
     }
-    const revision = await dbRevision()
+    const revision = await restoreRevision()
     const latestId = history.at(-1)?.id
     const changed = revision !== entry.revisionAfter || latestId !== id
     // An identical later restore still invalidates an older recovery/approval.
     const approvalRevision = revision + ':' + latestId
     if (changed && approvedRevision !== approvalRevision) {
-      return { conflict: true, preview: await previewRestore(JSON.stringify(entry.snapshot.dump)), revision: approvalRevision, restoreId: id }
+      return { conflict: true, preview: await previewRestore(JSON.stringify(entry.snapshot.dump), entry.snapshot.pairs), revision: approvalRevision, restoreId: id }
     }
     const newer = changed ? await snapshotState() : null
     // repo.restoreAll uses exact decision writes (#61).
@@ -158,7 +181,7 @@ export async function undoRestore(id: string, approvedRevision?: string): Promis
     await db.contacts.toCollection().modify(contact => { delete contact.photo })
     for (const { id, photo } of entry.snapshot.photos) await db.contacts.update(id, { photo })
     if (newer) remaining.push({ id: recoveryId(), kind: 'restore', at: Date.now(), mode: 'replace', snapshot: newer,
-      backupAt: newer.dump.exportedAt, revisionAfter: await dbRevision() })
+      backupAt: newer.dump.exportedAt, revisionAfter: await restoreRevision() })
     await saveRecoveryHistory(remaining)
     return true
   })

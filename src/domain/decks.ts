@@ -1,6 +1,15 @@
 import { normalizeDecision, PASS_ORDER, toggleChip } from './taxonomy'
 import type { Counts, Decision, Pass, PersonalType, WorkType } from './types'
 
+/** Pure administrative edit: preserve classification, reset only the requested counters. */
+export function resetSkipsExact(decisions: readonly Decision[], passes: readonly Pass[], now = 0): Decision[] {
+  return decisions.map(decision => ({
+    ...decision,
+    skips: { ...decision.skips, ...Object.fromEntries(passes.map(pass => [pass, 0])) },
+    updatedAt: Math.max(now, decision.updatedAt + 1),
+  }))
+}
+
 /** Type-only Personal completion has an explicit, exportable relation (#7). */
 export function completePersonalTypes(decision: Decision): Decision {
   return normalizeDecision(decision)

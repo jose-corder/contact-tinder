@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { StaleDecisionError, type ContactWithDecision } from '@/db/repo'
+import { canonicalDecision, StaleDecisionError, type ContactWithDecision } from '@/db/repo'
 import { saveDeckDecision } from './deckSession'
 import { useDeckToast } from './useDeckToast'
 import type { Decision, Direction } from '@/domain/types'
@@ -34,12 +34,12 @@ export function useUndo(restore: (entry: UndoEntry) => void) {
     const version = generation.current
     try {
       const restored = { ...entry.prevDecision, updatedAt: Math.max(Date.now(), entry.writtenDecision.updatedAt + 1) }
-      await saveDeckDecision(restored, { exact: true, expectedUpdatedAt: entry.writtenDecision.updatedAt })
+      await saveDeckDecision(restored, { exact: true, expectedDecision: entry.writtenDecision, requireContact: true })
       if (version !== generation.current) return
       stack.current.pop()
       // Earlier swipes of this same contact now expect the restored version.
       for (const older of stack.current) {
-        if (older.writtenDecision.contactId === restored.contactId && older.writtenDecision.updatedAt === entry.prevDecision.updatedAt) older.writtenDecision = restored
+        if (canonicalDecision(older.writtenDecision) === canonicalDecision(entry.prevDecision)) older.writtenDecision = restored
       }
       setSize(stack.current.length)
       restore({ ...entry, prevDecision: restored })
@@ -49,7 +49,7 @@ export function useUndo(restore: (entry: UndoEntry) => void) {
       if (version !== generation.current) return
       stack.current = stack.current.filter((row) => row.item.contact.id !== entry.item.contact.id)
       setSize(stack.current.length)
-      notify('This contact changed elsewhere — skipped')
+      notify('Changed since — not undone')
     } finally {
       pending.current = false
     }

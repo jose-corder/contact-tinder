@@ -77,8 +77,10 @@ it('keeps merge recovery after remount and permits retry after a storage failure
   first.unmount()
   render(<MergeRecovery />)
   vi.spyOn(repo, 'saveDecisions').mockRejectedValueOnce(new Error('Full'))
-  fireEvent.click(await screen.findByRole('button', { name: 'Undo merge' }))
-  expect(await screen.findByText('Could not undo the merge. Try again.')).toBeVisible()
+  // #65: shared presenter checks the persisted content guard before enabling Undo.
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Undo merge' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: 'Undo merge' }))
+  expect(await screen.findByText('Could not undo. Please try again.')).toBeVisible()
   fireEvent.click(screen.getByRole('button', { name: 'Undo merge' }))
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Undo merge' })).not.toBeInTheDocument())
   expect(await repo.allContacts()).toHaveLength(2)
@@ -88,7 +90,7 @@ it('retains recovery after a conflicting edit without overwriting newer work (#5
   await mergePair('a', 'b', { keepDecisionFrom: 'a' })
   render(<MergeRecovery />)
   await act(async () => { await db.contacts.update('a', { title: 'Changed' }) })
-  fireEvent.click(await screen.findByRole('button', { name: 'Undo merge' }))
-  expect(await screen.findByText(/Undo would overwrite newer work/)).toBeVisible()
+  // #65: Settings and Review expose the same conflict state without attempting a write.
+  expect(await screen.findByRole('button', { name: 'Changed since' })).toBeDisabled()
   expect((await db.contacts.get('a'))!.title).toBe('Changed')
 })

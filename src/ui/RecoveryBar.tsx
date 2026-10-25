@@ -3,7 +3,7 @@ import { Button } from './index'
 import { InlineNotice } from './feedback'
 import { useRecoveryStore, type RecoveryEntry, type StoredRecoveryEntry } from './recoveryStore'
 
-export interface RecoveryBarProps { entries?: readonly RecoveryEntry[] }
+export interface RecoveryBarProps { entries?: readonly RecoveryEntry[]; undoLabel?: string }
 function relativeTime(at: number, now: number) {
   const minutes = Math.floor(Math.max(0, now - at) / 60000)
   if (!minutes) return 'Just now'
@@ -11,7 +11,7 @@ function relativeTime(at: number, now: number) {
   return `${Math.floor(minutes / 60)} hr ago`
 }
 
-function RecoveryRow({ entry, now, remove }: { entry: RecoveryEntry; now: number; remove?: (id: string) => void }) {
+function RecoveryRow({ entry, now, remove, undoLabel }: { entry: RecoveryEntry; now: number; remove?: (id: string) => void; undoLabel: string }) {
   const labelId = useId()
   const [state, setState] = useState<'checking' | 'ready' | 'changed' | 'busy'>('checking')
   const [error, setError] = useState('')
@@ -57,7 +57,7 @@ function RecoveryRow({ entry, now, remove }: { entry: RecoveryEntry; now: number
       if (request !== generation.current) return
       const result = await (undo ? entry.onUndo() : entry.onDismiss())
       if (result !== false) remove?.(entry.id)
-      if (request === generation.current) setState('ready')
+      if (request === generation.current) setState(undo && result === false ? 'changed' : 'ready')
     } catch {
       if (request === generation.current) {
         setError(undo ? 'Could not undo. Please try again.' : 'Could not dismiss. Please try again.')
@@ -71,7 +71,7 @@ function RecoveryRow({ entry, now, remove }: { entry: RecoveryEntry; now: number
     <div className="sheet-actions flex flex-wrap gap-2">
       <Button type="button" disabled={!available || state === 'changed' || state === 'checking' || state === 'busy'}
         aria-busy={state === 'busy' || state === 'checking' || undefined} onClick={() => void run(true)}>
-        {!available ? 'Undo unavailable' : state === 'changed' ? 'Changed since' : 'Undo'}
+        {!available ? 'Undo unavailable' : state === 'changed' ? 'Changed since' : undoLabel}
       </Button>
       <Button type="button" variant="ghost" disabled={state === 'busy'} onClick={() => void run(false)}>Dismiss</Button>
     </div>
@@ -80,9 +80,10 @@ function RecoveryRow({ entry, now, remove }: { entry: RecoveryEntry; now: number
 }
 
 /** Persistent, in-flow recovery. Omit entries to subscribe to the shared tab store. */
-export function RecoveryBar({ entries }: RecoveryBarProps = {}) {
+export function RecoveryBar({ entries, undoLabel = 'Undo' }: RecoveryBarProps = {}) {
   const store = useRecoveryStore()
-  const rows = entries ?? store.list()
+  // A persisted merge can be rebound by its owner; never call it unavailable.
+  const rows = (entries ?? store.list()).filter(entry => entry.kind !== 'merge' || (entry as StoredRecoveryEntry).available !== false)
   const [now, setNow] = useState(Date.now)
   useEffect(() => {
     if (!rows.length) return
@@ -92,7 +93,7 @@ export function RecoveryBar({ entries }: RecoveryBarProps = {}) {
   if (!rows.length) return null
   return <section aria-label="Pending recoveries" className="recovery-bar min-w-0">
     <ul aria-label="Pending recoveries" className="m-0 list-none p-0">
-      {rows.map(entry => <RecoveryRow key={entry.id} entry={entry} now={now} remove={entries ? undefined : id => {
+      {rows.map(entry => <RecoveryRow key={entry.id} entry={entry} now={now} undoLabel={undoLabel} remove={entries ? undefined : id => {
         // A completed operation survives navigation, but cannot remove a replacement entry.
         if (store.list().find(item => item.id === id) === entry) store.remove(id)
       }} />)}

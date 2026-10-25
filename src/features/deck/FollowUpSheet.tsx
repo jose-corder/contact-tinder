@@ -7,7 +7,7 @@ import { toast } from '@/ui/toast'
 import { normalizeDecision, PERSONAL_RELATION_META, WORK_STATUS_META, toggleCustomTag } from '@/domain/taxonomy'
 import { toggleDeckType } from '@/domain/decks'
 import type { Contact, Decision, PersonalRelation, WorkStatus } from '@/domain/types'
-import { Avatar, Chip, InlineNotice, Sheet, SheetConfirm, SheetFooterActions, motionProps, type ChipTone } from '@/ui'
+import { Avatar, Button, Chip, InlineNotice, Sheet, SheetConfirm, SheetFooterActions, motionProps, type ChipTone } from '@/ui'
 import { ChipRow } from './ChipRow'
 import { DECK_MOTION, useDeckReducedMotion } from './motion'
 
@@ -35,6 +35,7 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
   const alive = useRef(true)
   const primaryRef = useRef<HTMLDivElement>(null)
   const footerRef = useRef<HTMLDivElement>(null)
+  const laterRef = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const reduced = useDeckReducedMotion()
   const bucket = target.decision.bucket === 'personal' ? 'personal' : 'work'
@@ -93,7 +94,7 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
   return <Sheet open onClose={dismiss} title={`${bucket} contact`} footer={
     <div ref={footerRef}>
       <SheetFooterActions
-      secondary={{ label: 'Later', onClick: dismiss, disabled: busy }}
+      secondary={{ label: 'Later', onClick: dismiss, disabled: busy, ref: laterRef }}
       primary={{ label: 'Done', onClick: () => void done(), disabled: !canComplete, loading: busy }} />
     </div>
   }>
@@ -119,11 +120,12 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
         toggleTag={(tag) => setDraft((d) => toggleCustomTag(d, tag))} inputRef={inputRef} open={tagOpen} setOpen={setTagOpen} disabled={busy} sheet />
       {error && <InlineNotice tone="error">{error}</InlineNotice>}
       {confirmLater && <fieldset disabled={busy} className="min-w-0">
-        <SheetConfirm title="Unsaved selections"
+        <SheetConfirm title="Unsaved selections" initialFocus="cancel" returnFocusTo={laterRef}
           body={<>{types.length ? bucket === 'personal' && !target.decision.relation ? `Keep ${types.length} types · counts as Other` : `Keep ${types.length} selected types?` : draft.customTags.length ? 'Keep selected tags?' : 'Leave details for later?'}
             <p>{bucket === 'personal' ? 'A type without a relation is saved as Other' : 'Keep saves types and tags only; finish the status later.'}</p></>}
-          confirmLabel="Keep" cancelLabel="Discard" onConfirm={() => void done(true)}
-          onCancel={() => { if (!saving.current) close() }} />
+          confirmLabel="Keep" cancelLabel="Cancel" onConfirm={() => void done(true)}
+          onCancel={() => { if (!saving.current) { afterClose.current = undefined; setConfirmLater(false) } }} />
+        <Button type="button" variant="ghost" onClick={() => { if (!saving.current) close() }}>Discard</Button>
       </fieldset>}
       <div className="flex items-center gap-2 t-meta text-ink-2">
         <span>Turn this off in</span>

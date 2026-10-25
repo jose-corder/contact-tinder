@@ -1,15 +1,15 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import type { ContactWithDecision } from '@/db/repo'
 import type { DuplicatePair } from '@/import/duplicates'
-import { Button, Chip, Frame, InlineNotice, RecoveryBar, ScrollFallback, Skeleton, TopBar } from '@/ui'
+import { Button, Chip, Frame, InlineNotice, ScrollFallback, Skeleton, TopBar } from '@/ui'
 import { matchesSearch } from './model'
 import { uiDecisionLabels } from './labels'
 import PossibleDuplicates from './PossibleDuplicates'
 
 /** A separate workspace: no ordinary rows, tab selection or bulk mutation scope. */
-export default function PairReview({ pairs, rows, backTo, error, onRetry }: {
-  pairs: DuplicatePair[]; rows?: ContactWithDecision[]; backTo: string; error?: string; onRetry: () => void
+export default function PairReview({ pairs, rows, backTo, error, onRetry, recovery }: {
+  pairs: DuplicatePair[]; rows?: ContactWithDecision[]; backTo: string; error?: string; onRetry: () => void; recovery?: ReactNode
 }) {
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<string[]>([])
@@ -22,10 +22,10 @@ export default function PairReview({ pairs, rows, backTo, error, onRetry }: {
     return both.some(row => matchesSearch(row, search)) && filters.every(value => both.some(row => labels(row).includes(value)))
   })
   return <ScrollFallback><Frame>
-    <h1 className="sr-only">Review possible duplicates</h1>
+    <h1 id="review-pairs-heading" tabIndex={-1} className="sr-only">Review possible duplicates</h1>
     <TopBar title="Review" backTo="/" />
     <Link to={backTo} className="hit-44 inline-flex items-center underline">Back to list</Link>
-    <RecoveryBar />
+    {recovery}
     <label className="flex min-h-12 items-center border-b border-rule">
       <input type="search" aria-label="Search both contacts in each pair" placeholder="Search both contacts in each pair"
         className="min-w-0 flex-1 bg-transparent py-3 t-body" value={search} onChange={event => setSearch(event.target.value)} />

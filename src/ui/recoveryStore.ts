@@ -1,6 +1,9 @@
 import { useSyncExternalStore } from 'react'
 
 export interface RecoveryEntry {
+  kind?: 'merge'
+  /** Advisory state used to retain callback identity across equivalent repository reads. */
+  revision?: string
   id: string
   label: string
   /** Unix timestamp in milliseconds. */
@@ -12,7 +15,7 @@ export interface RecoveryEntry {
   ttlMs?: number
 }
 export interface StoredRecoveryEntry extends RecoveryEntry { available: boolean; ttlMs: number }
-type Metadata = Pick<StoredRecoveryEntry, 'id' | 'label' | 'at' | 'ttlMs'>
+type Metadata = Pick<StoredRecoveryEntry, 'id' | 'label' | 'at' | 'ttlMs' | 'kind'>
 const KEY = 'ct.recoveries.v1'
 const DEFAULT_TTL = 10 * 60 * 1000
 const listeners = new Set<() => void>()
@@ -23,7 +26,8 @@ const emit = () => listeners.forEach(listener => listener())
 
 function persist() {
   try {
-    window.sessionStorage.setItem(KEY, JSON.stringify(entries.map(({ id, label, at, ttlMs }) => ({ id, label, at, ttlMs }))))
+    window.sessionStorage.setItem(KEY, JSON.stringify(entries.filter(entry => !entry.id.startsWith('review-'))
+      .map(({ id, label, at, ttlMs, kind }) => ({ id, label, at, ttlMs, kind }))))
   } catch { /* Keep recoveries usable in memory when storage is unavailable. */ }
 }
 function schedule() {
@@ -43,9 +47,10 @@ function load() {
   try {
     const saved: unknown = JSON.parse(window.sessionStorage.getItem(KEY) ?? '[]')
     if (Array.isArray(saved)) entries = saved.filter((item): item is Metadata => !!item &&
-      typeof item.id === 'string' && typeof item.label === 'string' && Number.isFinite(item.at) &&
+      typeof item.id === 'string' && !item.id.startsWith('review-') && typeof item.label === 'string' && Number.isFinite(item.at) &&
       Number.isFinite(item.ttlMs) && item.ttlMs > 0 && item.at + item.ttlMs > Date.now())
       .map(item => ({ id: item.id, label: item.label, at: item.at, ttlMs: item.ttlMs, available: false,
+        kind: item.kind ?? (item.label.startsWith('Merged ') ? 'merge' : undefined),
         onUndo: () => false, onDismiss: () => remove(item.id) }))
   } catch { /* Corrupt or unavailable tab storage starts empty. */ }
   persist(); schedule()
@@ -68,6 +73,21 @@ function remove(id: string) {
   persist(); schedule(); emit()
 }
 function list(): readonly StoredRecoveryEntry[] { load(); prune(); return entries }
+/** #65: repository merge entries replace their runtime mirrors, preserving move actions. */
+function hydrate(incoming: readonly RecoveryEntry[]) {
+  load()
+  entries = [...entries.filter(entry => entry.kind !== 'merge' && !incoming.some(item => item.id === entry.id)),
+    ...incoming.map(entry => {
+      const ttlMs = entry.ttlMs ?? DEFAULT_TTL
+      const previous = entries.find(item => item.id === entry.id)
+      // A remount must not replace a callback while its Undo is already in flight.
+      if (previous?.available && previous.kind === 'merge' && previous.revision === entry.revision
+        && previous.at === entry.at && previous.ttlMs === ttlMs && previous.label === entry.label) return previous
+      return { ...entry, kind: 'merge' as const, ttlMs, available: true }
+    })]
+    .filter(entry => entry.at + entry.ttlMs > Date.now())
+  persist(); schedule(); emit()
+}
 function subscribe(listener: () => void) {
   load(); prune(); listeners.add(listener)
   return () => { listeners.delete(listener) }
@@ -78,7 +98,7 @@ const snapshot = () => { load(); return entries }
  * Snapshots and atomic content guards remain owned by the repository/consumer.
  * Callbacks themselves cannot be serialized into sessionStorage.
  */
-export const recoveryStore = { add, remove, list }
+export const recoveryStore = { add, remove, hydrate, list }
 export function useRecoveryStore() {
   useSyncExternalStore(subscribe, snapshot, snapshot)
   return recoveryStore

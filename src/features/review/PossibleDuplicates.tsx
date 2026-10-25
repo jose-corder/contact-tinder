@@ -1,29 +1,15 @@
 import { useState } from 'react'
-import { savePairResolution, undoMerge, type DuplicatePair, type MergeResult, type PairResolution } from '@/import/duplicates'
-import { Button, InlineNotice, useRecoveryStore, type RecoveryEntry } from '@/ui'
+import { savePairResolution, type DuplicatePair, type PairResolution } from '@/import/duplicates'
+import { Button, InlineNotice } from '@/ui'
 import MergeSheet from './MergeSheet'
 
 export default function PossibleDuplicates({ pairs, filtered = false }: { pairs: DuplicatePair[]; filtered?: boolean }) {
   const [comparison, setComparison] = useState<DuplicatePair>()
-  const recoveries = useRecoveryStore()
-  function merged(result: MergeResult) {
-    const entry: RecoveryEntry = {
-      id: result.mergeId, at: Date.now(), label: 'Merged ' + comparison!.a.displayName + ' and ' + comparison!.b.displayName,
-      onDismiss: () => {}, onUndo: async () => {
-        const outcome = await undoMerge(result.mergeId)
-        if (outcome !== true) {
-          recoveries.add({ ...entry, canUndo: async () => false })
-          return false
-        }
-      },
-    }
-    recoveries.add(entry)
-  }
   return <section aria-label="Possible duplicates" className="space-y-3 py-4">
     <h2 className="font-serif t-heading">Possible duplicates · {pairs.length}</h2>
     {pairs.length ? pairs.map(pair => <PairCard key={pair.id} pair={pair} onMerge={() => setComparison(pair)} />)
       : <p className="t-body text-ink-2">{filtered ? 'No matching pairs.' : 'All reviewed'}</p>}
-    {comparison && <MergeSheet pair={comparison} onClose={() => setComparison(undefined)} onMerged={merged} />}
+    {comparison && <MergeSheet pair={comparison} onClose={() => setComparison(undefined)} onMerged={() => {}} />}
   </section>
 }
 

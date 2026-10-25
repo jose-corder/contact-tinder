@@ -34,6 +34,7 @@ it('#55/#5: a move pre-empts a long notice and its Undo rejects an intervening e
 })
 
 it('#55: single Undo passes the exact expected version and dismisses only its handle', async () => {
+  await repo.upsertContacts([row('A').contact]) // #61: existence is part of recovery's guard.
   const before = row('A', { bucket: 'work', updatedAt: 1 }).decision
   const after = { ...before, bucket: 'delete' as const, updatedAt: 2 }
   await repo.saveDecision(after)
@@ -42,7 +43,7 @@ it('#55: single Undo passes the exact expected version and dismisses only its ha
   const callback = getToast()!.action!.onClick
   notices.toast('Newer action', { priority: 'high' })
   callback()
-  await waitFor(() => expect(save).toHaveBeenCalledWith(before, { exact: true, expectedUpdatedAt: 2 }))
+  await waitFor(() => expect(save).toHaveBeenCalledWith(before, { exact: true, expectedDecision: after, requireContact: true }))
   await waitFor(async () => expect(await repo.getDecision('A')).toEqual(before))
   expect(getToast()?.message).toBe('Newer action')
   notices.dismissToast()
