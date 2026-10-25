@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useDragControls } from 'framer-motion'
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useMediaQuery } from './useMediaQuery'
+import { motionProps } from './motion'
 import { setToastSuppressed } from './toast'
 
 export interface SheetProps { open: boolean; onClose: () => void; title?: string; children: ReactNode; footer?: ReactNode }
@@ -26,22 +27,21 @@ function SheetContent({ onClose, title, children, footer }: Omit<SheetProps, 'op
   const titleId = useId()
   const drag = useDragControls()
   const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')
-  const [viewport, setViewport] = useState({ keyboard: 0, bottom: 0 })
+  const [viewport, setViewport] = useState({ height: window.visualViewport?.height ?? window.innerHeight, bottom: 0 })
 
   useLayoutEffect(() => {
     const visual = window.visualViewport
-    if (!visual) return
     const resize = () => setViewport({
-      keyboard: Math.max(0, window.innerHeight - visual.height),
-      bottom: Math.max(0, window.innerHeight - visual.height - visual.offsetTop),
+      height: visual?.height ?? window.innerHeight,
+      bottom: visual ? Math.max(0, window.innerHeight - visual.height - visual.offsetTop) : 0,
     })
     resize()
-    visual.addEventListener('resize', resize)
-    visual.addEventListener('scroll', resize)
+    visual?.addEventListener('resize', resize)
+    visual?.addEventListener('scroll', resize)
     window.addEventListener('resize', resize)
     return () => {
-      visual.removeEventListener('resize', resize)
-      visual.removeEventListener('scroll', resize)
+      visual?.removeEventListener('resize', resize)
+      visual?.removeEventListener('scroll', resize)
       window.removeEventListener('resize', resize)
     }
   }, [])
@@ -91,18 +91,16 @@ function SheetContent({ onClose, title, children, footer }: Omit<SheetProps, 'op
 
   return <>
     <motion.div aria-hidden="true" className="fixed inset-0 z-40 bg-ink/30"
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      transition={{ duration: reduced ? 0.12 : 0.16 }} onClick={onClose} />
+      {...motionProps(reduced, { transition: { duration: 0.16 } })} onClick={onClose} />
     <motion.div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
       className="sheet-panel fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full max-w-[440px] flex-col overflow-hidden rounded-t-[20px] border border-control bg-paper-2 shadow-card"
-      style={{ '--sheet-keyboard': `${viewport.keyboard}px`, bottom: viewport.bottom,
-        maxHeight: `max(0px, calc(var(--sheet-max-height, 85vh) - ${viewport.keyboard}px))`,
+      style={{ bottom: viewport.bottom,
+        maxHeight: `min(var(--sheet-max-height, 85vh), ${Math.max(0, viewport.height - 24)}px)`,
         paddingLeft: 'max(20px, env(safe-area-inset-left))',
         paddingRight: 'max(20px, env(safe-area-inset-right))',
       } as CSSProperties}
-      initial={reduced ? { opacity: 0 } : { y: '100%' }} animate={reduced ? { opacity: 1, y: 0 } : { y: 0, opacity: 1 }}
-      exit={reduced ? { opacity: 0 } : { y: '100%' }}
-      transition={reduced ? { duration: 0.12, y: { duration: 0 } } : { type: 'spring', stiffness: 400, damping: 40 }}
+      {...motionProps(reduced, { initial: { y: '100%' }, animate: { y: 0, opacity: 1 },
+        exit: { y: '100%' }, transition: { type: 'spring', stiffness: 400, damping: 40 } })}
       drag={reduced ? false : 'y'} dragListener={false} dragControls={drag} dragConstraints={{ top: 0, bottom: 0 }}
       dragElastic={{ top: 0, bottom: 0.5 }} dragSnapToOrigin
       onDragEnd={(_, info) => { if (info.offset.y > 120 || info.velocity.y > 600) onClose() }}>

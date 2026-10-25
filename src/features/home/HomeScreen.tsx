@@ -72,18 +72,18 @@ export default function HomeScreen() {
         {(Object.keys(BUCKET_META) as Array<keyof typeof BUCKET_META>).map((key) =>
           <Link key={key} to={`/review?tab=${key}`} className="flex min-h-12 items-center justify-between border-b border-rule">
             <LabelDot tone={key} label={BUCKET_META[key].label} size={8} />{' '}
-            <span className="font-serif text-xl tabular">{rows.filter(({ decision }) => decision.bucket === key).length}</span>
+            <span className="font-serif t-heading tabular">{rows.filter(({ decision }) => decision.bucket === key).length}</span>
           </Link>)}
         <Link to="/review?tab=unsorted" className="flex min-h-12 items-center justify-between border-b border-rule">
-          <LabelDot tone="skip" label="Unsorted" size={8} />{' '}<span className="font-serif text-xl tabular">{unsorted}</span>
+          <LabelDot tone="skip" label="Unsorted" size={8} />{' '}<span className="font-serif t-heading tabular">{unsorted}</span>
         </Link>
       </nav>
       </div>
-      <nav aria-label="Contacts" className="flex flex-wrap justify-between gap-4 text-sm underline underline-offset-4">
+      <nav aria-label="Contacts" className="flex flex-wrap justify-between gap-4 t-meta underline underline-offset-4">
         <Link className="hit-44 inline-flex items-center py-3" to="/review">Review</Link><Link className="hit-44 inline-flex items-center py-3" to="/export">Export</Link><Link className="hit-44 inline-flex items-center py-3" to="/import">Import more</Link>
       </nav>
     </>}
     <InstallRow />
-    <footer className="mt-auto pt-8 pb-3"><Link to="/settings" className="inline-flex min-h-11 items-center text-sm text-ink-2 underline underline-offset-4">Settings</Link></footer>
+    <footer className="mt-auto pt-8 pb-3"><Link to="/settings" className="inline-flex min-h-11 items-center t-meta text-ink-2 underline underline-offset-4">Settings</Link></footer>
   </Frame>
 }

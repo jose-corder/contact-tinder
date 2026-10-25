@@ -21,7 +21,7 @@ it('uses the same offscreen fling and haptic for a button, committing once despi
   expect(onCommit).toHaveBeenCalledExactlyOnceWith('right')
   expect(haptic).toHaveBeenCalledExactlyOnceWith(10)
   expect(animate).toHaveBeenCalledWith(expect.anything(), expect.any(Number), { duration: 0.32, ease: 'easeOut' })
-  expect(vi.mocked(animate).mock.calls[0][1]).toBeGreaterThan(window.innerWidth)
+  expect(vi.mocked(animate).mock.calls[0][1]).toBeGreaterThan(350) // #32 travel uses card bounds
 })
 
 it('springs back a short drag without committing', async () => {

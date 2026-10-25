@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import type { Contact } from '@/domain/types'
+import { formatDate, formatPhone } from '@/ui/format'
 import { Avatar } from '@/ui'
 import { sourceLabel } from '@/import/sourceLabel'
 import { useElementSize } from '@/hooks/useElementSize'
@@ -7,8 +8,8 @@ import { friendlyType } from './CardFields'
 
 export function formatContactDate(value: string | number | undefined): string | undefined {
   if (value === undefined) return undefined
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? undefined : new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }).format(date)
+  const formatted = formatDate(value)
+  return formatted === value && Number.isNaN(new Date(value).getTime()) ? undefined : formatted
 }
 
 export function CardFront({ contact, stageHeight, preview, hold, toggleRef, flip }: {
@@ -16,6 +17,8 @@ export function CardFront({ contact, stageHeight, preview, hold, toggleRef, flip
   toggleRef: RefObject<HTMLButtonElement | null>; flip: () => void
 }) {
   const compact = stageHeight < 680
+  const landscape = stageHeight > 0 && stageHeight < 420 && window.innerWidth > window.innerHeight
+  const roomy = stageHeight >= 680 || window.innerHeight >= 680 && stageHeight >= 380
   const content = useElementSize<HTMLDivElement>()
   const viewport = useElementSize<HTMLDivElement>()
   const identity = useElementSize<HTMLDivElement>()
@@ -36,11 +39,11 @@ export function CardFront({ contact, stageHeight, preview, hold, toggleRef, flip
   const center = !compact && content.height < stageHeight - 120
   return <>
     <div ref={viewport.ref} className={`deck-front-scroll min-h-0 flex-1 overflow-y-auto ${center ? 'flex flex-col justify-center' : ''}`}>
-      <div ref={content.ref} className="deck-front-content">
+      <div ref={content.ref} className={`deck-front-content ${landscape ? 'deck-front-columns' : ''}`}>
         <div ref={identity.ref}>
         <div className={compact ? 'flex items-center gap-3' : 'flex flex-col gap-3'}>
           <Avatar name={contact.displayName} photo={contact.photo} size={compact ? 44 : 72} />
-          <h2 className={`min-w-0 font-serif t-display ${compact ? 'truncate' : 'line-clamp-2 break-words'}`}>{contact.displayName}</h2>
+          <h2 className={`min-w-0 font-serif ${landscape ? 't-title' : 't-display'} ${roomy || landscape ? 'line-clamp-2 break-words' : 'truncate'}`}>{contact.displayName}</h2>
         </div>
         <p className={`mt-1 t-body text-ink-2 ${compact ? 'truncate' : 'line-clamp-2'}`}>{[contact.title, contact.org].filter(Boolean).join(' · ') || '\u00a0'}</p>
         </div>
@@ -48,7 +51,7 @@ export function CardFront({ contact, stageHeight, preview, hold, toggleRef, flip
           {visible.map((row, index) => <div key={index} className="deck-field-row grid grid-cols-[58px_minmax(0,1fr)] items-center gap-2">
             <dt className="truncate t-meta text-ink-2">{row.label}</dt>
             <dd className="truncate t-body" title={row.value} onPointerDown={row.phone ? () => hold(row.value) : undefined}
-              onContextMenu={row.phone ? (event) => event.preventDefault() : undefined}>{row.value}</dd>
+              onContextMenu={row.phone ? (event) => event.preventDefault() : undefined}>{row.phone ? formatPhone(row.value) : row.value}</dd>
           </div>)}
         </dl>
       </div>

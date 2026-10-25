@@ -1,0 +1,5 @@
+/* Inherit the shared type role: Tailwind variants cannot target plain .t-* classes. */
+.review-tabs [role='tab'] {
+  font-size: inherit;
+  line-height: inherit;
+}

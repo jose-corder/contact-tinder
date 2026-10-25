@@ -43,6 +43,9 @@ describe('Home dashboard', () => {
     open()
     const ring = await screen.findByRole('progressbar', { name: 'Overall completion' })
     expect(ring).toHaveAttribute('aria-valuenow', '50')
+    // #16: classification is only the first pass; the ring measures full completion.
+    expect(ring).toHaveAttribute('aria-valuetext', '3 of 6 fully sorted')
+    expect(screen.getByText('5 classified, 3 fully sorted')).toBeInTheDocument()
     expect(within(ring).getByText('50%')).toBeInTheDocument()
     const steps = within(screen.getByRole('list', { name: 'Sorting passes' })).getAllByRole('listitem')
     // Finding #23: Work is current even though Triage has a skipped card.

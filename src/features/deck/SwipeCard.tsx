@@ -47,7 +47,7 @@ export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onF
   }
   return <article
     aria-label={preview ? undefined : contact.displayName + ' contact card'}
-    data-layout={stageHeight < 680 ? 'compact' : 'tall'} className="deck-card relative h-full min-h-0 text-ink select-none"
+    data-layout={stageHeight > 0 && stageHeight < 420 && window.innerWidth > window.innerHeight ? 'landscape' : stageHeight < 680 ? 'compact' : 'tall'} className="deck-card relative h-full min-h-0 text-ink select-none"
     onPointerDownCapture={(event) => { origin.current = { x: event.clientX, y: event.clientY }; moved.current = false; copied.current = false }}
     onPointerMove={(event) => { if (isDrag(event.clientX - origin.current.x, event.clientY - origin.current.y)) { moved.current = true; cancel() } }}
     onDragStart={(event) => event.preventDefault()}
@@ -75,7 +75,7 @@ export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onF
             <CardFields contact={contact} full hold={hold} />
             <p className="t-meta text-ink-2">{sourceLabel(contact)} · Added {formatContactDate(contact.importedAt)}{formatContactDate(contact.rev) && ' · Updated ' + formatContactDate(contact.rev)}</p>
           </div>
-          <button ref={backRef} type="button" className="hairline mt-3 min-h-11 min-w-11 shrink-0 pt-2 text-left text-xs text-ink-2" onClick={(event) => { event.stopPropagation(); flip(false) }}>Back</button>
+          <button ref={backRef} type="button" className="hairline mt-3 min-h-11 min-w-11 shrink-0 pt-2 text-left t-meta text-ink-2" onClick={(event) => { event.stopPropagation(); flip(false) }}>Back</button>
         </>}
       </motion.div>}
     </motion.div>

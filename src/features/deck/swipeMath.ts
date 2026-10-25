@@ -41,13 +41,13 @@ export function rotationFor(dx: number): number {
   return Math.max(-15, Math.min(15, dx / 20))
 }
 
-export function flingTarget(direction: Direction, dx: number, dy: number, viewportW: number, viewportH: number) {
+export function flingTarget(direction: Direction, dx: number, dy: number, cardWidth: number, cardHeight: number) {
   const horizontal = direction === 'left' || direction === 'right'
   const sign = direction === 'left' || direction === 'up' ? -1 : 1
   const primary = horizontal ? dx : dy
   const secondary = horizontal ? dy : dx
   // Travel at least 1200 px/s over 320 ms, even from an already distant drag.
-  const distance = Math.max(Math.abs(primary) + 1200 * DECK_MOTION.fling.duration, (horizontal ? viewportW : viewportH) + 32)
+  const distance = Math.max(Math.abs(primary) + 1200 * DECK_MOTION.fling.duration, (horizontal ? cardWidth : cardHeight) + 32)
   const cross = Math.abs(primary) > 1 ? secondary / Math.abs(primary) * distance : 0
   return horizontal ? { x: sign * distance, y: cross } : { x: cross, y: sign * distance }
 }

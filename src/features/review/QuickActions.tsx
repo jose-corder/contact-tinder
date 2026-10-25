@@ -20,12 +20,12 @@ export function RevealedActions({ name, bucket, busy, onMove }: Props) {
 export default function QuickActions({ name, bucket, busy, onMove, open, onClose, error }: Props & {
   open: boolean; onClose: () => void; error: string
 }) {
-  return <Sheet open={open} onClose={onClose} title={'Move ' + name}>
+  return <Sheet open={open} onClose={onClose} title={'Move ' + name}
+    footer={<Button full variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>}>
     <div className="space-y-2">{destinationsFor(bucket).map(value => <Button full variant="outline" key={value}
       disabled={busy} onClick={() => onMove(value)}>
       <LabelDot tone={value === 'unsorted' ? 'skip' : value} label={value === 'unsorted' ? 'Unsort' : 'Move to ' + destinationLabel(value)} size={8} />
     </Button>)}</div>
     {error && <InlineNotice tone="error">{error}</InlineNotice>}
-    <Button full variant="ghost" disabled={busy} onClick={onClose}>Cancel</Button>
   </Sheet>
 }

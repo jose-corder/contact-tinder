@@ -22,6 +22,8 @@ it('keeps every selected semantic label above 4.5:1 in light, manual dark and au
       expect(contrast(palette[`on-${tone}`], palette[fill]), `${tone} on ${palette.paper}`).toBeGreaterThanOrEqual(4.5)
     }
     for (const surface of ['paper', 'paper-2']) {
+      expect(contrast(palette['control-border'], palette[surface]), `control boundary on ${surface}`).toBeGreaterThanOrEqual(3)
+      expect(contrast(palette['progress-track'], palette[surface]), `progress track on ${surface}`).toBeGreaterThanOrEqual(3)
       for (const tone of ['ink-2', 'stamp-delete', 'stamp-personal']) {
         expect(contrast(palette[tone], palette[surface]), `${tone} on ${surface}`).toBeGreaterThanOrEqual(4.5)
       }

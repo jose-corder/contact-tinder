@@ -10,8 +10,8 @@
   --ink: #141311;
   --ink-2: #5b5750;
   --rule: #d8d1c3;
-  --control-border: #b9b1a1;
-  --progress-track: #b9b1a1;
+  --control-border: #827a6c;
+  --progress-track: #827a6c;
   --on-delete: #f4efe6;
   --on-work: #f4efe6;
   --on-personal: #f4efe6;
@@ -40,8 +40,8 @@
   --ink: #f1ece2;
   --ink-2: #a39d92;
   --rule: #2c2a26;
-  --control-border: #3e3b35;
-  --progress-track: #3e3b35;
+  --control-border: #736d63;
+  --progress-track: #736d63;
   --on-delete: #121110;
   --on-work: #121110;
   --on-personal: #121110;
@@ -70,8 +70,8 @@
     --ink: #f1ece2;
     --ink-2: #a39d92;
     --rule: #2c2a26;
-    --control-border: #3e3b35;
-    --progress-track: #3e3b35;
+    --control-border: #736d63;
+    --progress-track: #736d63;
     --on-delete: #121110;
     --on-work: #121110;
     --on-personal: #121110;
@@ -287,4 +287,11 @@ input, textarea, select { border-color: var(--control-border); }
 .chip-hit::after { content: ''; position: absolute; inset: -4px 0; }
 @media (prefers-reduced-motion: reduce) {
   button:active { transform: none; scale: none; }
+}
+
+.ui-frame { padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.chip-label { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .ui-frame { padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .ui-topbar { height: 40px; }
 }

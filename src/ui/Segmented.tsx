@@ -1,3 +1,4 @@
+import { motionProps } from './motion'
 import { motion } from 'framer-motion'
 import { useId, useRef } from 'react'
 import { useMediaQuery } from './useMediaQuery'
@@ -17,7 +18,7 @@ export function Segmented<T extends string>({ options, value, onChange, classNam
   const tabs = useRef<Array<HTMLButtonElement | null>>([])
   const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')
   const selected = Math.max(0, options.findIndex((option) => option.value === value))
-  return <div role="tablist" className={`flex gap-5 border-b border-control ${className}`}>
+  return <div role="tablist" className={`flex gap-5 border-b border-rule ${className}`}>
     {options.map((option, index) => {
       const active = option.value === value
       return <button key={option.value} type="button" role="tab"
@@ -42,7 +43,7 @@ export function Segmented<T extends string>({ options, value, onChange, classNam
         {option.label}
         {option.count !== undefined && <span className="tabular t-meta text-ink-2">{option.count}</span>}
         {active && <motion.span aria-hidden="true" layoutId={reduced ? undefined : `${id}-underline`}
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: reduced ? 0.12 : 0.15 }}
+          {...motionProps(reduced)}
           className="absolute inset-x-0 bottom-0 h-0.5 bg-ink" />}
       </button>
     })}

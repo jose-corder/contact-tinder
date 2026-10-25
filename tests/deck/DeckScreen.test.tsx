@@ -57,11 +57,11 @@ describe('DeckScreen', () => {
     await action('Personal')
     await waitFor(() => expect(screen.getByRole('article', { name: 'Ana contact card' })).toBeInTheDocument())
     await action('Skip')
-    expect(await screen.findByText('Triage done.')).toBeInTheDocument()
+    expect(await screen.findByText('Pass finished')).toBeInTheDocument()
     expect((await repo.getDecision('a')).skips.triage).toBe(2)
-    expect(await screen.findByText('1 skipped twice · find them under Review → Unsorted')).toBeInTheDocument()
-    // Audit #27: session completion includes the exhausted skip.
-    expect(screen.getByText('This session: 3 of 3')).toBeInTheDocument()
+    expect(await screen.findByText('1 still need sorting')).toBeInTheDocument()
+    // Audit #47: only actual classifications count as sorted.
+    expect(screen.getByText('This session: 2 of 3 classified')).toBeInTheDocument()
     await action('Undo')
     expect(await screen.findByText('2 / 3')).toBeInTheDocument()
     expect((await repo.getDecision('a')).skips.triage).toBe(1)
@@ -144,7 +144,7 @@ describe('DeckScreen', () => {
     await waitFor(async () => expect((await repo.getDecision('a')).skips.triage).toBe(1))
     expect(screen.getByText('0 / 1')).toBeInTheDocument()
     await action('Skip')
-    expect(await screen.findByText('Triage done.')).toBeInTheDocument()
+    expect(await screen.findByText('Pass finished')).toBeInTheDocument()
     expect(screen.getByText('1 / 1')).toBeInTheDocument()
   })
 

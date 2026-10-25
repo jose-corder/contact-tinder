@@ -2,8 +2,14 @@ import { PASS_ORDER, toggleChip } from './taxonomy'
 import type { Counts, Decision, Pass, PersonalType, WorkType } from './types'
 
 /** Type-only Personal completion has an explicit, exportable relation (#7). */
+export function completePersonalTypes(decision: Decision): Decision {
+  return decision.bucket === 'personal' && decision.personalTypes.length && !decision.relation
+    ? { ...decision, relation: 'other' } : decision
+}
+
 export function toggleDeckType(decision: Decision, pass: Pass, key: WorkType | PersonalType): Decision {
   const next = toggleChip(decision, pass, key)
+  // The pass also supports drafts before their bucket is assigned.
   return pass === 'personal' && next.personalTypes.length && !next.relation
     ? { ...next, relation: 'other' } : next
 }

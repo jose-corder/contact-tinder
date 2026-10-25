@@ -43,7 +43,9 @@ describe('FollowUpSheet', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Family' }))
     fireEvent.click(screen.getByRole('button', { name: 'Neighbor' }))
     fireEvent.click(screen.getByRole('button', { name: 'Later' }))
-    expect(onClose).toHaveBeenCalledWith()
+    // #16: explicit Discard is required for draft selections.
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    expect(onClose).toHaveBeenCalledWith(undefined)
     const saved = await repo.getDecision('a')
     expect(saved.relation).toBeUndefined()
     expect(saved.personalTypes).toEqual([])
@@ -71,6 +73,7 @@ it('focuses the first chip on open and Escape closes as Later without saving edi
   await waitFor(() => expect(screen.getByRole('button', { name: 'Old' })).toHaveFocus())
   fireEvent.click(screen.getByRole('button', { name: 'Current' }))
   fireEvent.keyDown(window, { key: 'Escape' })
-  expect(onClose).toHaveBeenCalledExactlyOnceWith()
+  fireEvent.click(screen.getByRole('button', { name: 'Discard' })) // #16
+  expect(onClose).toHaveBeenCalledExactlyOnceWith(undefined)
   expect((await repo.getDecision('a')).workStatus).toBeUndefined()
 })

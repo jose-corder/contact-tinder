@@ -10,7 +10,7 @@ export async function storageAfterImport(): Promise<string | undefined> {
   try {
     const estimate = await storage?.estimate?.()
     if (estimate?.quota && (estimate.usage ?? 0) / estimate.quota > 0.8) {
-      return 'Device storage is getting full. A backup from Export can help keep your work safe.'
+      return 'Device storage is getting full. A backup from Settings can help keep your work safe.'
     }
   } catch { /* Estimates are optional. */ }
   return undefined

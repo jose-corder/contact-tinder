@@ -72,7 +72,7 @@ export function groupFiles(rows: ContactWithDecision[]): ExportFile[] {
     add(`work-${slug}`, ({ decision: d }) => d.bucket === 'work' && d.workTypes.includes(type), `Work · ${WORK_TYPE_META[type].label}`, [BUCKET_META.work.color])
   }
   add('personal', ({ decision: d }) => d.bucket === 'personal', 'Personal', [BUCKET_META.personal.color])
-  for (const relation of ['friend', 'family', 'ex'] as const) {
+  for (const relation of Object.keys(PERSONAL_RELATION_META) as Array<keyof typeof PERSONAL_RELATION_META>) {
     add(`personal-${relation}`, ({ decision: d }) => d.bucket === 'personal' && d.relation === relation,
       `Personal · ${PERSONAL_RELATION_META[relation].label}`, [BUCKET_META.personal.color, PERSONAL_RELATION_META[relation].color])
   }

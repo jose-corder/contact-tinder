@@ -31,7 +31,9 @@ it.each(['move', 'tag'] as const)('bulk_mutation_rolls_back_on_row_501: %s', asy
       fireEvent.click(screen.getByRole('button', { name: operation === 'move' ? 'Move to…' : 'Tag…' }))
       const dialog = within(screen.getByRole('dialog'))
       if (operation === 'tag') fireEvent.change(dialog.getByRole('textbox'), { target: { value: 'new-tag' } })
-      fireEvent.click(dialog.getByRole('button', { name: operation === 'move' ? 'Personal' : 'Add tag' }))
+      // #14: both bulk actions commit from the footer.
+      if (operation === 'move') fireEvent.click(dialog.getByRole('radio', { name: 'Personal' }))
+      fireEvent.click(dialog.getByRole('button', { name: 'Apply' }))
       expect(screen.getByRole('button', { name: 'Move to…' })).toHaveAttribute('aria-busy', 'true')
       expect(screen.getByRole('button', { name: 'Tag…' })).toBeDisabled()
     }

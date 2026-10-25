@@ -1,7 +1,8 @@
-// One feedback slot. Sheets queue the latest toast for at most six seconds.
+// Recovery notices survive replacement and modal suppression.
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useMediaQuery } from './useMediaQuery'
+import { motionProps } from './motion'
 
 export type ToastTone = 'default' | 'delete' | 'work' | 'personal'
 export interface ToastOptions {
@@ -9,9 +10,12 @@ export interface ToastOptions {
   /** Default 2600 ms, or 4000 ms when there is an action. */
   duration?: number
   tone?: ToastTone
+  /** Actions default to high priority; informational notices default to low. */
+  priority?: 'low' | 'high'
 }
 interface ToastState extends ToastOptions { id: number; message: string; createdAt: number }
 let current: ToastState | null = null
+let queue: ToastState[] = []
 let seq = 0
 let manualSuppression = false
 let dialogSuppression = false
@@ -24,10 +28,16 @@ function subscribe(listener: () => void) {
 }
 
 export function toast(message: string, options: ToastOptions = {}) {
-  current = { id: ++seq, message, createdAt: Date.now(), ...options }
+  const next = { id: ++seq, message, createdAt: Date.now(), ...options,
+    priority: options.priority ?? (options.action ? 'high' : 'low') } satisfies ToastState
+  if (current && (next.priority === 'high' || current.priority === 'high')) {
+    // Keep every recovery, but only the latest waiting informational notice.
+    if (next.priority === 'low') queue = queue.filter(item => item.priority === 'high')
+    queue.push(next)
+  } else current = next
   emit()
 }
-export function dismissToast() { current = null; emit() }
+export function dismissToast() { current = queue.shift() ?? null; emit() }
 
 /** Toolbar top clearance in CSS pixels; null restores the safe-area default. */
 export function setToastBottom(px: number | null) {
@@ -39,7 +49,11 @@ function updateSuppression(manual: boolean, dialogs: boolean) {
   const wasSuppressed = isSuppressed()
   manualSuppression = manual
   dialogSuppression = dialogs
-  if (wasSuppressed && !isSuppressed() && current && Date.now() - current.createdAt >= 6000) current = null
+  if (wasSuppressed && !isSuppressed()) {
+    const fresh = (item: ToastState) => item.priority === 'high' || Date.now() - item.createdAt < 6000
+    queue = queue.filter(fresh)
+    if (current && !fresh(current)) current = queue.shift() ?? null
+  }
   emit()
 }
 
@@ -68,10 +82,9 @@ function ToastMessage({ state, paused = false }: { state: ToastState; paused?: b
     }
   }, [state.id, paused, hovered, focused])
   return <motion.div
-    initial={reduced ? { opacity: 0 } : { opacity: 0, y: 12, scale: 0.98 }}
-    animate={{ opacity: 1, y: 0, scale: 1 }}
-    exit={reduced ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.98 }}
-    transition={{ duration: reduced ? 0.12 : 0.22, ease: 'easeOut', ...(reduced ? { y: { duration: 0 }, scale: { duration: 0 } } : {}) }}
+    {...motionProps(reduced, { initial: { opacity: 0, y: 12, scale: 0.98 },
+      animate: { opacity: 1, y: 0, scale: 1 }, exit: { opacity: 0, y: 8, scale: 0.98 },
+      transition: { duration: 0.22, ease: 'easeOut' } })}
     onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
     onFocusCapture={() => setFocused(true)}
     onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setFocused(false) }}

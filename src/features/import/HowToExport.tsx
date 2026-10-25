@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { cx } from '@/ui'
+import { useId, useState } from 'react'
+import { Segmented } from '@/ui'
 
 const sources = [
   { name: 'iPhone', steps: [
@@ -29,31 +29,26 @@ const sources = [
 
 export default function HowToExport() {
   const [active, setActive] = useState(0)
+  const id = useId()
   return <>
     <section className="mt-8 border-y border-rule">
-      <h2 className="py-4 font-serif text-xl">How to export your contacts</h2>
-      <div role="tablist" aria-label="Contact export instructions" className="flex justify-between border-b border-rule">
-        {sources.map((source, index) => <button key={source.name} role="tab" id={`source-${index}`}
-          aria-selected={active === index} aria-controls="export-steps" tabIndex={active === index ? 0 : -1}
-          className={cx('min-h-11 border-b px-1 text-[13px]', active === index ? 'border-ink text-ink' : 'border-transparent text-ink-2')}
-          onClick={() => setActive(index)} onKeyDown={(event) => {
-            const next = event.key === 'ArrowRight' ? (active + 1) % 4 : event.key === 'ArrowLeft' ? (active + 3) % 4
-              : event.key === 'Home' ? 0 : event.key === 'End' ? 3 : undefined
-            if (next !== undefined) { event.preventDefault(); setActive(next); document.getElementById(`source-${next}`)?.focus() }
-          }}>{source.name}</button>)}
+      <h2 className="py-4 font-serif t-heading">How to export your contacts</h2>
+      <div aria-label="Contact export instructions" role="group">
+        <Segmented value={String(active)} onChange={(value) => setActive(Number(value))} className="justify-between gap-2"
+          options={sources.map((source, index) => ({ value: String(index), label: source.name, panelId: `${id}-${index}` }))} />
       </div>
-      <div role="tabpanel" id="export-steps" aria-labelledby={`source-${active}`}>
+      <div role="tabpanel" id={`${id}-${active}`} aria-labelledby={`${id}-${active}-tab`}>
         <ol className="divide-y divide-rule">
           {sources[active].steps.map((step, index) => <li key={step} className="flex gap-4 py-4">
-            <span className="font-serif text-xl text-ink-2" aria-hidden="true">0{index + 1}</span>
-            <p className="text-sm leading-relaxed">{step}</p>
+            <span className="font-serif t-heading text-ink-2" aria-hidden="true">0{index + 1}</span>
+            <p className="t-body leading-relaxed">{step}</p>
           </li>)}
         </ol>
-        <a className="inline-flex min-h-11 items-center text-xs text-ink-2 underline underline-offset-4" href={sources[active].link} target="_blank" rel="noreferrer">Official instructions</a>
+        <a className="inline-flex min-h-11 items-center t-meta text-ink-2 underline underline-offset-4" href={sources[active].link} target="_blank" rel="noreferrer">Official instructions</a>
       </div>
-      <p className="border-t border-rule py-4 text-xs leading-relaxed text-ink-2">On iPhone, look in the Files app under Browse → Downloads or iCloud Drive. Save the file there before choosing it here.</p>
+      <p className="border-t border-rule py-4 t-meta leading-relaxed text-ink-2">On iPhone, look in the Files app under Browse → Downloads or iCloud Drive. Save the file there before choosing it here.</p>
     </section>
-    <details className="mt-4 text-xs text-ink-2">
+    <details className="mt-4 t-meta text-ink-2">
       <summary className="min-h-11 cursor-pointer py-3">Why a file?</summary>
       <p className="pb-3 leading-relaxed">Browsers cannot read your address book directly. Some Android browsers offer a Contact Picker, but iPhone Safari does not. A file lets you choose what to bring in; everything is processed on this device.</p>
     </details>

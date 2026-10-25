@@ -4,7 +4,7 @@ import { dismissToast, setToastBottom, setToastSuppressed, toast, Toaster } from
 // Motion exit frames are independent of the store's dismissal timer.
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
-  motion: { div: ({ children, initial: _initial, animate: _animate, exit: _exit, transition: _transition, ...props }: React.HTMLAttributes<HTMLDivElement> & Record<string, unknown>) => <div {...props}>{children}</div> },
+  motion: { div: ({ children, initial: _initial, animate: _animate, exit: _exit, transition: _transition, transformTemplate: _transformTemplate, ...props }: React.HTMLAttributes<HTMLDivElement> & Record<string, unknown>) => <div {...props}>{children}</div> },
 }))
 
 beforeEach(() => { vi.useFakeTimers(); dismissToast(); setToastSuppressed(false) })
@@ -102,5 +102,51 @@ it('suppresses toasts for modal dialogs outside Sheet as well', async () => {
   await act(async () => { document.body.append(dialog) })
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
   await act(async () => { dialog.remove() })
+  expect(screen.getByRole('status')).toHaveTextContent('Saved')
+})
+
+it('queues high priority after the current notice and protects it from later informational replacement', () => {
+  render(<Toaster />)
+  act(() => toast('First', { duration: 1000 }))
+  act(() => toast('Recovery', { priority: 'high', duration: 2000, action: { label: 'Undo', onClick: vi.fn() } }))
+  expect(screen.getByRole('status')).toHaveTextContent('First')
+  expect(screen.queryByText('Recovery')).not.toBeInTheDocument()
+  act(() => vi.advanceTimersByTime(1000))
+  expect(screen.getByText('Recovery')).toBeInTheDocument()
+  act(() => toast('Information'))
+  expect(screen.getByText('Recovery')).toBeInTheDocument()
+  expect(screen.queryByText('Information')).not.toBeInTheDocument()
+  act(() => vi.advanceTimersByTime(1999))
+  expect(screen.getByText('Recovery')).toBeInTheDocument()
+  act(() => vi.advanceTimersByTime(1))
+  expect(screen.getByText('Information')).toBeInTheDocument()
+})
+
+it('retains all suppressed recoveries beyond six seconds and starts their timeout when shown', () => {
+  render(<Toaster />)
+  act(() => {
+    setToastSuppressed(true)
+    toast('Stale information')
+    toast('Undo restore', { priority: 'high', duration: 1000 })
+    toast('Reload app', { priority: 'high', duration: 1000 })
+  })
+  act(() => vi.advanceTimersByTime(60000))
+  act(() => setToastSuppressed(false))
+  expect(screen.getByRole('status')).toHaveTextContent('Undo restore')
+  act(() => vi.advanceTimersByTime(1000))
+  expect(screen.getByRole('status')).toHaveTextContent('Reload app')
+  act(() => vi.advanceTimersByTime(1000))
+  expect(screen.getByRole('status')).toBeEmptyDOMElement()
+})
+
+it('protects existing Undo and Reload callers by default', () => {
+  render(<Toaster />)
+  act(() => toast('Restore complete', { action: { label: 'Undo', onClick: vi.fn() } }))
+  act(() => toast('Reload available', { action: { label: 'Reload', onClick: vi.fn() } }))
+  act(() => toast('Saved'))
+  expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+  expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Reload' }))
   expect(screen.getByRole('status')).toHaveTextContent('Saved')
 })

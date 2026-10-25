@@ -22,7 +22,9 @@ it('#8/#28: leads with model and Continue, then compact progress and linked coun
   before(screen.getByRole('region', { name: 'Sorting progress' }), screen.getByRole('navigation', { name: 'Contact counts' }))
   expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
   expect(screen.getByText('1 to go')).toBeInTheDocument()
-  expect(screen.getByText("You're 50% through.")).toBeInTheDocument()
+  expect(screen.getByText("50% fully sorted.")).toBeInTheDocument()
+  // #16: no redundant comparison when both counts agree.
+  expect(screen.queryByText(/classified,.*fully sorted/)).not.toBeInTheDocument()
   expect(screen.getByRole('progressbar')).toHaveClass('h-[72px]', 'w-[72px]')
   expect(screen.queryByText(/contacts sorted/)).not.toBeInTheDocument()
   // Audit #40: CSS grid places counts beside resume from the lg (1024px) breakpoint.

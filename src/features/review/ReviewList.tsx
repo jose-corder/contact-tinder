@@ -14,10 +14,14 @@ interface Props {
   tab?: ReviewTab
   filtered?: boolean
   onClear?: () => void
+  limit?: number
+  onLimit?: (limit: number) => void
 }
 
-export default function ReviewList({ rows, selecting, selected, onOpen, onToggle, onLongPress, tab = 'unsorted', filtered = false, onClear }: Props) {
-  const [limit, setLimit] = useState(60)
+export default function ReviewList({ rows, selecting, selected, onOpen, onToggle, onLongPress, tab = 'unsorted', filtered = false, onClear, limit: controlledLimit, onLimit }: Props) {
+  const [localLimit, setLocalLimit] = useState(60)
+  const limit = controlledLimit ?? localLimit
+  const loadMore = () => { setLocalLimit(limit + 60); onLimit?.(limit + 60) }
   const sentinel = useRef<HTMLButtonElement>(null)
   const more = limit < rows.length
   useEffect(() => {
@@ -25,7 +29,7 @@ export default function ReviewList({ rows, selecting, selected, onOpen, onToggle
     const observer = new IntersectionObserver((entries) => {
       if (entries.some((entry) => entry.isIntersecting)) {
         observer.disconnect()
-        setLimit((value) => value + 60)
+        loadMore()
       }
     }, { rootMargin: '240px' })
     observer.observe(sentinel.current)
@@ -40,6 +44,6 @@ export default function ReviewList({ rows, selecting, selected, onOpen, onToggle
     <ReviewRow row={row}
     selecting={selecting} selected={selected.has(row.contact.id)}
     onOpen={onOpen} onToggle={onToggle} onLongPress={onLongPress} /></Fragment>)}</ul>
-    {more && <button ref={sentinel} className="min-h-11 w-full text-sm text-ink-2" onClick={() => setLimit((value) => value + 60)}>Load more contacts</button>}
+    {more && <button ref={sentinel} className="min-h-11 w-full t-meta text-ink-2" onClick={loadMore}>Load more contacts</button>}
   </>
 }

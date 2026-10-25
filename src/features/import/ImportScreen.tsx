@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
-import { Button, Frame, TopBar, cx } from '@/ui'
+import { Link, useNavigate } from 'react-router'
+import { Button, Frame, InlineNotice, TopBar, cx } from '@/ui'
 import { IconUpload } from '@/ui/icons'
 import { importContacts, importDemo, previewFiles, commitPreview, type ImportResult, type ImportPreview as Preview, type ImportProgress } from '@/import'
 import { isContactPickerSupported, pickContacts } from '@/import/contactPicker'
 import HowToExport from './HowToExport'
 import ImportPreview, { ImportProgressView } from './ImportPreview'
+import { useImportAnnouncement } from './useImportAnnouncement'
 
 type Phase = 'choose' | 'preview' | 'importing' | 'done' | 'error'
 
@@ -21,6 +22,8 @@ export default function ImportScreen() {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [selected, setSelected] = useState('')
   const [progress, setProgress] = useState<ImportProgress | null>(null)
+  const announcement = useImportAnnouncement(progress, phase === 'importing')
+  const title = { choose: 'Bring your contacts.', preview: 'Review your import', importing: 'Importing contacts', done: 'Import complete', error: 'Import needs another try' }[phase]
 
   useEffect(() => { if (phase !== 'choose') heading.current?.focus() }, [phase])
   function reset() { setPhase('choose'); setPreview(null); setResult(null); setErrors([]); setSelected('') }
@@ -54,17 +57,19 @@ export default function ImportScreen() {
 
   return <Frame className="bg-paper text-ink">
     <TopBar title="Import" backTo="/" />
-    <main className="pb-6" aria-busy={phase === 'importing'}>
+    <main className="pb-6">
       <div className={cx('text-center', phase === 'choose' ? 'py-8' : 'py-4')}>
-        <p className="mb-3 text-sm text-ink-2">Import a vCard or CSV export</p>
-        <h1 ref={heading} tabIndex={-1} className={cx('font-serif leading-tight tracking-tight', phase === 'choose' ? 'text-[38px]' : 'text-[24px]')}>Bring your contacts.</h1>
-        {phase === 'choose' && <p className="mt-3 text-sm text-ink-2">Your contacts are processed here. Nothing is uploaded.</p>}
+        <p className="mb-3 t-body text-ink-2">Import a vCard or CSV export</p>
+        <h1 ref={heading} tabIndex={-1} className={cx('font-serif tracking-tight', phase === 'choose' ? 't-display' : 't-title')}>{title}</h1>
+        {phase === 'choose' && <p className="mt-3 t-body text-ink-2">Your contacts are processed here. Nothing is uploaded.</p>}
       </div>
-      <p aria-live="polite" aria-atomic="true" role="status" className={phase === 'done' ? 'my-4 text-center font-serif text-2xl' : 'sr-only'}>
-        {phase === 'importing' && progress ? progress.phase + ': ' + progress.parsed.toLocaleString() + ' contacts ' +
-          ({ reading: 'read', parsing: 'parsed', deduping: 'checked', saving: 'saved' }[progress.phase])
-          : phase === 'done' && result ? `${result.added} contacts added · ${result.merged} duplicate entries merged` : ''}
-      </p>
+      <div aria-atomic="true" className={phase === 'done' ? 'my-4 space-y-2' : 'sr-only'}>
+        <InlineNotice tone="info">{phase === 'importing' ? announcement : phase === 'done' && result ? <>
+          <p>{result.added} contacts added · {result.merged} duplicate entries merged</p>
+          {result.possibleDuplicates.length > 0 && <p>{result.possibleDuplicates.length} possible duplicates kept apart</p>}
+          {result.storageNote && <p>{result.storageNote}</p>}
+        </> : ''}</InlineNotice>
+      </div>
       {phase === 'choose' && <>
         <label className={cx('relative flex min-h-48 flex-col items-center justify-center gap-3 rounded-[20px] border border-dashed border-rule px-5 py-8 text-center focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-ink cursor-pointer hover:bg-paper-2', dragging ? 'bg-paper-2' : 'bg-paper')}
           onDragOver={(event) => { event.preventDefault(); setDragging(true) }}
@@ -74,34 +79,32 @@ export default function ImportScreen() {
             className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
             onChange={(event) => { loadFiles(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = '' }} />
           <IconUpload size={28} />
-          <span className="font-serif text-2xl">Choose a contact file</span>
-          <span className="text-sm text-ink-2">Contact file (vCard (.vcf)) or CSV (.csv)<span className="hidden [@media(pointer:fine)]:inline"> · or drop files here</span></span>
+          <span className="font-serif t-title">Choose a contact file</span>
+          <span className="t-body text-ink-2">Contact file (vCard (.vcf)) or CSV (.csv)<span className="hidden [@media(pointer:fine)]:inline"> · or drop files here</span></span>
         </label>
         <div className="mt-4 flex flex-col items-center gap-2">
           {isContactPickerSupported() && <Button variant="outline" full onClick={() => void run(async () => importContacts(await pickContacts(), setProgress))}>Pick from phone</Button>}
           <Button variant="ghost" onClick={() => void run(() => importDemo(setProgress))}>Try 40 sample contacts</Button>
-          <p className="text-center text-xs text-ink-2">Samples will be added to this app.</p>
+          <p className="text-center t-meta text-ink-2">Samples will be added to this app.</p>
         </div>
         <HowToExport />
       </>}
       {phase === 'preview' && preview && <>
-        <p className="break-words text-sm text-ink-2">{selected}</p>
+        <p className="break-words t-body text-ink-2">{selected}</p>
         <ImportPreview preview={preview} busy={false} onConfirm={() => void run(() => commitPreview(preview, setProgress))} onCancel={reset} />
       </>}
       {phase === 'importing' && progress && <ImportProgressView progress={progress} />}
       {phase === 'done' && result && <section className="rounded-[20px] border border-rule bg-paper-2 p-5 text-center">
-        {result.possibleDuplicates.length > 0 && <p className="mb-4 text-sm text-ink-2">{result.possibleDuplicates.length} possible duplicates kept apart</p>}
-        {result.storageNote && <p className="mb-4 text-sm text-ink-2">{result.storageNote}</p>}
-        <Button full size="lg" onClick={() => navigate('/deck/triage')}>Start triage</Button>
+        {result.possibleDuplicates.length > 0 && <Link to="/review?tab=unsorted&dupes=1" className="mb-4 inline-flex min-h-11 items-center t-body underline underline-offset-4">Review possible duplicates ({result.possibleDuplicates.length})</Link>}
+        <Button full size="lg" onClick={() => navigate('/deck/triage')}>Sort contacts</Button>
         <Button full variant="ghost" onClick={reset}>Import another</Button>
       </section>}
       {phase === 'error' && <section className="rounded-[20px] border border-rule p-5">
-        <h2 className="font-serif text-2xl">Import needs another try</h2>
-        <ul role="alert" className="my-3 space-y-2 break-words text-sm text-ink">{errors.map((error, index) => <li key={index}>{error}</li>)}</ul>
+        <InlineNotice tone="error"><ul className="my-3 space-y-2 break-words t-body">{errors.map((error, index) => <li key={index}>{error}</li>)}</ul></InlineNotice>
         <Button full onClick={() => retry.current && void run(retry.current)}>Retry</Button>
         <Button full variant="ghost" onClick={reset}>Choose another file</Button>
       </section>}
-      {phase !== 'error' && errors.length > 0 && <ul role="alert" className="mt-4 space-y-2 break-words text-sm text-ink-2">{errors.map((error, index) => <li key={index}>{error}</li>)}</ul>}
+      {phase !== 'error' && errors.length > 0 && <InlineNotice tone="error"><ul className="mt-4 space-y-2 break-words t-body">{errors.map((error, index) => <li key={index}>{error}</li>)}</ul></InlineNotice>}
     </main>
   </Frame>
 }

@@ -10,6 +10,10 @@ export { Segmented, type SegmentedOption } from './Segmented'
 export { InlineNotice, LabelDot, CopyButton } from './feedback'
 export type { ChipTone } from './tones'
 export { useMediaQuery } from './useMediaQuery'
+export { RadioGroup, type RadioOption, type RadioGroupProps } from './RadioGroup'
+export { motionProps } from './motion'
+export { formatDate, formatPhone } from './format'
+export { ErrorBoundary } from './ErrorBoundary'
 
 export function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(' ')
@@ -21,10 +25,8 @@ export function cx(...parts: Array<string | false | null | undefined>) {
 export function Frame({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={cx('mx-auto flex min-h-dvh w-full max-w-[440px] flex-col px-5', className)}
+      className={cx('ui-frame mx-auto flex min-h-dvh w-full max-w-[440px] flex-col px-5', className)}
       style={{
-        paddingTop: 'max(12px, env(safe-area-inset-top))',
-        paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
         paddingLeft: 'max(20px, env(safe-area-inset-left))',
         paddingRight: 'max(20px, env(safe-area-inset-right))',
       }}
@@ -47,7 +49,7 @@ export interface TopBarProps {
 export function TopBar({ title, right, progress, backTo }: TopBarProps) {
   return (
     <header className="mb-4">
-      <div className="flex h-11 items-center justify-between">
+      <div className="ui-topbar flex h-11 items-center justify-between">
         <div className="flex items-center gap-2">
           {backTo && (
             <Link to={backTo} aria-label="Back" className="hit-44 -ml-2 flex h-11 w-11 items-center justify-center rounded-full text-ink-2 hover:text-ink">
@@ -71,7 +73,7 @@ export function TopBar({ title, right, progress, backTo }: TopBarProps) {
 }
 
 export function Rule({ className }: { className?: string }) {
-  return <div className={cx('hairline w-full', className)} />
+  return <div className={cx('w-full border-t border-rule', className)} />
 }
 
 // ----- buttons -----
@@ -156,14 +158,14 @@ export function Chip({ label, selected, tone, color = 'var(--ink)', className, s
       type="button"
       aria-pressed={selected}
       className={cx(
-        'chip-hit inline-flex h-9 items-center rounded-full border px-3.5 font-sans t-meta transition-colors duration-150 select-none',
+        'chip-hit min-w-0 max-w-full inline-flex h-9 items-center rounded-full border px-3.5 font-sans t-meta transition-colors duration-150 select-none',
         selected ? 'border-transparent text-paper' : 'border-control bg-transparent text-ink hover:bg-paper-2',
         className,
       )}
       style={{ ...(selected ? { background: fill, borderColor: fill, ...(tone ? { color: toneColors[tone].on } : {}) } : {}), ...style } as CSSProperties}
       {...rest}
     >
-      {label}
+      <span className="chip-label">{label}</span>
     </button>
   )
 }

@@ -4,7 +4,7 @@ import { BUCKET_META, normalizeTag, setBucket, toggleCustomTag } from '@/domain/
 import type { Bucket, Decision } from '@/domain/types'
 import { shareOrDownload } from '@/export/share'
 import { vcfText } from '@/export/vcf'
-import { Button, InlineNotice, LabelDot, Sheet } from '@/ui'
+import { Button, InlineNotice, RadioGroup, Sheet, SheetFooterActions } from '@/ui'
 import { setToastBottom, toast } from '@/ui/toast'
 
 export default function BulkBar({ rows, onClear, onSelectAll, total = rows.length, resultCount = rows.length, tabLabel = 'contacts' }: {
@@ -13,6 +13,7 @@ export default function BulkBar({ rows, onClear, onSelectAll, total = rows.lengt
   const [open, setOpen] = useState(false)
   const [tagOpen, setTagOpen] = useState(false)
   const [tag, setTag] = useState('')
+  const [destination, setDestination] = useState<Bucket>('work')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [cancelled, setCancelled] = useState(false)
@@ -44,6 +45,11 @@ export default function BulkBar({ rows, onClear, onSelectAll, total = rows.lengt
     } catch { setError('Could not save these changes. Nothing was changed. Please try again.') }
     finally { locked.current = false; setBusy(false) }
   }
+  function applyTag() {
+    const value = normalizeTag(tag)
+    if (!value || busy) return
+    void apply(rows.map(({ decision }) => decision.customTags.includes(value) ? decision : toggleCustomTag(decision, value)), 'Tagged ' + rows.length + ' contacts')
+  }
   return <>
     <div ref={bar} aria-label="Bulk selection" className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-[440px] border-t border-rule bg-paper-2 pt-3"
       style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))', paddingLeft: 'max(20px, env(safe-area-inset-left))', paddingRight: 'max(20px, env(safe-area-inset-right))' }}>
@@ -69,27 +75,23 @@ export default function BulkBar({ rows, onClear, onSelectAll, total = rows.lengt
       {!open && !tagOpen && error && <InlineNotice tone="error">{error}</InlineNotice>}
       {cancelled && <InlineNotice tone="info">Sharing cancelled.</InlineNotice>}
     </div>
-    <Sheet open={open} onClose={() => { if (!busy) setOpen(false) }} title={'Move ' + rows.length + ' contacts to…'}>
-      <div className="space-y-3">{(Object.keys(BUCKET_META) as Bucket[]).map(bucket =>
-        <Button full variant="outline" key={bucket} disabled={busy}
-          onClick={() => void apply(rows.map(({ decision }) => setBucket(decision, bucket)), rows.length + ' moved to ' + BUCKET_META[bucket].label)}>
-          <LabelDot tone={bucket} label={BUCKET_META[bucket].label} size={8} />
-        </Button>)}</div>
+    <Sheet open={open} onClose={() => { if (!busy) setOpen(false) }} title={'Move ' + rows.length + ' contacts to…'}
+      footer={<SheetFooterActions secondary={{ label: 'Cancel', disabled: busy, onClick: () => setOpen(false) }}
+        primary={{ label: 'Apply', loading: busy, onClick: () => void apply(rows.map(({ decision }) => setBucket(decision, destination)), rows.length + ' moved to ' + BUCKET_META[destination].label) }} />}>
+      <RadioGroup label="Destination list" value={destination} onChange={setDestination} disabled={busy}
+        options={(Object.keys(BUCKET_META) as Bucket[]).map(value => ({ value, label: BUCKET_META[value].label }))} />
       {error && <InlineNotice tone="error">{error}</InlineNotice>}
-      <Button full variant="ghost" disabled={busy} onClick={() => setOpen(false)}>Cancel</Button>
     </Sheet>
-    <Sheet open={tagOpen} onClose={() => { if (!busy) setTagOpen(false) }} title={'Tag ' + rows.length + ' contacts'}>
+    <Sheet open={tagOpen} onClose={() => { if (!busy) setTagOpen(false) }} title={'Tag ' + rows.length + ' contacts'}
+      footer={<SheetFooterActions secondary={{ label: 'Cancel', disabled: busy, onClick: () => setTagOpen(false) }}
+        primary={{ label: 'Apply', loading: busy, disabled: !tag.trim(), onClick: applyTag }} />}>
       <form onSubmit={event => {
         event.preventDefault()
-        const value = normalizeTag(tag)
-        if (!value || busy) return
-        void apply(rows.map(({ decision }) => decision.customTags.includes(value) ? decision : toggleCustomTag(decision, value)), 'Tagged ' + rows.length + ' contacts')
+        applyTag()
       }}>
         <input aria-label="Tag selected contacts" autoFocus maxLength={32} value={tag} onChange={event => setTag(event.target.value)}
-          className="mb-4 min-h-11 w-full border-b border-rule bg-transparent text-base" placeholder="Add a tag" />
-        <Button loading={busy} type="submit" full disabled={!tag.trim()}>Add tag</Button>
+          className="mb-4 min-h-11 w-full border-b border-rule bg-transparent t-body" placeholder="Add a tag" />
         {error && <InlineNotice tone="error">{error}</InlineNotice>}
-        <Button type="button" full variant="ghost" disabled={busy} onClick={() => setTagOpen(false)}>Cancel</Button>
       </form>
     </Sheet>
   </>

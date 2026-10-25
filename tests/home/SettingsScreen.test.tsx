@@ -1,3 +1,4 @@
+import { formatDate } from '@/ui'
 // Audit #36: concise Data section and disclosed shared restore flow.
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,6 +15,17 @@ afterEach(() => { cleanup(); dismissToast() })
 function open() { render(<MemoryRouter><SettingsScreen /><Toaster /></MemoryRouter>) }
 
 describe('Settings', () => {
+  it('#31: appearance is a named radio group with arrow-key selection', () => {
+    open()
+    expect(screen.getByRole('radiogroup', { name: 'Appearance' })).toBeInTheDocument()
+    const system = screen.getByRole('radio', { name: 'System' })
+    system.focus()
+    fireEvent.keyDown(system, { key: 'ArrowRight' })
+    expect(screen.getByRole('radio', { name: 'Light' })).toHaveFocus()
+    expect(screen.getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true')
+    expect(window.localStorage.getItem('ct.theme')).toBe('light')
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+  })
   it('replays the coach by clearing only ct.coach. keys', async () => {
     window.localStorage.setItem('ct.coach.triage', 'seen')
     window.localStorage.setItem('ct.coach.work', 'seen')
@@ -33,18 +45,19 @@ describe('Settings', () => {
   it('records and displays the date only after exporting a backup', async () => {
     open()
     expect(await screen.findByText('No backup exported yet.')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Back up app data' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back up (.json)' }))
     await waitFor(() => expect(downloadText).toHaveBeenCalledWith('contacts-backup.json', expect.any(String), 'application/json'))
     await waitFor(async () => expect(await getMeta('lastBackupAt', null)).toEqual(expect.any(String)))
-    expect(await screen.findByText(/^Last backup:/)).toHaveTextContent(new Date().toLocaleDateString())
+    expect(await screen.findByText(/^Last backup:/)).toHaveTextContent(formatDate(new Date()))
   })
   it('explains restore modes and confirms the counts erased by reset', async () => {
     const rows = [row('A', { bucket: 'work', customTags: ['vip'] }), row('B')]
     await upsertContacts(rows.map(({ contact }) => contact))
     await saveDecisions([rows[0].decision])
     open()
-    expect(screen.getByText('Restore backup').closest('details')).not.toHaveAttribute('open')
-    fireEvent.click(screen.getByText('Restore backup'))
+    // #26/#36: restore is hosted directly in Settings.
+    expect(screen.getByText("Restore replaces or merges this device's data; you can undo for 10 minutes.")).toBeInTheDocument()
+    expect(screen.getByLabelText('Choose backup file').closest('details')).toBeNull()
     expect(screen.getByLabelText('Choose backup file')).toBeInTheDocument()
     expect(await screen.findByText('Reset will erase 2 contacts, 1 sorting decision, and 1 tag, and saved progress.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Reset all data' }))

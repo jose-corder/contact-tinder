@@ -1,7 +1,5 @@
-import { useState, type ReactNode } from 'react'
-import { IconButton } from './index'
-import { IconCopy } from './icons'
-import { toast } from './toast'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { IconCheck, IconCopy } from './icons'
 import { toneColors, type ChipTone } from './tones'
 
 type NoticeTone = 'info' | 'error' | 'success'
@@ -25,10 +23,30 @@ export function LabelDot({ tone, label, size = 6 }: { tone: ChipTone | NoticeTon
 
 export function CopyButton({ value, label }: { value: string; label: string }) {
   const [busy, setBusy] = useState(false)
-  return <IconButton type="button" size={44} label={`Copy ${label}`} disabled={busy} onClick={async () => {
+  const [result, setResult] = useState('')
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const attempt = useRef(0)
+  useEffect(() => {
+    setResult(''); setBusy(false)
+    return () => { clearTimeout(timer.current); attempt.current++ }
+  }, [value])
+  return <span className="inline-flex min-w-0 items-center gap-2">
+    <button type="button" aria-label={`Copy ${label}`} disabled={busy} aria-busy={busy || undefined}
+      className="hit-44 inline-flex shrink-0 items-center justify-center gap-2 rounded-full border border-control bg-paper-2 px-3 t-meta disabled:opacity-40" onClick={async () => {
+    const request = ++attempt.current
+    clearTimeout(timer.current)
+    setResult('')
     setBusy(true)
-    try { await navigator.clipboard.writeText(value); toast('Copied') }
-    catch { toast('Could not copy. Try selecting the text.', { tone: 'delete' }) }
-    finally { setBusy(false) }
-  }}><IconCopy /></IconButton>
+    try {
+      await navigator.clipboard.writeText(value)
+      if (request !== attempt.current) return
+      setResult('Copied')
+      timer.current = setTimeout(() => setResult(''), 1500)
+    } catch { if (request === attempt.current) setResult('Copy failed') }
+    finally { if (request === attempt.current) setBusy(false) }
+  }}>{result === 'Copied' ? <IconCheck /> : <IconCopy />}
+      <span role="status" aria-live="polite" aria-atomic="true">{result}</span>
+    </button>
+    {result === 'Copy failed' && <span className="min-w-0 break-all t-meta" style={{ userSelect: 'all' }}>{value}</span>}
+  </span>
 }

@@ -6,8 +6,7 @@ interface InstallPromptEvent extends Event {
 }
 
 function browserMode() {
-  return !!window.matchMedia?.('(display-mode: browser)').matches &&
-    !window.matchMedia?.('(display-mode: standalone)').matches &&
+  return !window.matchMedia?.('(display-mode: standalone)').matches &&
     !(navigator as Navigator & { standalone?: boolean }).standalone
 }
 
@@ -39,8 +38,9 @@ export function useInstallPrompt() {
     try {
       await prompt.prompt()
       if ((await prompt.userChoice).outcome === 'accepted') setInstalled(true)
-    } catch { setError('Could not open installation. Use your browser’s Install option.') }
-    finally { setPrompt(undefined); setBusy(false) }
+      setPrompt(undefined)
+    } catch { setError('Could not open installation. Try again.') }
+    finally { setBusy(false) }
   }
-  return { visible: browser && !installed, ios, available: !!prompt, busy, error, install }
+  return { visible: browser && !installed && (ios || !!prompt), ios, available: !!prompt, busy, error, install }
 }

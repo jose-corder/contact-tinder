@@ -1,3 +1,4 @@
+// Findings #9/#34/#39/#41: phase headings, throttled speech, type roles and literal actions.
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router'
@@ -47,7 +48,12 @@ describe('Import screen', () => {
     await screen.findByRole('region', { name: 'Import preview' })
     expect(screen.queryByText('How to export your contacts')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Choose contact files')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1 })).toHaveClass('text-[24px]')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveClass('t-title')
+    // #9: confirmation precedes optional samples and merge details in DOM/focus order.
+    const confirm = screen.getByRole('button', { name: 'Import 3' })
+    expect(confirm.compareDocumentPosition(screen.getByText('Preview sample contacts')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(confirm.compareDocumentPosition(screen.getByText('See what merges')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Review your import' })).toHaveFocus()
     fireEvent.click(screen.getByText('See what merges'))
     expect(screen.getByText('Maria Gomez ↔ María Gómez · same phone')).toBeVisible()
     expect(screen.getByText('Alice Smith · Bob Smith · shared phone, different names')).toBeVisible()
@@ -55,22 +61,24 @@ describe('Import screen', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Import another' }))
     expect(screen.getByLabelText('Choose contact files')).toBeVisible()
     expect(screen.getByText('How to export your contacts')).toBeVisible()
-    expect(screen.queryByRole('button', { name: 'Start triage' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Sort contacts' })).not.toBeInTheDocument()
   })
 
   it('import_announces_completion_once', async () => {
     vi.mocked(importDemo).mockResolvedValue({ ...result, possibleDuplicates: [{ ids: ['a', 'b'], reason: 'Names differ' }],
       storageNote: 'Device storage is getting full.' })
     const { container } = show()
-    expect(container.querySelectorAll('[aria-live="polite"]')).toHaveLength(1)
+    // #34: InlineNotice owns the implicit polite status region; do not nest live regions.
+    expect(container.querySelectorAll('[role="status"]')).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: 'Try 40 sample contacts' }))
     await screen.findByText('2 contacts added · 1 duplicate entries merged')
     const announcer = screen.getByRole('status')
     expect(announcer).toHaveTextContent('2 contacts added · 1 duplicate entries merged')
     expect(announcer.querySelector('button')).toBeNull()
-    expect(container.querySelectorAll('[aria-live="polite"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[role="status"]')).toHaveLength(1)
     expect(toast).not.toHaveBeenCalled()
     expect(screen.getByText('1 possible duplicates kept apart')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review possible duplicates (1)' })).toHaveAttribute('href', '/review?tab=unsorted&dupes=1') // #35
     expect(screen.getByText('Device storage is getting full.')).toBeInTheDocument()
   })
 
@@ -98,13 +106,14 @@ describe('Import screen', () => {
     expect(previewFiles).toHaveBeenCalledWith(files, expect.any(Function))
     expect(await screen.findByText('3 contacts found · 1 duplicates will merge')).toBeInTheDocument()
     const block = screen.getByRole('region', { name: 'Import preview' })
+    fireEvent.click(within(block).getByText('Preview sample contacts'))
     expect(within(block).getAllByRole('listitem')).toHaveLength(3)
     expect(within(block).getByText('Ada')).toBeInTheDocument()
     expect(commitPreview).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Import 3' }))
     expect(commitPreview).toHaveBeenCalledWith(preview, expect.any(Function))
     await screen.findByText('2 contacts added · 1 duplicate entries merged')
-    fireEvent.click(screen.getByRole('button', { name: 'Start triage' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sort contacts' }))
     expect(screen.getByText('Triage deck')).toBeInTheDocument()
   })
 
@@ -148,7 +157,7 @@ describe('Import screen', () => {
     })
     show()
     choose()
-    expect(screen.getByRole('status')).toHaveTextContent('1,240 contacts parsed')
+    expect(screen.getByRole('status')).toHaveTextContent('Parsing 1,240 contacts')
     expect(screen.getByText('parsing')).toHaveClass('eyebrow')
     expect(screen.getByRole('progressbar')).toHaveClass('h-[2px]')
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1240')
@@ -187,7 +196,7 @@ describe('Import screen', () => {
     choose()
     expect(await screen.findByRole('alert')).toHaveTextContent('2 unreadable cards skipped')
     fireEvent.click(screen.getByRole('button', { name: 'Import 3' }))
-    await screen.findByRole('button', { name: 'Start triage' })
+    await screen.findByRole('button', { name: 'Sort contacts' })
     expect(screen.getByRole('alert')).toHaveTextContent('2 unreadable cards skipped')
   })
 

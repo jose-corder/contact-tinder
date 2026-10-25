@@ -63,11 +63,13 @@ describe('Export screen', () => {
     show()
     await screen.findByRole('button', { name: 'Download clean address book' })
     more()
-    const button = screen.getByRole('button', { name: 'Download all contact files' })
+    // #25: one deliberate, paced multi-file action names the exact download count.
+    const button = screen.getByRole('button', { name: `Download ${vcf.groupFiles(rows).length} files` })
     expect(within(button.parentElement!).getByText(/files will download/)).toBeVisible()
     expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled()
     fireEvent.click(button)
-    await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(vcf.groupFiles(rows).length))
+    expect(await screen.findByText(`Downloading 1 of ${vcf.groupFiles(rows).length} files`)).toBeVisible()
+    await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(vcf.groupFiles(rows).length), { timeout: 5000 })
   })
 
   it('keeps per-file Share when only multi-file sharing is unavailable', async () => {
@@ -76,7 +78,7 @@ describe('Export screen', () => {
     await screen.findByRole('button', { name: 'Share clean address book' })
     more()
     expect(screen.getByRole('button', { name: 'Share work.vcf' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Download all contact files' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: `Download ${vcf.groupFiles(rows).length} files` })).toBeInTheDocument() // #25
   })
 
   it('treats native cancellation calmly and never starts a download', async () => {
@@ -105,8 +107,8 @@ describe('Export screen', () => {
     const stubs = [new File([], 'a.txt'), new File([], 'b.txt'), new File([], 'c.txt')]
     render(<ExportAction label="three files" stubs={stubs} prepare={async () => stubs.map((file) => new File(['data'], file.name))} />)
     fireEvent.click(screen.getByRole('button', { name: 'Share three files' }))
-    const download = await screen.findByRole('button', { name: 'Download instead' })
-    expect(screen.getByText('3 files will download')).toBeVisible()
+    const download = await screen.findByRole('button', { name: 'Download 3 files' }) // #25
+    expect(screen.getByText('3 files will download, one at a time.')).toBeVisible()
     expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled()
     fireEvent.click(download)
     await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(3))
@@ -132,7 +134,7 @@ describe('Export screen', () => {
     vi.stubGlobal('navigator', {})
     render(<ExportAction label="test" stubs={[new File([], 'test.txt')]} prepare={prepare} />)
     fireEvent.click(screen.getByRole('button', { name: 'Download test' }))
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Could not export'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Could not export')) // #34: errors use InlineNotice.
     fireEvent.click(screen.getByRole('button', { name: 'Download test' }))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Download started.'))
   })

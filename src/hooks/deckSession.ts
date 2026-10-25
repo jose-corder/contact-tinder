@@ -42,3 +42,19 @@ export async function clearDeckScope(scope: DeckScope) {
       JSON.stringify(current.ids) === JSON.stringify(scope.ids)) await setMeta('deckScope', null)
   })
 }
+
+/** #47: retry only this session's outstanding IDs, preserving every saved label. */
+export function resetSessionSkips(pass: Pass, ids: string[]): Promise<DeckItem[]> {
+  return db.transaction('rw', db.contacts, db.decisions, db.tags, async () => {
+    const selected = new Set(ids)
+    const rows = (await allWithDecisions()).filter(row => selected.has(row.contact.id) && (pass === 'triage' || row.decision.bucket === pass))
+    const items: DeckItem[] = []
+    for (const row of rows) {
+      const decision = { ...row.decision, skips: { ...row.decision.skips, [pass]: 0 },
+        updatedAt: Math.max(Date.now(), row.decision.updatedAt + 1) }
+      await saveDecision(decision)
+      items.push({ ...row, decision, persisted: true })
+    }
+    return items
+  })
+}

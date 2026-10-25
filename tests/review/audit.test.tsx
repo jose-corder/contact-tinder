@@ -44,13 +44,15 @@ describe('Review audit regressions', () => {
       row('B', { bucket: 'work', workStatus: 'old' }), row('C', { bucket: 'personal', relation: 'family' })]
     await seed(rows); open()
     await screen.findByRole('button', { name: 'View A, Work, Current, vip' })
-    fireEvent.click(screen.getByRole('tab', { name: 'Current' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Current' }))
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
     fireEvent.click(screen.getByRole('button', { name: 'Select all 1 results' }))
     expect(screen.getByText('1 of 2 selected in Work')).toBeInTheDocument()
     const save = vi.spyOn(repo, 'saveDecisions')
     fireEvent.click(screen.getByRole('button', { name: 'Move to…' }))
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Personal' }))
+    // #14/#34: choose a destination, then commit from the fixed footer.
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('radio', { name: 'Personal' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Apply' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(await screen.findByText('1 moved to Personal ·')).toBeInTheDocument()
     expect(screen.getByText('0 of 1 selected in Work')).toBeInTheDocument()
@@ -64,7 +66,7 @@ describe('Review audit regressions', () => {
     fireEvent.click(screen.getByRole('tab', { name: /^Work/ }))
     expect(screen.queryByRole('button', { name: 'Move to…' })).not.toBeInTheDocument()
   })
-  it('#23: classification precedes collapsed details and Other completes Personal', async () => {
+  it('#23: classification precedes visible values and advanced fields and Other completes Personal', async () => {
     const contact = row('Maria', { bucket: 'personal' })
     contact.contact.rev = '2023-04-10T12:00:00Z'
     contact.contact.phones = [{ value: '555-1234', type: 'CELL' }]
@@ -72,12 +74,12 @@ describe('Review audit regressions', () => {
     await seed([contact])
     render(<MemoryRouter><RowSheet row={contact} onClose={vi.fn()} /></MemoryRouter>)
     const classification = screen.getByRole('region', { name: 'Classification' })
-    const details = screen.getByText('Details').closest('details')!
+    const details = screen.getByText('All fields').closest('details')!
     expect(classification.compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(details).not.toHaveAttribute('open')
     fireEvent.click(screen.getByRole('button', { name: 'Other' }))
     await waitFor(async () => expect((await repo.getDecision('Maria')).relation).toBe('other'))
-    fireEvent.click(screen.getByText('Details'))
+    fireEvent.click(screen.getByText('All fields'))
     expect(screen.getByRole('button', { name: 'Copy 555-1234' })).toBeInTheDocument()
     expect(screen.getByText('Phone · Mobile')).toBeInTheDocument()
     expect(screen.getByText('vCard file')).toBeInTheDocument()

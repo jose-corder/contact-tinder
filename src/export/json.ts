@@ -1,5 +1,6 @@
 import { dumpAll, restoreAll, setMeta, getMeta, type Dump, type RestoreMode } from '@/db/repo'
 import { db } from '@/db/schema'
+import { hash } from '@/import/hash'
 
 type RecordValue = Record<string, unknown>
 const object = (value: unknown): value is RecordValue => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -89,9 +90,9 @@ export async function previewRestore(text: string): Promise<RestorePreview> {
   const backup = parseBackup(text)
   const live = await db.transaction('r', db.contacts, db.decisions, () => dumpAll())
   const contacts = new Map(live.contacts.map((c) => [c.id, c]))
-  const decisions = new Map(live.decisions.map((d) => [d.contactId, d.updatedAt]))
+  const decisions = new Map(live.decisions.map((d) => [d.contactId, canonical(d)]))
   const incoming = new Map(backup.contacts.map((c) => [c.id, c]))
-  const incomingDecisions = new Map(backup.decisions.map((d) => [d.contactId, d.updatedAt]))
+  const incomingDecisions = new Map(backup.decisions.map((d) => [d.contactId, canonical(d)]))
   const addedIds = backup.contacts.filter((c) => !contacts.has(c.id)).map((c) => c.id)
   const changedIds = backup.contacts.filter((c) => contacts.has(c.id) &&
     (canonical(c) !== canonical(contacts.get(c.id)) ||
@@ -105,23 +106,37 @@ export async function previewRestore(text: string): Promise<RestorePreview> {
 }
 
 export const RESTORE_UNDO_MS = 10 * 60 * 1000
-interface RestoreUndo { dump: Dump; at: number; photos?: Array<{ id: string; photo: Blob }> }
+interface RestoreUndo { dump: Dump; at: number; photos: Array<{ id: string; photo: Blob }>; revisionAfterRestore: string }
+
+/** Content revision, independent of metadata. Hashes also catch same-timestamp edits and enrichment imports. */
+export async function dbRevision(): Promise<string> {
+  return db.transaction('r', db.contacts, db.decisions, async () => {
+    const [contacts, decisions] = await Promise.all([db.contacts.toArray(), db.decisions.toArray()])
+    const maxUpdatedAt = decisions.reduce((max, d) => Math.max(max, d.updatedAt), 0)
+    return `${contacts.length}:${decisions.length}:${maxUpdatedAt}:${hash(canonical([
+      contacts.map(({ photo, ...c }) => [c, photo?.size, photo?.type]), decisions,
+    ]))}`
+  })
+}
+
+async function snapshotState() {
+  return { dump: await dumpAll(), photos: (await db.contacts.toArray()).flatMap((c) => c.photo ? [{ id: c.id, photo: c.photo }] : []) }
+}
 
 export async function restoreJson(text: string, mode: RestoreMode = 'replace'): Promise<{ contacts: number; decisions: number }> {
   const parsed = parseBackup(text)
   await db.transaction('rw', db.contacts, db.decisions, db.tags, db.meta, async () => {
-    if (mode === 'replace') {
-      const dump = await dumpAll()
-      // dumpAll deliberately excludes photos; retain removed thumbnails for exact Undo.
-      const photos = (await db.contacts.toArray()).flatMap((c) => c.photo ? [{ id: c.id, photo: c.photo }] : [])
-      await setMeta('restoreUndo', { dump, at: Date.now(), photos } satisfies RestoreUndo)
-    } else await setMeta('restoreUndo', null)
+    const before = mode === 'replace' ? await snapshotState() : null
     await restoreAll(parsed, mode)
+    await setMeta('restoreUndo', before ? { ...before, at: Date.now(), revisionAfterRestore: await dbRevision() } satisfies RestoreUndo : null)
   })
   return { contacts: parsed.contacts.length, decisions: parsed.decisions.length }
 }
 
-export async function undoRestore(): Promise<boolean> {
+export type UndoRestoreResult = boolean | { conflict: true; preview: RestorePreview; revision: string }
+
+/** Approval is bound to the reviewed revision; another edit always requires another review. */
+export async function undoRestore(approvedRevision?: string): Promise<UndoRestoreResult> {
   return db.transaction('rw', db.contacts, db.decisions, db.tags, db.meta, async () => {
     const snapshot = await getMeta<RestoreUndo | null>('restoreUndo', null)
     if (!snapshot) return false
@@ -129,9 +144,18 @@ export async function undoRestore(): Promise<boolean> {
       await db.meta.delete('restoreUndo')
       return false
     }
+    const revision = await dbRevision()
+    const changed = revision !== snapshot.revisionAfterRestore
+    if (changed && approvedRevision !== revision) {
+      return { conflict: true, preview: await previewRestore(JSON.stringify(snapshot.dump)), revision }
+    }
+    const newer = changed ? await snapshotState() : null
     await restoreAll(snapshot.dump, 'replace')
+    // Clear inherited photos too: absence in the snapshot is meaningful.
+    await db.contacts.toCollection().modify((contact) => { delete contact.photo })
     for (const { id, photo } of snapshot.photos ?? []) await db.contacts.update(id, { photo })
-    await db.meta.delete('restoreUndo')
+    if (newer) await setMeta('restoreUndo', { ...newer, at: Date.now(), revisionAfterRestore: await dbRevision() } satisfies RestoreUndo)
+    else await db.meta.delete('restoreUndo')
     return true
   })
 }

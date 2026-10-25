@@ -6,7 +6,7 @@ import { dismissToast, Toaster } from '@/ui/toast'
 
 afterEach(() => { cleanup(); dismissToast(); vi.unstubAllGlobals() })
 
-it('copies the exact value and confirms it with the shared toast', async () => {
+it('copies the exact value and confirms it locally (#45)', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined)
   const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })

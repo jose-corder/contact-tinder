@@ -1,4 +1,6 @@
 import type { Contact } from '@/domain/types'
+import { phoneHref, emailHref } from '@/features/review/safeLinks'
+import { formatPhone } from '@/ui/format'
 import { CopyButton } from '@/ui'
 
 export function CardFields({ contact, full, hold }: { contact: Contact; full?: boolean; hold: (value: string) => void }) {
@@ -8,21 +10,21 @@ export function CardFields({ contact, full, hold }: { contact: Contact; full?: b
     <dl className="deck-full-fields grid shrink-0 gap-3 t-body">
       {full && [['Given name', contact.givenName], ['Family name', contact.familyName], ['Role', contact.title], ['Org', contact.org]].map(([label, value]) => value && <Field key={label} label={label!} value={value} />)}
       {phones.map((phone, index) => <Field key={'phone-' + index} label={friendlyType(phone.type, 'Phone')} value={phone.value}
-        href={full ? 'tel:' + (phone.e164 || phone.value).replace(/[^+\d*#,;]/g, '') : undefined} copy={full} onHold={full ? undefined : () => hold(phone.value)} />)}
+        display={formatPhone(phone.value)} href={full ? phoneHref(phone.value, phone.e164) : undefined} copy={full} onHold={full ? undefined : () => hold(phone.value)} />)}
       {emails.map((email, index) => <Field key={'email-' + index} label={friendlyType(email.type, 'Email')} value={email.value}
-        href={full ? 'mailto:' + encodeURIComponent(email.value) : undefined} copy={full} />)}
+        href={full ? emailHref(email.value) : undefined} copy={full} />)}
       {full && extraFields(contact.raw).map(([label, value], index) => <Field key={index} label={label} value={value} />)}
     </dl>
     {contact.notes && <p className="break-words whitespace-pre-wrap t-body text-ink-2">{contact.notes}</p>}
   </>
 }
 
-function Field({ label, value, href, copy, onHold }: { label: string; value: string; href?: string; copy?: boolean; onHold?: () => void }) {
+function Field({ label, value, display = value, href, copy, onHold }: { label: string; value: string; display?: string; href?: string; copy?: boolean; onHold?: () => void }) {
   return <div className="min-w-0">
     <dt className="t-meta text-ink-2">{label}</dt>
     <dd className="flex min-w-0 items-center gap-2" onPointerDown={onHold}>
       <span className="min-w-0 flex-1 break-words whitespace-pre-wrap">
-        {href ? <a href={href} className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4" onClick={(event) => event.stopPropagation()}>{value}</a> : value}
+        {href ? <a href={href} className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4" onClick={(event) => event.stopPropagation()}>{display}</a> : display}
       </span>
       {copy && <CopyButton value={value} label={`${label.toLowerCase()} ${value}`} />}
     </dd>

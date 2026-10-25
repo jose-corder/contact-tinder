@@ -24,19 +24,20 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); feedba
 it.each([
   ['work', 'right', 'Vendor', 'Choose a status', 'Current'],
   ['personal', 'up', 'Neighbor', 'Choose a relation', 'Family'],
-] as const)('followup_done_type_only_has_defined_completion: %s requires a primary; Later stays available', async (pass, direction, type, prompt, primary) => {
+] as const)('followup_done_type_only_has_defined_completion: %s requires a primary; Later stays available', async (pass, direction, type, _prompt, primary) => {
   const decision = applySwipe(emptyDecision('a'), 'triage', direction)
   await repo.saveDecision(decision)
   const onClose = vi.fn()
   const view = render(<FollowUpSheet target={{ contact, decision }} onClose={onClose} />)
-  expect(screen.getByRole('button', { name: prompt })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: type }))
   // Audit #7: a Personal type supplies the Other relation.
   if (pass === 'personal') expect(screen.getByRole('button', { name: 'Done' })).toBeEnabled()
-  else expect(screen.getByRole('button', { name: prompt })).toBeDisabled()
+  else expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Later' })).toBeEnabled()
   fireEvent.click(screen.getByRole('button', { name: 'Later' }))
-  expect(onClose).toHaveBeenCalledExactlyOnceWith()
+  fireEvent.click(screen.getByRole('button', { name: 'Discard' })) // #16
+  expect(onClose).toHaveBeenCalledExactlyOnceWith(undefined)
   expect(await repo.deckContacts(pass)).toHaveLength(1)
   view.unmount()
   onClose.mockClear()
@@ -105,7 +106,7 @@ it('followup_actions_remain_scroll_reachable_on_small_screen: shrinking scroll v
   const footer = document.querySelector('.sheet-footer')!
   expect(footer).toHaveClass('shrink-0')
   expect(footer).toContainElement(screen.getByRole('button', { name: 'Later' }))
-  expect(footer).toContainElement(screen.getByRole('button', { name: 'Choose a status' }))
+  expect(footer).toContainElement(screen.getByRole('button', { name: 'Done' }))
   // jsdom has no layout/virtual keyboard: this verifies the scroll structure and
   // CSS contract; it cannot measure actual 390×568 scrolling or focus visibility.
 })

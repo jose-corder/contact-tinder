@@ -16,7 +16,7 @@ export function ChipRow({ pass, draft, toggleChip, toggleTag, inputRef, open, se
   const [query, setQuery] = useState('')
   const meta = PASS_META[pass]
   const selected: string[] = pass === 'work' ? draft.workTypes : draft.personalTypes
-  useEffect(() => { if (open) inputRef.current?.focus() }, [open, inputRef])
+  useEffect(() => { if (open) inputRef.current?.focus({ preventScroll: true }) }, [open, inputRef])
   const add = (tag: string) => {
     const normalized = normalizeTag(tag)
     if (!normalized) return
@@ -31,9 +31,9 @@ export function ChipRow({ pass, draft, toggleChip, toggleTag, inputRef, open, se
           selected={draft.relation === key} disabled={disabled} onClick={() => setRelation(key)} />)}
       </div>}
     <div className="flex min-w-0 items-center gap-2">
-    <div className={sheet ? 'flex flex-wrap gap-2' : 'deck-chip-rail flex min-w-0 flex-1 items-center gap-2 overflow-x-auto'}>
+    <div className={sheet ? 'flex min-w-0 flex-1 flex-wrap gap-2' : 'deck-chip-rail flex min-w-0 flex-1 items-center gap-2 overflow-x-auto'}>
       {meta.chips.map((chip) => <Chip key={chip.key} label={chip.label} selected={selected.includes(chip.key)} tone={pass === 'triage' ? 'ink' : pass} disabled={disabled} onClick={() => toggleChip(chip.key)} />)}
-      {draft.customTags.map((tag) => <Chip className="max-w-full truncate" key={tag} label={tag} selected tone="ink" disabled={disabled} onClick={() => toggleTag(tag)} />)}
+      {draft.customTags.map((tag) => <Chip key={tag} label={tag} selected tone="ink" disabled={disabled} onClick={() => toggleTag(tag)} />)}
       <Chip label="+ tag" selected={open} disabled={disabled} onClick={() => setOpen(!open)} />
     </div>
     {completePersonal && draft.relation && <Button disabled={disabled} onClick={completePersonal}>Done</Button>}
@@ -41,7 +41,7 @@ export function ChipRow({ pass, draft, toggleChip, toggleTag, inputRef, open, se
     {pass === 'personal' && !sheet && <p className="t-meta text-ink-2">A type counts as Other if no relation fits</p>}
     {open && <div className="mt-2">
       <input ref={inputRef} aria-label="Custom tag" value={query} maxLength={64} disabled={disabled}
-        placeholder="Add a tag" className="h-11 w-full rounded-full border border-rule bg-paper px-3.5 font-sans text-base outline-offset-2"
+        placeholder="Add a tag" className="h-11 w-full rounded-full border border-rule bg-paper px-3.5 font-sans t-body outline-offset-2"
         onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => {
           if (event.key === 'Enter') { event.preventDefault(); add(query) }
           if (event.key === 'Escape') { event.preventDefault(); setOpen(false); setQuery('') }

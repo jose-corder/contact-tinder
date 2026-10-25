@@ -1,4 +1,4 @@
-// Audit #6/#21/#22/#23: scoped search, non-destructive navigation, persistent selection, collapsed details.
+// Audit #6/#21/#22/#23/#31/#46: scoped search, radios, selection, visible identity and advanced fields.
 // Audit #30: row names now include organization and classification.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -14,6 +14,7 @@ const seeded = [
 ]
 beforeEach(async () => {
   await resetAll()
+  window.sessionStorage.clear()
   await upsertContacts(seeded.map((r, i) => ({ ...r.contact, displayName: ['Ana', 'Bo', 'Cy'][i], org: ['Archive', 'Studio', 'Home'][i],
     phones: [{ value: `555-000${i}` }], emails: [{ value: `${r.contact.id}@example.com` }] })))
   await saveDecisions(seeded.map((r) => r.decision))
@@ -31,14 +32,14 @@ describe('Review screen', () => {
     open('/review?tab=work')
     await screen.findByText('Bo')
     expect(screen.getByRole('tab', { name: /^Work/ })).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(screen.getByRole('tab', { name: 'Current' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Current' }))
     fireEvent.click(screen.getByRole('button', { name: 'Client' }))
     fireEvent.click(screen.getByRole('button', { name: 'vip' }))
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'absent' } })
     expect(screen.getByText('0 of 1 match')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
     expect(screen.getByRole('searchbox')).toHaveValue('')
-    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('radio', { name: 'All' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByRole('button', { name: 'Client' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByText('1 of 1 match')).toBeInTheDocument()
     expect(screen.getByText('Bo')).toBeInTheDocument()
@@ -53,7 +54,7 @@ describe('Review screen', () => {
     expect(screen.getByText('2 of 2 selected in Work')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Tag…' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Tag selected contacts' }), { target: { value: ' VIP ' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add tag' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
     await waitFor(async () => {
       expect((await getDecision('bo')).customTags).toEqual(['vip'])
       expect((await getDecision('bea')).customTags).toEqual(['vip'])
@@ -65,7 +66,7 @@ describe('Review screen', () => {
     await saveDecisions([row('bea', { bucket: 'work', workStatus: 'old' }).decision])
     open('/review?tab=work')
     fireEvent.click(await screen.findByRole('button', { name: /^View Bo(?:,|$)/ }))
-    fireEvent.click(screen.getByText('Details'))
+    fireEvent.click(screen.getByText('All fields'))
     // Finding #27: dial separators are normalized and email addresses encoded.
     expect(screen.getByRole('link', { name: '555-0001' })).toHaveAttribute('href', 'tel:5550001')
     expect(screen.getByRole('link', { name: 'bo@example.com' })).toHaveAttribute('href', 'mailto:bo%40example.com')
@@ -98,9 +99,9 @@ describe('Review screen', () => {
     open()
     await screen.findByText('Ana')
     fireEvent.click(screen.getByRole('tab', { name: /^Work/ }))
-    fireEvent.click(screen.getByRole('tab', { name: 'Old' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Old' }))
     expect(screen.queryByText('Bo')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Current' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Current' }))
     fireEvent.click(screen.getByRole('button', { name: 'Client' }))
     fireEvent.click(screen.getByRole('button', { name: 'vip' }))
     expect(screen.getByText('Bo')).toBeInTheDocument()
@@ -132,7 +133,9 @@ describe('Review screen', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toHaveClass('min-h-11', 'min-w-11')
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Ana' }))
     fireEvent.click(screen.getByRole('button', { name: 'Move to…' }))
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Personal' }))
+    // #14/#34: choose a destination, then commit from the fixed footer.
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('radio', { name: 'Personal' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Apply' }))
     await waitFor(async () => expect((await getDecision('ana')).bucket).toBe('personal'))
     await waitFor(() => expect(screen.getByText('0 of 0 selected in Delete')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'Undo last action' })).toBeInTheDocument()

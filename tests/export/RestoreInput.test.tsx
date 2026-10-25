@@ -1,5 +1,6 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Link, MemoryRouter, Route, Routes } from 'react-router'
 import RestoreInput from '@/features/export/RestoreInput'
 import { allContacts, allDecisions, getMeta, resetAll, upsertContacts } from '@/db/repo'
 import { toast } from '@/ui/toast'
@@ -11,8 +12,47 @@ beforeEach(async () => { vi.clearAllMocks(); await resetAll(); await upsertConta
 afterEach(cleanup)
 
 describe('RestoreInput (#1/#36)', () => {
+  it('returns an Undo conflict to Settings after navigating away (#52)', async () => {
+    render(<MemoryRouter initialEntries={['/settings']}><Routes>
+      <Route path="/settings" element={<><Link to="/elsewhere">Leave settings</Link><details><summary>Restore</summary><RestoreInput /></details></>} />
+      <Route path="/elsewhere" element={<p>Elsewhere</p>} />
+    </Routes></MemoryRouter>)
+    fireEvent.click(screen.getByText('Restore'))
+    choose()
+    fireEvent.click(await screen.findByRole('button', { name: "Replace this app's data" }))
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Restored ·', expect.objectContaining({ priority: 'high' })))
+    const action = vi.mocked(toast).mock.calls[0][1]?.action
+    fireEvent.click(screen.getByRole('link', { name: 'Leave settings' }))
+    await upsertContacts([contact('later')])
+    await act(async () => { action?.onClick() })
+    expect(await screen.findByRole('button', { name: 'Roll back anyway' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Review rollback' })).toHaveFocus()
+    expect((await allContacts()).map((c) => c.id)).toEqual(['later', 'new'])
+  })
+
+  it('keeps recovery after remount and reviews newer work before rollback (#52)', async () => {
+    const view = render(<MemoryRouter><RestoreInput /></MemoryRouter>)
+    choose()
+    fireEvent.click(await screen.findByRole('button', { name: "Replace this app's data" }))
+    await screen.findByRole('button', { name: 'Undo restore' })
+    view.unmount()
+    await upsertContacts([contact('later')])
+    render(<MemoryRouter><RestoreInput /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo restore' }))
+    expect(await screen.findByText('Changes since the restore will be lost: +1 added · 0 changed · 2 removed')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Review rollback' })).toHaveFocus()
+    expect((await allContacts()).map((c) => c.id)).toEqual(['later', 'new'])
+    fireEvent.click(screen.getByRole('button', { name: 'Keep current data' }))
+    expect(screen.queryByRole('region', { name: 'Review rollback' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo restore' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Roll back anyway' }))
+    await waitFor(async () => expect((await allContacts()).map((c) => c.id)).toEqual(['existing']))
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo restore' }))
+    await waitFor(async () => expect((await allContacts()).map((c) => c.id)).toEqual(['later', 'new']))
+  })
+
   it('writes nothing until commit, previews both modes, then supports the Undo toast', async () => {
-    render(<RestoreInput />)
+    render(<MemoryRouter><RestoreInput /></MemoryRouter>)
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     choose()
     expect(await screen.findByText('Backup from 12 Oct 2026 · 1 contacts · 1 decisions')).toBeVisible()
@@ -29,12 +69,12 @@ describe('RestoreInput (#1/#36)', () => {
     await waitFor(() => expect(toast).toHaveBeenCalledWith('Restored ·', expect.objectContaining({ duration: 600000 })))
     expect((await allContacts()).map((c) => c.id)).toEqual(['new'])
     const options = vi.mocked(toast).mock.calls[0][1]
-    options?.action?.onClick()
+    await act(async () => { options?.action?.onClick() })
     await waitFor(async () => expect((await allContacts()).map((c) => c.id)).toEqual(['existing']))
   })
 
   it('cancels review without mutation', async () => {
-    render(<RestoreInput />)
+    render(<MemoryRouter><RestoreInput /></MemoryRouter>)
     choose()
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('region', { name: 'Backup preview' })).not.toBeInTheDocument()
@@ -42,7 +82,7 @@ describe('RestoreInput (#1/#36)', () => {
   })
 
   it('requires another review if live counts changed', async () => {
-    render(<RestoreInput />)
+    render(<MemoryRouter><RestoreInput /></MemoryRouter>)
     choose()
     const commit = await screen.findByRole('button', { name: "Replace this app's data" })
     await upsertContacts([contact('another')])
@@ -53,9 +93,9 @@ describe('RestoreInput (#1/#36)', () => {
   })
 
   it('handles malformed files with a local error and permits another selection', async () => {
-    render(<RestoreInput />)
+    render(<MemoryRouter><RestoreInput /></MemoryRouter>)
     choose('{')
-    expect(await screen.findByRole('status')).toHaveTextContent('not valid JSON')
+    expect(await screen.findByRole('alert')).toHaveTextContent('not valid JSON') // #34: local errors use InlineNotice.
     choose()
     expect(await screen.findByRole('button', { name: "Replace this app's data" })).toBeVisible()
   })

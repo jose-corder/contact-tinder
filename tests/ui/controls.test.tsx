@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { Chip, CopyButton, InlineNotice, LabelDot, Segmented } from '@/ui'
-import { dismissToast, Toaster } from '@/ui/toast'
+import { dismissToast } from '@/ui/toast'
 
 afterEach(() => { cleanup(); dismissToast(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
@@ -63,7 +63,7 @@ it('uses one canonical notice style and decorative dots with optional readable l
 it('copies the exact value and confirms success once', async () => {
   const writeText = vi.fn().mockResolvedValue(undefined)
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
-  render(<><CopyButton value="+52 555 1234" label="phone number" /><Toaster /></>)
+  render(<CopyButton value="+52 555 1234" label="phone number" />)
   const button = screen.getByRole('button', { name: 'Copy phone number' })
   expect(button).toHaveClass('hit-44')
   await act(async () => fireEvent.click(button))
@@ -73,8 +73,9 @@ it('copies the exact value and confirms success once', async () => {
 
 it('reports clipboard rejection without claiming success', async () => {
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockRejectedValue(new Error('Denied')) } })
-  render(<><CopyButton value="value" label="email" /><Toaster /></>)
+  render(<CopyButton value="value" label="email" />)
   await act(async () => fireEvent.click(screen.getByRole('button')))
-  expect(screen.getByRole('status')).toHaveTextContent('Could not copy')
+  expect(screen.getByRole('status')).toHaveTextContent('Copy failed')
   expect(screen.getByRole('button')).toBeEnabled()
+  expect(screen.getByText('value').style.userSelect).toBe('all')
 })

@@ -49,7 +49,7 @@ export function useSwipe({ onCommit, onDragStart, disabled, returnDirection, car
       opacity.set(0)
       controls.current = [animate(opacity, 1, DECK_MOTION.fade)]
     } else {
-      const start = flingTarget(returnDirection, 0, 0, window.innerWidth, window.innerHeight)
+      const start = flingTarget(returnDirection, 0, 0, cardRef.current?.offsetWidth || width.get(), cardRef.current?.offsetHeight || 640)
       x.set(start.x)
       y.set(start.y)
       controls.current = [animate(x, 0, DECK_MOTION.undo), animate(y, 0, DECK_MOTION.undo)]
@@ -64,7 +64,7 @@ export function useSwipe({ onCommit, onDragStart, disabled, returnDirection, car
     haptic(10)
     if (reduced) controls.current = [animate(opacity, 0, DECK_MOTION.fade)]
     else {
-      const target = flingTarget(direction, x.get(), y.get(), window.innerWidth, window.innerHeight)
+      const target = flingTarget(direction, x.get(), y.get(), cardRef.current?.offsetWidth || width.get(), cardRef.current?.offsetHeight || 640)
       controls.current = [animate(x, target.x, DECK_MOTION.fling), animate(y, target.y, DECK_MOTION.fling)]
     }
     await Promise.all(controls.current)

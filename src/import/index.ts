@@ -35,9 +35,11 @@ export interface ImportPreview extends ImportResult {
 
 export async function importContacts(contacts: Contact[], onProgress?: OnProgress, defaultCountry: string = regionCountry()): Promise<ImportResult> {
   // Keep dedupe and all batches atomic, including concurrent imports in other tabs.
-  const result = await db.transaction('rw', db.contacts, db.decisions, db.tags, async () => {
+  const result = await db.transaction('rw', db.contacts, db.decisions, db.tags, db.meta, async () => {
     const existing = (await repo.allContacts()).sort((a, b) => a.importedAt - b.importedAt || a.id.localeCompare(b.id))
     const { toUpsert, added, merged, superseded, migrations, possibleDuplicates } = await Dexie.waitFor(mergeContactsChunked(contacts, existing, onProgress, defaultCountry))
+    // #35: the complete latest-import candidate set, not the twenty-pair preview sample.
+    await repo.setMeta('possibleDuplicates', possibleDuplicates)
     onProgress?.({ parsed: 0, total: toUpsert.length, phase: 'saving' })
     for (let offset = 0; offset < toUpsert.length; offset += 500) {
       await repo.upsertContacts(toUpsert.slice(offset, offset + 500))

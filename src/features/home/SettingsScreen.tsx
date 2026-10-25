@@ -6,7 +6,7 @@ import { db } from '@/db/schema'
 import { backupJson } from '@/export/json'
 import { downloadText } from '@/export/share'
 import RestoreInput from '@/features/export/RestoreInput'
-import { Button, Frame, InlineNotice, Segmented, Sheet, SheetFooterActions, Skeleton, TopBar } from '@/ui'
+import { Button, Frame, InlineNotice, RadioGroup, Sheet, SheetFooterActions, Skeleton, TopBar, formatDate } from '@/ui'
 import { toast } from '@/ui/toast'
 import { getThemePref, setThemePref, hapticsEnabled, setHapticsEnabled, followUpEnabled, setFollowUpEnabled, type ThemePref } from '@/ui/theme'
 
@@ -34,7 +34,7 @@ export default function SettingsScreen() {
     <TopBar title="Settings" backTo="/" />
     <section className="border-b border-rule py-5">
       <h2 className="eyebrow mb-3">Appearance</h2>
-      <Segmented<ThemePref> options={[{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]}
+      <RadioGroup<ThemePref> label="Appearance" options={[{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }]}
         value={theme} onChange={(value) => { setThemePref(value); setTheme(value) }} />
     </section>
     <section className="flex items-center justify-between border-b border-rule py-5">
@@ -46,7 +46,7 @@ export default function SettingsScreen() {
     <section className="flex items-center justify-between gap-4 border-b border-rule py-5">
       <div>
         <h2 className="eyebrow">Ask for type after swipe</h2>
-        <p className="mt-1 text-sm text-ink-2">Choose details after moving a contact to Work or Personal.</p>
+        <p className="mt-1 t-meta text-ink-2">Choose details after moving a contact to Work or Personal.</p>
       </div>
       <Button variant="outline" role="switch" aria-label="Ask for type after swipe" aria-checked={followUp} onClick={() => {
         setFollowUpEnabled(!followUp); setFollowUp(!followUp)
@@ -75,20 +75,19 @@ export default function SettingsScreen() {
         }
         catch { setBackupError('Could not create a backup. Please try again.') }
         finally { setBusy(false) }
-      }}>Back up app data</Button>
+      }}>Back up (.json)</Button>
       {backupError && <InlineNotice tone="error">{backupError}</InlineNotice>}
       {!data ? <Skeleton className="h-5 w-48" /> : data.error ? <InlineNotice tone="error">{data.error}<Button variant="ghost" onClick={() => setRetry(value => value + 1)}>Retry</Button></InlineNotice> :
-        <p className="t-meta text-ink-2">{lastBackupAt ? 'Last backup: ' + new Date(lastBackupAt).toLocaleDateString() : 'No backup exported yet.'}</p>}
-      <details><summary className="hit-44 flex cursor-pointer items-center t-body">Restore backup</summary>
-        <RestoreInput />
-      </details>
+        <p className="t-meta text-ink-2">{lastBackupAt ? 'Last backup: ' + formatDate(lastBackupAt) : 'No backup exported yet.'}</p>}
+      <p className="t-meta text-ink-2">Restore replaces or merges this device's data; you can undo for 10 minutes.</p>
+      <RestoreInput />
     </section>
     <section className="border-b border-rule py-5">
       <h2 className="eyebrow mb-3">Danger zone</h2>
       {eraseCounts ? <p className="t-body text-ink-2">Reset will erase {eraseCounts}, and saved progress.</p> : !data ? <div role="status" aria-label="Counting data"><Skeleton className="h-10" /></div> : <p className="t-meta text-ink-2">Counts unavailable. Retry loading app data above.</p>}
       <Button variant="ghost" className="px-0" disabled={!eraseCounts || busy} onClick={() => { setError(''); setConfirm(true) }}>Reset all data</Button>
     </section>
-    <section className="space-y-3 py-5 text-sm text-ink-2">
+    <section className="space-y-3 py-5 t-meta text-ink-2">
       <h2 className="eyebrow text-ink">About</h2>
       <p>Everything is stored in this browser. Nothing is uploaded.</p>
       <p>Version: {import.meta.env.VITE_APP_VERSION ?? 'dev'}</p>

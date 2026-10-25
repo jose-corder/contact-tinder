@@ -20,7 +20,13 @@ export function fileAction(files: File[]): 'Share' | 'Download' {
   return canShareFiles(files) ? 'Share' : 'Download'
 }
 
-export function downloadFiles(files: File[]): void { files.forEach(downloadFile) }
+export async function downloadFiles(files: File[], onProgress?: (done: number, total: number) => void): Promise<void> {
+  for (const [index, file] of files.entries()) {
+    if (index) await new Promise<void>((resolve) => setTimeout(resolve, 300))
+    downloadFile(file)
+    onProgress?.(index + 1, files.length)
+  }
+}
 
 export async function shareOrDownload(files: File[], title = 'Contacts.', fallback = true): Promise<'shared' | 'downloaded' | 'fallback'> {
   if (canShareFiles(files)) {
@@ -30,11 +36,12 @@ export async function shareOrDownload(files: File[], title = 'Contacts.', fallba
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError') throw error
       if (!fallback) throw error
-      files.forEach(downloadFile)
+      await downloadFiles(files)
       return 'fallback'
     }
   }
-  files.forEach(downloadFile)
+  if (!fallback) throw new Error('Sharing is unavailable for this export.')
+  await downloadFiles(files)
   return 'downloaded'
 }
 

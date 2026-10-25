@@ -12,6 +12,7 @@ import { DeckEnd } from '@/features/deck/DeckEnd'
 import { SwipeCard } from '@/features/deck/SwipeCard'
 import { FollowUpSheet } from '@/features/deck/FollowUpSheet'
 import { formatContactDate } from '@/features/deck/CardFront'
+import { FeedbackSlot } from '@/features/deck/FeedbackSlot'
 import { ActionBar } from '@/features/deck/ActionBar'
 import { setFollowUpEnabled } from '@/ui/theme'
 import { Toaster, dismissToast, toast } from '@/ui/toast'
@@ -34,6 +35,8 @@ beforeEach(async () => { await repo.resetAll(); dismissDeckCoaches(); setFollowU
 afterEach(() => { cleanup(); dismissToast(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 it('#2 observes the stage and selects compact below 680, retaining complete essential rows', async () => {
+  vi.stubGlobal('innerWidth', 390)
+  vi.stubGlobal('innerHeight', 844)
   let resize!: (height: number) => void
   vi.stubGlobal('ResizeObserver', class {
     callback: ResizeObserverCallback
@@ -69,7 +72,7 @@ it('#3 has four equal columns and complete 12px captions with 48px circles at 32
   expect(actions.children).toHaveLength(4)
   for (const caption of actions.querySelectorAll('.deck-action-caption')) expect(caption.className).not.toMatch(/truncate|ellipsis/)
   const css = readFileSync('src/features/deck/deck.css', 'utf8')
-  expect(css).toContain('white-space: nowrap; font: 12px/18px')
+  expect(actions.querySelector('.deck-action-caption')).toHaveClass('t-meta') // #39 shared type role
   expect(css).toContain('@media (max-width: 359px)')
   expect(css).toContain('width: 48px !important; height: 48px !important;')
   expect(screen.getByRole('button', { name: 'Skip' })).toHaveAttribute('aria-description', 'Comes back at the end; twice = Unsorted')
@@ -119,9 +122,9 @@ it('#4/#5 fixes the footer outside the one body scroller and owns Undo inside th
   expect((await repo.getDecision('a')).bucket).toBeUndefined()
 })
 
-it('#5 measures toolbar clearance and removes the override on unmount', () => {
-  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ height: 80, bottom: window.innerHeight - 16 } as DOMRect))
-  const view = render(<ActionBar pass="triage" triggerSwipe={() => {}} />)
+it('#5 measures reserved feedback-slot clearance and removes the override on unmount', () => {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ top: window.innerHeight - 108 } as DOMRect))
+  const view = render(<FeedbackSlot />)
   expect(document.documentElement.style.getPropertyValue('--toast-bottom')).toBe('108px')
   view.unmount()
   expect(document.documentElement.style.getPropertyValue('--toast-bottom')).toBe('')
@@ -203,8 +206,8 @@ it('#27 distinguishes the scoped session from all Work contacts', async () => {
   await waitFor(() => expect(result.current.loading).toBe(false))
   expect(result.current.sessionTotal).toBe(1)
   await act(async () => { await result.current.swipe('right') })
-  render(<MemoryRouter><DeckEnd pass="work" sessionDone={result.current.sessionDone} sessionTotal={result.current.sessionTotal} scoped={result.current.scoped} /></MemoryRouter>)
+  render(<MemoryRouter><DeckEnd pass="work" sessionIds={result.current.sessionIds} skippedIds={result.current.skippedIds} retrySkipped={result.current.retrySkipped} scoped={result.current.scoped} /></MemoryRouter>)
   expect(await screen.findByText('All Work contacts: 2')).toBeInTheDocument()
-  expect(screen.getByText('This session: 1 of 1')).toBeInTheDocument()
+  expect(screen.getByText('This session: 1 of 1 classified')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Sort work contacts' })).toBeInTheDocument()
 })

@@ -6,7 +6,7 @@ vi.mock('framer-motion', async () => {
   const { createElement } = await import('react')
   function element(tag: string) {
     return ({ children, initial, animate, exit, transition, drag, layoutId,
-      dragListener: _listener, dragControls: _controls, dragConstraints: _constraints,
+      transformTemplate: _transformTemplate, dragListener: _listener, dragControls: _controls, dragConstraints: _constraints,
       dragElastic: _elastic, dragSnapToOrigin: _snap, onDragEnd: _end, ...props }: Record<string, unknown>) =>
       createElement(tag, { ...props, 'data-motion': JSON.stringify({ initial, animate, exit, transition, drag, layoutId }) }, children as React.ReactNode)
   }

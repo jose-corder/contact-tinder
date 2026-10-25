@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { ContactWithDecision } from '@/db/repo'
 import { WORK_STATUS_META, PERSONAL_RELATION_META, WORK_TYPE_META, PERSONAL_TYPE_META } from '@/domain/taxonomy'
-import { Chip, Segmented } from '@/ui'
+import { Chip, RadioGroup } from '@/ui'
 import type { ReviewTab } from './model'
 
 interface Props {
@@ -15,7 +15,7 @@ export default function Filters({ tab, rows, segment, types, tags, onSegment, on
   const availableTags = useMemo(() => [...new Set(rows.flatMap(({ decision }) => decision.customTags))].sort(), [rows])
   const tone = tab === 'unsorted' ? 'skip' : tab
   return <div aria-label="Filter contacts" className="flex items-center gap-2 overflow-x-auto px-1 py-2 [scrollbar-width:none] [&>*]:shrink-0">
-    {segments && <Segmented value={segment} onChange={onSegment} options={[
+    {segments && <RadioGroup label={tab === 'work' ? 'Work status' : 'Personal relationship'} value={segment} onChange={onSegment} options={[
       { value: 'all', label: 'All' }, ...Object.entries(segments).map(([value, meta]) => ({ value, label: meta.label })),
     ]} />}
     {typeMeta && Object.entries(typeMeta).map(([value, meta]) => <Chip key={value} label={meta.label}

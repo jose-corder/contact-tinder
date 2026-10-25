@@ -80,6 +80,11 @@ const nameOnly = (c: Contact) => !c.phones.length && !c.emails.length
 const intersects = (a: string[], b: string[]) => a.some((key) => b.includes(key))
 
 interface Group { contact: Contact; names: Set<string>; existing: Set<string>; touched: boolean }
+/** meta.possibleDuplicates: complete latest successful import's candidate pairs.
+ * ids are sorted, surviving Contact IDs; reason is display text. No twenty-pair cap.
+ * A later successful import replaces the array (including []); failed imports preserve it.
+ * Review /review?tab=unsorted&dupes=1 should resolve IDs against live contacts, ignoring missing IDs.
+ */
 export interface PossibleDuplicate { ids: string[]; reason: string }
 export interface MergeResult {
   toUpsert: Contact[]; merged: number; added: number; superseded: string[]

@@ -21,7 +21,10 @@ export default function RowSheet({ row, onClose, pane = false }: { row: ContactW
   async function save(next: Decision) {
     if (locked.current) return false
     locked.current = true; setBusy(true); setSaveError('')
-    try { await saveDecision(next); setDecision(next); return true }
+    try {
+      const completed = next.bucket === 'personal' && next.personalTypes.length && !next.relation ? { ...next, relation: 'other' as const } : next
+      await saveDecision(completed); setDecision(completed); return true
+    }
     catch { setSaveError('Could not save this change. Please try again.'); return false }
     finally { locked.current = false; setBusy(false) }
   }
