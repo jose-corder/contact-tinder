@@ -181,6 +181,19 @@ export function toggleChip(decision: Decision, pass: Pass, key: WorkType | Perso
   return decision
 }
 
+/**
+ * Shared completion rule (audit #7/#53): a Personal contact with at least one type chip but no
+ * relation is complete as relation 'other'. Applied on every persist (repo.writeDecision) so the
+ * deck, Review, Home progress and exports all read the same saved state; nothing is inferred at
+ * display time. Removing the last type does not clear an explicit relation.
+ */
+export function normalizeDecision(decision: Decision): Decision {
+  if (decision.bucket === 'personal' && !decision.relation && decision.personalTypes.length > 0) {
+    return { ...decision, relation: 'other' }
+  }
+  return decision
+}
+
 export function normalizeTag(tag: string): string {
   return tag.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 32)
 }

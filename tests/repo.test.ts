@@ -87,6 +87,15 @@ describe('repo', () => {
     expect((await getDecision('a')).bucket).toBeUndefined()
   })
 
+  it('persists a type-only Personal contact as relation Other (audit #53)', async () => {
+    await upsertContacts([contact('a', 'Ana')])
+    let d = applySwipe(await getDecision('a'), 'triage', 'up')
+    d = { ...d, personalTypes: ['neighbor'] }
+    await saveDecision(d)
+    expect((await getDecision('a')).relation).toBe('other')
+    expect((await deckContacts('personal')).length).toBe(0)
+  })
+
   it('tag vocabulary tracks custom tags', async () => {
     await upsertContacts([contact('a', 'Ana')])
     let d = toggleCustomTag(await getDecision('a'), 'padel')

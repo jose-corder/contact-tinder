@@ -1,6 +1,6 @@
 // Typed data access. Components should use these (or useLiveQuery over db.*) instead of raw Dexie calls.
 import { db } from './schema'
-import { isInDeck, isUnsorted, normalizeTag, PASS_ORDER } from '@/domain/taxonomy'
+import { isInDeck, isUnsorted, normalizeDecision, normalizeTag, PASS_ORDER } from '@/domain/taxonomy'
 import {
   emptyDecision,
   type Contact, type Counts, type Decision, type Pass,
@@ -74,7 +74,8 @@ export interface SaveOptions {
   expectedUpdatedAt?: number | null
 }
 
-async function writeDecision(decision: Decision, options?: SaveOptions): Promise<void> {
+async function writeDecision(input: Decision, options?: SaveOptions): Promise<void> {
+  const decision = normalizeDecision(input)
   const prev = await db.decisions.get(decision.contactId)
   if (options && 'expectedUpdatedAt' in options) {
     const expected = options.expectedUpdatedAt ?? undefined
