@@ -28,7 +28,12 @@ export const PERSONAL_RELATION_META: Record<PersonalRelation, { label: string; c
   friend: { label: 'Friend', color: 'var(--stamp-personal)' },
   family: { label: 'Family', color: 'var(--stamp-personal)' },
   ex: { label: 'Ex', color: 'var(--stamp-delete)' },
+  // Not a swipe direction: offered as a chip in the follow-up and row sheets.
+  other: { label: 'Other', color: 'var(--stamp-skip)' },
 }
+
+/** Relations reachable by swiping in the Personal deck (left/right/up). 'other' is chip-only. */
+export const SWIPE_RELATIONS: PersonalRelation[] = ['ex', 'friend', 'family']
 
 export const PERSONAL_TYPE_META: Record<PersonalType, { label: string }> = {
   acquaintance: { label: 'Acquaintance' },

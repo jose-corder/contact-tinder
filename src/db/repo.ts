@@ -147,7 +147,7 @@ export async function counts(): Promise<Counts> {
     bucket: { delete: 0, work: 0, personal: 0 },
     workStatus: { old: 0, current: 0, potential: 0 },
     workType: { client: 0, vendor: 0, relationship: 0, namedrop: 0 },
-    relation: { friend: 0, family: 0, ex: 0 },
+    relation: { friend: 0, family: 0, ex: 0, other: 0 },
     personalType: { acquaintance: 0, neighbor: 0, service: 0 },
   }
   for (const { decision: d } of rows) {

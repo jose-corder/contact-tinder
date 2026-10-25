@@ -3,7 +3,8 @@
 export type Bucket = 'delete' | 'work' | 'personal'
 export type WorkStatus = 'old' | 'current' | 'potential'
 export type WorkType = 'client' | 'vendor' | 'relationship' | 'namedrop'
-export type PersonalRelation = 'friend' | 'family' | 'ex'
+/** 'other' completes the Personal pass when none of the three swipe relations apply. */
+export type PersonalRelation = 'friend' | 'family' | 'ex' | 'other'
 export type PersonalType = 'acquaintance' | 'neighbor' | 'service'
 
 /** The three swipe decks, in order. */
