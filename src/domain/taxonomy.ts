@@ -17,11 +17,15 @@ export const WORK_STATUS_META: Record<WorkStatus, { label: string; color: string
   potential: { label: 'Potential', color: 'var(--status-potential)' },
 }
 
-export const WORK_TYPE_META: Record<WorkType, { label: string }> = {
-  client: { label: 'Client' },
-  vendor: { label: 'Vendor' },
-  relationship: { label: 'Relationship' },
-  namedrop: { label: 'Name-drop flex' },
+/**
+ * `label` is the stable export label (vCard CATEGORIES, CSV, file names) and must not change.
+ * `uiLabel` is what screens show (audit #41 asked for literal, non-jokey copy in the UI).
+ */
+export const WORK_TYPE_META: Record<WorkType, { label: string; uiLabel: string }> = {
+  client: { label: 'Client', uiLabel: 'Client' },
+  vendor: { label: 'Vendor', uiLabel: 'Vendor' },
+  relationship: { label: 'Relationship', uiLabel: 'Relationship' },
+  namedrop: { label: 'Name-drop flex', uiLabel: 'Notable contact' },
 }
 
 export const PERSONAL_RELATION_META: Record<PersonalRelation, { label: string; color: string }> = {
@@ -68,8 +72,9 @@ const SKIP: SwipeOutcome = { kind: 'skip', label: 'Skip', color: 'var(--stamp-sk
 
 export const PASS_META: Record<Pass, PassMeta> = {
   triage: {
-    title: 'Triage',
-    doneTitle: 'Triage done.',
+    // Literal task title (audit #41); the pass key stays 'triage'.
+    title: 'Sort contacts',
+    doneTitle: 'Sorting done.',
     swipes: {
       left: { kind: 'bucket', value: 'delete', label: 'Delete', color: BUCKET_META.delete.color },
       right: { kind: 'bucket', value: 'work', label: 'Work', color: BUCKET_META.work.color },
@@ -89,7 +94,7 @@ export const PASS_META: Record<Pass, PassMeta> = {
       up: { kind: 'workStatus', value: 'potential', label: 'Potential', color: WORK_STATUS_META.potential.color },
       down: SKIP,
     },
-    chips: (Object.keys(WORK_TYPE_META) as WorkType[]).map((key) => ({ key, label: WORK_TYPE_META[key].label })),
+    chips: (Object.keys(WORK_TYPE_META) as WorkType[]).map((key) => ({ key, label: WORK_TYPE_META[key].uiLabel })),
     chipColor: BUCKET_META.work.color,
     next: 'personal',
   },

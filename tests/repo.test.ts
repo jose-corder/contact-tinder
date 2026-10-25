@@ -96,6 +96,20 @@ describe('repo', () => {
     expect((await deckContacts('personal')).length).toBe(0)
   })
 
+  it('exact writes and restore skip completion normalization (audit #60/#61)', async () => {
+    await upsertContacts([contact('a', 'Ana')])
+    let d = applySwipe(await getDecision('a'), 'triage', 'up')
+    d = { ...d, personalTypes: ['neighbor'], skips: { ...d.skips, personal: 1 } }
+    await saveDecision(d, { exact: true }) // a Skip with draft types must not complete the contact
+    expect((await getDecision('a')).relation).toBeUndefined()
+    const snapshot = await dumpAll()
+    await saveDecision({ ...(await getDecision('a')), relation: 'friend' })
+    await restoreAll(snapshot)
+    expect((await getDecision('a')).relation).toBeUndefined() // historical snapshot round-trips untouched
+    await saveDecisions([await getDecision('a')]) // a live (non-exact) write still normalizes
+    expect((await getDecision('a')).relation).toBe('other')
+  })
+
   it('tag vocabulary tracks custom tags', async () => {
     await upsertContacts([contact('a', 'Ana')])
     let d = toggleCustomTag(await getDecision('a'), 'padel')

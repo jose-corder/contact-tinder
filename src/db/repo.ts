@@ -72,10 +72,17 @@ export interface SaveOptions {
    * When given and the stored row differs, nothing is written and StaleDecisionError is thrown.
    */
   expectedUpdatedAt?: number | null
+  /**
+   * Write the row exactly as given, skipping completion normalization (audit #60/#61).
+   * Use for Skip (postponement is not completion), Undo and restore (historical snapshots must
+   * round-trip byte-for-byte). Explicit completing actions (swipe, Done, Keep, Review edits) leave
+   * this false so a type-only Personal contact still persists as relation Other.
+   */
+  exact?: boolean
 }
 
 async function writeDecision(input: Decision, options?: SaveOptions): Promise<void> {
-  const decision = normalizeDecision(input)
+  const decision = options?.exact ? input : normalizeDecision(input)
   const prev = await db.decisions.get(decision.contactId)
   if (options && 'expectedUpdatedAt' in options) {
     const expected = options.expectedUpdatedAt ?? undefined
@@ -94,10 +101,10 @@ export async function saveDecision(decision: Decision, options?: SaveOptions): P
 }
 
 /** Persist many decisions atomically: either every row is written or none is. */
-export async function saveDecisions(decisions: Decision[]): Promise<void> {
+export async function saveDecisions(decisions: Decision[], options?: Pick<SaveOptions, 'exact'>): Promise<void> {
   if (decisions.length === 0) return
   await db.transaction('rw', db.decisions, db.tags, async () => {
-    for (const d of decisions) await writeDecision(d)
+    for (const d of decisions) await writeDecision(d, options)
   })
 }
 
@@ -220,7 +227,8 @@ export async function restoreAll(dump: Dump, mode: RestoreMode = 'replace'): Pro
     })
     await db.contacts.bulkPut(contacts)
     const known = new Set(ids)
-    for (const d of dump.decisions) if (known.has(d.contactId)) await writeDecision(d)
+    // Snapshots restore exactly; completion normalization is for live edits only (audit #61).
+    for (const d of dump.decisions) if (known.has(d.contactId)) await writeDecision(d, { exact: true })
   })
 }
 
