@@ -22,7 +22,7 @@ export default function ClassificationEditor({ decision, busy, error, save }: {
               onClick={() => void save({ ...decision, workStatus: decision.workStatus === status ? undefined : status, updatedAt: Date.now() })} />)}
           </div></div>
           <div><h3 className="eyebrow mb-2">Work types</h3><div className="flex flex-wrap gap-2">
-            {(Object.keys(WORK_TYPE_META) as WorkType[]).map((type) => <Chip key={type} label={WORK_TYPE_META[type].label}
+            {(Object.keys(WORK_TYPE_META) as WorkType[]).map((type) => <Chip key={type} label={WORK_TYPE_META[type].uiLabel}
               selected={decision.workTypes.includes(type)} tone="work" onClick={() => void save(toggleChip(decision, 'work', type))} />)}
           </div></div>
         </>}

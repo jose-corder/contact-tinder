@@ -1,3 +1,4 @@
+import { recoveryStore } from '@/ui/recoveryStore'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
@@ -7,8 +8,8 @@ import ReviewScreen from '@/features/review/ReviewScreen'
 import RowSheet from '@/features/review/RowSheet'
 import { dismissToast, Toaster } from '@/ui/toast'
 
-beforeEach(repo.resetAll)
-afterEach(() => { cleanup(); dismissToast(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
+beforeEach(async () => { await repo.resetAll(); window.sessionStorage.clear() })
+afterEach(() => { cleanup(); recoveryStore.list().forEach(entry => recoveryStore.remove(entry.id)); dismissToast(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 async function seed(rows: ReturnType<typeof row>[]) {
   await repo.upsertContacts(rows.map(r => r.contact)); await repo.saveDecisions(rows.map(r => r.decision))
 }
@@ -59,8 +60,8 @@ describe('Review audit regressions', () => {
     expect(await repo.getDecision('B')).toEqual(rows[1].decision)
     fireEvent.click(screen.getByRole('button', { name: 'Undo last action' }))
     await waitFor(async () => expect(await repo.getDecision('A')).toEqual(rows[0].decision))
-    expect(save).toHaveBeenCalledTimes(2)
-    expect(save.mock.calls[1][0]).toEqual([rows[0].decision])
+    // #61: Undo uses individually guarded exact writes within one batch transaction.
+    expect(save).toHaveBeenCalledTimes(1)
     fireEvent.click(screen.getByRole('tab', { name: /^Personal/ }))
     expect(screen.queryByRole('button', { name: 'Move to…' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('tab', { name: /^Work/ }))

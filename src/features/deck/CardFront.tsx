@@ -4,6 +4,7 @@ import { formatDate, formatPhone } from '@/ui/format'
 import { Avatar, useLongPressCopy } from '@/ui'
 import { sourceLabel } from '@/import/sourceLabel'
 import { useElementSize } from '@/hooks/useElementSize'
+import { useIdentitySpace } from '@/hooks/useIdentitySpace'
 import { friendlyType } from './CardFields'
 import { isDrag } from './swipeMath'
 import { useRef } from 'react'
@@ -14,16 +15,16 @@ export function formatContactDate(value: string | number | undefined): string | 
   return formatted === value && Number.isNaN(new Date(value).getTime()) ? undefined : formatted
 }
 
-export function CardFront({ contact, stageHeight, preview, toggleRef, flip }: {
-  contact: Contact; stageHeight: number; preview: boolean
+export function CardFront({ contact, stageHeight, preview, toggleRef, flip, constrained = false }: {
+  contact: Contact; stageHeight: number; preview: boolean; constrained?: boolean
   toggleRef: RefObject<HTMLButtonElement | null>; flip: () => void
 }) {
-  const compact = stageHeight < 680
+  const compact = constrained || stageHeight < 680
   const landscape = stageHeight > 0 && stageHeight < 420 && window.innerWidth > window.innerHeight
-  const roomy = stageHeight >= 680
   const content = useElementSize<HTMLDivElement>()
   const viewport = useElementSize<HTMLDivElement>()
   const identity = useElementSize<HTMLDivElement>()
+  const fields = useRef<HTMLDListElement>(null)
   const rows = [
     ...contact.phones.slice(0, 1).map((p) => ({ label: friendlyType(p.type, 'Phone'), value: p.value, phone: true })),
     ...contact.emails.slice(0, 1).map((e) => ({ label: friendlyType(e.type, 'Email'), value: e.value, phone: false })),
@@ -32,24 +33,24 @@ export function CardFront({ contact, stageHeight, preview, toggleRef, flip }: {
     ...(contact.notes ? [{ label: 'Notes', value: contact.notes, phone: false }] : []),
   ]
   const required = Number(!!contact.phones.length) + Number(!!contact.emails.length)
-  // Fixed-height rows are removed as units. Essential rows remain, with an internal
-  // scroller as a last resort for zoom/landscape instead of slicing through glyphs.
+  const lines = useIdentitySpace(viewport.ref, identity.ref, fields, required, compact, landscape)
+  // Optional rows leave as units. Constrained cards grow with the deck column.
   const available = viewport.height ? viewport.height - identity.height - 13 : stageHeight - 190
-  const limit = compact ? Math.max(required, Math.floor(available / 28)) : rows.length
+  const limit = constrained ? required : compact ? Math.max(required, Math.floor(available / 28)) : rows.length
   const visible = rows.slice(0, limit)
   const more = contact.phones.length + contact.emails.length + Number(!!contact.notes) - visible.length
   const center = !compact && content.height < stageHeight - 120
   return <>
-    <div ref={viewport.ref} className={`deck-front-scroll min-h-0 flex-1 overflow-y-auto ${center ? 'flex flex-col justify-center' : ''}`}>
+    <div ref={viewport.ref} className={`deck-front-scroll min-h-0 flex-1 ${center ? 'flex flex-col justify-center' : ''}`} style={{ overflowY: 'visible' }}>
       <div ref={content.ref} className={`deck-front-content ${landscape ? 'deck-front-columns' : ''}`}>
-        <div ref={identity.ref}>
+        <div ref={identity.ref} className="deck-identity">
         <div className={compact ? 'flex items-center gap-3' : 'flex flex-col gap-3'}>
-          <Avatar name={contact.displayName} photo={contact.photo} size={compact ? 44 : 72} />
-          <h2 className={`min-w-0 font-serif ${landscape ? 't-title' : 't-display'} ${roomy ? 'line-clamp-2 break-words' : 'truncate'}`}>{contact.displayName}</h2>
+          <div data-identity-avatar className="shrink-0"><Avatar name={contact.displayName} photo={contact.photo} size={compact ? 44 : 72} /></div>
+          <h2 style={{ WebkitLineClamp: constrained ? 2 : lines.name }} className={`deck-identity-name min-w-0 font-serif ${landscape ? 't-title' : 't-display'} line-clamp-2 break-words`}>{contact.displayName}</h2>
         </div>
-        <p className={`mt-1 t-body text-ink-2 ${roomy ? 'line-clamp-2 break-words' : 'truncate'}`}>{[contact.title, contact.org].filter(Boolean).join(' · ') || '\u00a0'}</p>
+        <p style={{ WebkitLineClamp: constrained ? 2 : lines.role }} className="mt-1 t-body text-ink-2 line-clamp-2 break-words">{[contact.title, contact.org].filter(Boolean).join(' · ') || '\u00a0'}</p>
         </div>
-        <dl className="deck-summary-fields mt-2 border-t border-rule pt-1">
+        <dl ref={fields} className="deck-summary-fields mt-2 border-t border-rule pt-1">
           {visible.map((row, index) => <div key={index} className="deck-field-row grid grid-cols-[58px_minmax(0,1fr)] items-center gap-2">
             <dt className="truncate t-meta text-ink-2">{row.label}</dt>
             {row.phone && !preview ? <FrontPhone value={row.value} /> : <dd className="truncate t-body" title={row.value}>{row.phone ? formatPhone(row.value) : row.value}</dd>}

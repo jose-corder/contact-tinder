@@ -1,16 +1,17 @@
+import { recoveryStore } from '@/ui/recoveryStore'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import * as repo from '@/db/repo'
 import { db } from '@/db/schema'
 import * as notices from '@/ui/toast'
 import { getToast } from '@/ui/toastStore'
-import { decisionUnchangedSince, rowUndoToast, undoDecisions } from '@/features/review/undo'
+import { snapshotUnchanged, rowUndoToast, undoDecisions } from '@/features/review/undo'
 import BulkBar from '@/features/review/BulkBar'
 import ReviewRow from '@/features/review/ReviewRow'
 import { row } from '../export/fixtures'
 
 beforeEach(repo.resetAll)
-afterEach(() => { cleanup(); while (getToast()) notices.dismissToast(); vi.restoreAllMocks() })
+afterEach(() => { cleanup(); recoveryStore.list().forEach(entry => recoveryStore.remove(entry.id)); while (getToast()) notices.dismissToast(); vi.restoreAllMocks() })
 
 it('#55/#5: a move pre-empts a long notice and its Undo rejects an intervening edit', async () => {
   const item = row('Maria', { bucket: 'work', updatedAt: 1 })
@@ -41,7 +42,7 @@ it('#55: single Undo passes the exact expected version and dismisses only its ha
   const callback = getToast()!.action!.onClick
   notices.toast('Newer action', { priority: 'high' })
   callback()
-  await waitFor(() => expect(save).toHaveBeenCalledWith(before, { expectedUpdatedAt: 2 }))
+  await waitFor(() => expect(save).toHaveBeenCalledWith(before, { exact: true, expectedUpdatedAt: 2 }))
   await waitFor(async () => expect(await repo.getDecision('A')).toEqual(before))
   expect(getToast()?.message).toBe('Newer action')
   notices.dismissToast()
@@ -73,5 +74,5 @@ it('#55: bulk persistent Undo reports none undone when one row is stale', async 
   fireEvent.click(screen.getByRole('button', { name: 'Undo last action' }))
   expect(await screen.findByText('Changed since — none undone')).toBeInTheDocument()
   expect((await repo.getDecision('A')).bucket).toBe('personal')
-  await waitFor(() => expect(decisionUnchangedSince('B', b.updatedAt)).toBe(false))
+  await waitFor(() => expect(snapshotUnchanged({ before: [b], after: [b] })).toBe(false))
 })

@@ -46,6 +46,10 @@ it.each(['shortHeight', 'keyboardOpen', 'largeText'] as const)('#14/#38 enables 
   show(); await screen.findByRole('article')
   expect(document.querySelector('.scroll-fallback')).toHaveAttribute('data-constrained', 'true')
   expect(document.querySelector('[data-deck-stage]')).toHaveAttribute('data-scroll-stage')
+  // Short-height fallback scrolls the deck column, never the card body.
+  const body = document.querySelector('.deck-front-scroll')!
+  expect(body).not.toHaveClass('overflow-y-auto')
+  expect(getComputedStyle(body).overflowY).toBe('visible')
   expect(document.querySelector('[data-deck-stage] > .z-10')).toHaveStyle({ touchAction: 'pan-y' })
   await click('+ tag')
   expect(screen.getByRole('textbox')).toHaveFocus()
@@ -80,15 +84,51 @@ it('#16 opens touch Skip help without deciding, blocks shortcuts, and dismisses 
   expect((await repo.getDecision('a')).skips.triage).toBe(1)
 })
 
-it.each([679, 680])('#39 gives names and role/org two lines only at roomy stage height %s', height => {
-  render(<SwipeCard contact={contact} stageHeight={height} />)
-  const name = screen.getByRole('heading', { name: 'Ana' })
-  const role = screen.getByText('Director · Studio')
-  for (const node of [name, role]) {
-    expect(node).toHaveClass(height >= 680 ? 'line-clamp-2' : 'truncate')
-    expect(node).not.toHaveClass(height >= 680 ? 'truncate' : 'line-clamp-2')
-  }
-})
+it.each([[390, 844, 540, 420], [320, 568, 320, 210]] as const)(
+  '#39 wraps a long identity from measured free space at %sx%s and retains whole essential rows',
+  (width, height, stage, bodyHeight) => {
+    vi.stubGlobal('innerWidth', width); vi.stubGlobal('innerHeight', height)
+    let resizeBody!: (height: number) => void
+    let measuredBody = bodyHeight as number
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const measured = this.classList.contains('deck-front-scroll') ? measuredBody
+        : this.classList.contains('deck-field-row') ? 28
+        : this.hasAttribute('data-identity-avatar') ? 44
+        : this.classList.contains('deck-identity') ? 124 : 0
+      return { width: width - 72, height: measured } as DOMRect
+    })
+    vi.stubGlobal('ResizeObserver', class {
+      callback: ResizeObserverCallback
+      constructor(callback: ResizeObserverCallback) { this.callback = callback }
+      observe(node: HTMLElement) {
+        if (node.classList.contains('deck-front-scroll')) resizeBody = next => {
+          measuredBody = next
+          this.callback([{ contentRect: { width: width - 72, height: next } } as ResizeObserverEntry], this as unknown as ResizeObserver)
+        }
+      }
+      disconnect() {}
+    })
+    const long = { ...contact, displayName: 'Daniel Rey Montemayor', title: 'Regional Director',
+      org: 'International Design Partnership', phones: [{ value: '555 123 4567' }], emails: [{ value: 'daniel@example.com' }] }
+    render(<SwipeCard contact={long} stageHeight={stage} />)
+    const name = screen.getByRole('heading', { name: long.displayName })
+    const role = screen.getByText('Regional Director · International Design Partnership')
+    for (const node of [name, role]) {
+      expect(node).toHaveStyle({ WebkitLineClamp: '2' })
+      expect(node).not.toHaveClass('truncate')
+    }
+    expect(screen.getByText('555 123 4567').closest('.deck-field-row')).toBeVisible()
+    expect(screen.getByText('daniel@example.com').closest('.deck-field-row')).toBeVisible()
+    // Same stage, less measured body space: line allocation must respond to ResizeObserver.
+    act(() => resizeBody(100))
+    expect(name).toHaveStyle({ WebkitLineClamp: '1' })
+    act(() => resizeBody(bodyHeight))
+    expect(name).toHaveStyle({ WebkitLineClamp: '2' })
+    fireEvent.click(screen.getByRole('button', { name: 'View all fields' }))
+    expect(screen.getByLabelText('All contact fields')).toHaveTextContent(long.org)
+    expect(screen.getByRole('button', { name: 'Back' })).toBeVisible()
+  },
+)
 
 it.each([true, false])('#40 renders five upcoming names and live session counts only with desktop fine pointer: %s', async desktop => {
   vi.stubGlobal('matchMedia', (query: string) => ({ matches: desktop && query === '(min-width: 1024px) and (pointer: fine)', addEventListener() {}, removeEventListener() {} }))

@@ -34,7 +34,7 @@ export function useUndo(restore: (entry: UndoEntry) => void) {
     const version = generation.current
     try {
       const restored = { ...entry.prevDecision, updatedAt: Math.max(Date.now(), entry.writtenDecision.updatedAt + 1) }
-      await saveDeckDecision(restored, { expectedUpdatedAt: entry.writtenDecision.updatedAt })
+      await saveDeckDecision(restored, { exact: true, expectedUpdatedAt: entry.writtenDecision.updatedAt })
       if (version !== generation.current) return
       stack.current.pop()
       // Earlier swipes of this same contact now expect the restored version.

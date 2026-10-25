@@ -1,4 +1,4 @@
-export const SKIP_HELP = 'Skip puts the card back at the end. Skipped twice, it waits in Review → Unsorted.'
+export const SKIP_HELP = 'Skip puts the card back at the end. Skipping keeps your unsaved chips on the card until it comes back. Skipped twice, it waits in Review → Unsorted.'
 
 export function KeyboardLegend() {
   return <div className="space-y-2">

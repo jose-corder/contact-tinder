@@ -18,7 +18,7 @@ export default function Filters({ tab, rows, segment, types, tags, onSegment, on
     {segments && <RadioGroup label={tab === 'work' ? 'Work status' : 'Personal relationship'} value={segment} onChange={onSegment} options={[
       { value: 'all', label: 'All' }, ...Object.entries(segments).map(([value, meta]) => ({ value, label: meta.label })),
     ]} />}
-    {typeMeta && Object.entries(typeMeta).map(([value, meta]) => <Chip key={value} label={meta.label}
+    {typeMeta && Object.entries(typeMeta).map(([value, meta]) => <Chip key={value} label={'uiLabel' in meta ? String(meta.uiLabel) : meta.label}
       tone={tone} selected={types.includes(value)} onClick={() => onType(value)} />)}
     {availableTags.map(tag => <Chip key={'tag-' + tag} label={tag} tone={tone} selected={tags.includes(tag)} onClick={() => onTag(tag)} />)}
     {active && <button className="hit-44 t-meta underline underline-offset-4" onClick={onClear}>Clear filters</button>}

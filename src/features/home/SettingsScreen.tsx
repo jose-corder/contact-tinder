@@ -76,7 +76,7 @@ export default function SettingsScreen() {
         }
         catch { setBackupError('Could not create a backup. Please try again.') }
         finally { setBusy(false) }
-      }}>Back up (.json)</Button>
+      }}>Back up app data</Button>
       {backupError && <InlineNotice tone="error">{backupError}</InlineNotice>}
       {!data ? <Skeleton className="h-5 w-48" /> : data.error ? <InlineNotice tone="error">{data.error}<Button variant="ghost" onClick={() => setRetry(value => value + 1)}>Retry</Button></InlineNotice> :
         <p className="t-meta text-ink-2">{lastBackupAt ? 'Last backup: ' + formatDate(lastBackupAt) : 'No backup exported yet.'}</p>}
@@ -85,17 +85,17 @@ export default function SettingsScreen() {
       <RestoreInput />
     </section>
     <section className="border-b border-rule py-5">
-      <h2 className="eyebrow mb-3">Danger zone</h2>
+      <h2 className="eyebrow mb-3">Reset app</h2>
       {eraseCounts ? <p className="t-body text-ink-2">Reset will erase {eraseCounts}, and saved progress.</p> : !data ? <div role="status" aria-label="Counting data"><Skeleton className="h-10" /></div> : <p className="t-meta text-ink-2">Counts unavailable. Retry loading app data above.</p>}
-      <Button variant="ghost" className="px-0" disabled={!eraseCounts || busy} onClick={() => { setError(''); setConfirm(true) }}>Reset all data</Button>
+      <Button variant="ghost" className="px-0" disabled={!eraseCounts || busy} onClick={() => { setError(''); setConfirm(true) }}>Reset app</Button>
     </section>
     <section className="space-y-3 py-5 t-meta text-ink-2">
       <h2 className="eyebrow text-ink">About</h2>
       <p>Everything is stored in this browser. Nothing is uploaded.</p>
       <p>Version: {import.meta.env.VITE_APP_VERSION ?? 'dev'}</p>
     </section>
-    <Sheet open={confirm} onClose={() => { if (!busy) setConfirm(false) }} title="Reset all data?" footer={<SheetFooterActions secondary={{ label: 'Cancel', disabled: busy, onClick: () => setConfirm(false) }}
-      primary={{ label: 'Yes, reset all data', loading: busy, disabled: !eraseCounts, onClick: async () => {
+    <Sheet open={confirm} onClose={() => { if (!busy) setConfirm(false) }} title="Reset app?" footer={<SheetFooterActions secondary={{ label: 'Cancel', disabled: busy, onClick: () => setConfirm(false) }}
+      primary={{ label: 'Yes, reset app', loading: busy, disabled: !eraseCounts, onClick: async () => {
         setBusy(true); setError('')
         try { await resetAll(); navigate('/') }
         catch { setError('Could not reset data. Please try again.') }

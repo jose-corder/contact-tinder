@@ -6,6 +6,7 @@ import { DECK_MOTION, useDeckReducedMotion } from './motion'
 import { CardFront, formatContactDate } from './CardFront'
 import { isDrag } from './swipeMath'
 import { CardFields } from './CardFields'
+import { useConstrainedViewport } from '@/ui'
 import './deck.css'
 export { friendlyType } from './CardFields'
 
@@ -15,6 +16,8 @@ export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onF
   const [flipped, setFlipped] = useState(false)
   const [opened, setOpened] = useState(false)
   const reduced = useDeckReducedMotion()
+  const { shortHeight, keyboardOpen, largeText } = useConstrainedViewport()
+  const constrained = shortHeight || keyboardOpen || largeText
   const origin = useRef({ x: 0, y: 0 })
   const moved = useRef(false)
   const alive = useRef(true)
@@ -33,7 +36,7 @@ export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onF
   }
   return <article
     aria-label={preview ? undefined : contact.displayName + ' contact card'}
-    data-layout={stageHeight > 0 && stageHeight < 420 && window.innerWidth > window.innerHeight ? 'landscape' : stageHeight < 680 ? 'compact' : 'tall'} className="deck-card relative h-full min-h-0 text-ink select-none"
+    data-constrained={constrained} data-layout={stageHeight > 0 && stageHeight < 420 && window.innerWidth > window.innerHeight ? 'landscape' : constrained || stageHeight < 680 ? 'compact' : 'tall'} className="deck-card relative h-full min-h-0 text-ink select-none"
     onPointerDownCapture={(event) => { origin.current = { x: event.clientX, y: event.clientY }; moved.current = false }}
     onPointerMove={(event) => { if (isDrag(event.clientX - origin.current.x, event.clientY - origin.current.y)) moved.current = true }}
     onDragStart={(event) => event.preventDefault()}
@@ -47,15 +50,15 @@ export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onF
   >
     <motion.div key={reduced ? 'fade' : 'flip'} className="relative h-full" style={{ transformStyle: 'preserve-3d' }}
       animate={{ rotateY: reduced ? 0 : flipped ? 180 : 0 }} transition={reduced ? DECK_MOTION.fade : DECK_MOTION.fling}>
-      <motion.div initial={false} className={faceClass + (stageHeight < 680 ? ' p-4' : ' p-5')} aria-hidden={flipped || preview} inert={flipped || preview}
+      <motion.div data-active={!flipped} initial={false} className={faceClass + (stageHeight < 680 ? ' p-4' : ' p-5')} aria-hidden={flipped || preview} inert={flipped || preview}
         animate={{ opacity: reduced && flipped ? 0 : 1 }} transition={DECK_MOTION.fade}>
-        <CardFront contact={contact} stageHeight={stageHeight} preview={preview} toggleRef={toggleRef} flip={() => flip(true)} />
+        <CardFront contact={contact} stageHeight={stageHeight} preview={preview} constrained={constrained} toggleRef={toggleRef} flip={() => flip(true)} />
       </motion.div>
-      {!preview && <motion.div data-deck-details initial={false} className={faceClass + (stageHeight < 680 ? ' p-4' : ' p-5')} aria-hidden={!flipped} inert={!flipped}
+      {!preview && <motion.div data-deck-details data-active={flipped} initial={false} className={faceClass + (stageHeight < 680 ? ' p-4' : ' p-5')} aria-hidden={!flipped} inert={!flipped}
         style={{ rotateY: reduced ? 0 : 180, pointerEvents: flipped ? 'auto' : 'none' }}
         animate={{ opacity: reduced ? (flipped ? 1 : 0) : 1 }} transition={DECK_MOTION.fade}>
         {opened && <>
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain" style={{ touchAction: 'pan-y' }} tabIndex={0} aria-label="All contact fields">
+          <div className={`flex min-h-0 flex-1 flex-col gap-3 ${constrained ? '' : 'overflow-y-auto overscroll-contain'}`} style={{ touchAction: 'pan-y', ...(constrained ? { overflowY: 'visible' } : {}) }} tabIndex={0} aria-label="All contact fields">
             <h2 className="break-words font-serif t-title">{contact.displayName}</h2>
             <div className="hairline shrink-0" />
             <CardFields contact={contact} />

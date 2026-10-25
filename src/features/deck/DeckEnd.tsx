@@ -93,7 +93,7 @@ export function DeckEnd({ pass, sessionIds, skippedIds, scoped, retrySkipped, an
     {total !== sessionTotal && <p className="t-meta text-ink-2">{pass === 'triage' ? 'All contacts' : `All ${meta.title} contacts`}: {total}</p>}
     <dl aria-label="All contacts in this pass">{rows.map(([label, value, tone]) => <div key={label} className="hairline flex items-center justify-between py-2"><dt><LabelDot tone={tone} label={label} /></dt><dd><Tick value={value} /></dd></div>)}</dl>
     <div className="flex shrink-0 flex-col gap-2">
-      <Button full variant={remaining.length ? 'outline' : 'primary'} onClick={() => navigate(next ? `/deck/${next}` : '/review')}>{next ? `Sort ${next} contacts` : 'Review contacts'}</Button>
+      <Button full variant={remaining.length ? 'outline' : 'primary'} onClick={() => navigate(next ? `/deck/${next}` : '/review')}>{next ? next === 'triage' ? PASS_META[next].title : `Sort ${PASS_META[next].title.toLowerCase()} contacts` : 'Review contacts'}</Button>
       {next && <Button variant="ghost" full onClick={() => navigate('/review')}>Review contacts</Button>}
     </div>
   </section>

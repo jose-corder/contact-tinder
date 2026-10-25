@@ -23,7 +23,7 @@ export default function ProgressOverview({ progress, total, unsorted = 0 }: { pr
           return <li key={step.pass} aria-current={current ? 'step' : undefined} className={cx(!done && !current && 'text-ink-2')}>
             <span className="flex items-center gap-1 t-meta">
               {done ? <IconCheck size={14} /> : <span aria-hidden="true" className={cx('size-2 shrink-0 rounded-full border border-control', current && 'bg-ink')} />}
-              {step.pass === 'triage' ? 'Sort' : step.title}
+              {step.title}
             </span>
             <span className="mt-1 block t-meta text-ink-2 tabular">{step.done} / {step.total}</span>
           </li>

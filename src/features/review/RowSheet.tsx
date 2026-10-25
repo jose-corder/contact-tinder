@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { deleteContacts, getDecision, saveDecision, type ContactWithDecision } from '@/db/repo'
 import type { Decision } from '@/domain/types'
-import { Button, InlineNotice, ScrollFallback, Sheet, SheetFooterActions } from '@/ui'
+import { Button, InlineNotice, ScrollFallback, Sheet, SheetConfirm, SheetFooterActions } from '@/ui'
+import { normalizeDecision } from '@/domain/taxonomy'
+import { registerDecisionRecovery } from './undo'
+import { destinationLabel } from './QuickActions'
 import ClassificationEditor from './ClassificationEditor'
 import { ContactFields, ContactIdentity } from './ContactFields'
 import { prepareReswipe } from './reswipe'
@@ -22,29 +25,25 @@ export default function RowSheet({ row, onClose, pane = false }: { row: ContactW
     if (locked.current) return false
     locked.current = true; setBusy(true); setSaveError('')
     try {
-      await saveDecision({ ...next, updatedAt: Math.max(Date.now(), decision.updatedAt + 1) })
+      const after = normalizeDecision({ ...next, updatedAt: Math.max(Date.now(), decision.updatedAt + 1) })
+      await saveDecision(after)
+      if (decision.bucket !== after.bucket) registerDecisionRecovery({ before: [decision], after: [after] },
+        contact.displayName + ' → ' + destinationLabel(after.bucket ?? 'unsorted'))
       setDecision(await getDecision(contact.id)); return true
     }
     catch { setSaveError('Could not save this change. Please try again.'); return false }
     finally { locked.current = false; setBusy(false) }
   }
   const close = () => { if (!locked.current) onClose() }
-  const footer = <>
-    {confirm && <div className="space-y-3 pb-4">
-      <p className="t-body text-ink-2">Remove this contact and its decisions from this app? Your phone's address book is unchanged.</p>
-      <Button full loading={busy} onClick={async () => {
-        if (locked.current) return
-        locked.current = true; setBusy(true); setRemoveError('')
-        try { await deleteContacts([contact.id]); onClose() }
-        catch { setRemoveError('Could not remove this contact. Please try again.') }
-        finally { locked.current = false; setBusy(false) }
-      }}>Confirm removal</Button>
-      {removeError && <InlineNotice tone="error">{removeError}</InlineNotice>}
-      <Button full variant="ghost" disabled={busy} onClick={() => setConfirm(false)}>Cancel removal</Button>
-    </div>}
-    <SheetFooterActions secondary={{ label: 'Remove from app', onClick: () => setConfirm(true), disabled: busy || confirm }}
-      primary={{ label: 'Done', onClick: close, disabled: busy }} />
-  </>
+  async function remove() {
+    if (locked.current) return
+    locked.current = true; setBusy(true); setRemoveError('')
+    try { await deleteContacts([contact.id]); onClose() }
+    catch { setRemoveError('Could not remove this contact. Please try again.') }
+    finally { locked.current = false; setBusy(false) }
+  }
+  const footer = <SheetFooterActions secondary={{ label: 'Remove from app', onClick: () => setConfirm(true), disabled: busy || confirm }}
+    primary={{ label: 'Done', onClick: close, disabled: busy }} />
   const content = <ScrollFallback>
     <ContactIdentity contact={contact} />
     <ClassificationEditor decision={decision} busy={busy} error={saveError} save={save} />
@@ -62,6 +61,12 @@ export default function RowSheet({ row, onClose, pane = false }: { row: ContactW
       <p className="t-meta text-ink-2">Nothing changes until you swipe.</p>
       {deckError && <InlineNotice tone="error">{deckError}</InlineNotice>}
     </div>
+    {confirm && <fieldset disabled={busy} aria-busy={busy}>
+      <SheetConfirm title="Remove from app?" tone="danger"
+        body="Remove this contact and its decisions from this app? Your phone's address book is unchanged."
+        confirmLabel="Confirm removal" cancelLabel="Cancel removal" onConfirm={() => void remove()} onCancel={() => setConfirm(false)} />
+      {removeError && <InlineNotice tone="error">{removeError}</InlineNotice>}
+    </fieldset>}
   </ScrollFallback>
   return pane ? <section aria-label="Contact details" className="flex min-w-0 flex-col rounded-[20px] border border-rule bg-paper-2 p-5">
     {content}<div className="mt-auto border-t border-rule pt-4">{footer}</div>

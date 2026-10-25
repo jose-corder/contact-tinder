@@ -7,7 +7,7 @@ import { toast } from '@/ui/toast'
 import { normalizeDecision, PERSONAL_RELATION_META, WORK_STATUS_META, toggleCustomTag } from '@/domain/taxonomy'
 import { toggleDeckType } from '@/domain/decks'
 import type { Contact, Decision, PersonalRelation, WorkStatus } from '@/domain/types'
-import { Avatar, Button, Chip, InlineNotice, Sheet, SheetFooterActions, motionProps, type ChipTone } from '@/ui'
+import { Avatar, Chip, InlineNotice, Sheet, SheetConfirm, SheetFooterActions, motionProps, type ChipTone } from '@/ui'
 import { ChipRow } from './ChipRow'
 import { DECK_MOTION, useDeckReducedMotion } from './motion'
 
@@ -41,6 +41,7 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
   const title = bucket === 'work' ? 'Work' : 'Personal'
   const primaryValue = bucket === 'work' ? draft.workStatus : draft.relation
   const types = bucket === 'work' ? draft.workTypes : draft.personalTypes
+  const canComplete = !!primaryValue || (bucket === 'personal' && types.length > 0)
   const changed = ['workStatus', 'relation', 'workTypes', 'personalTypes', 'customTags'].some(key =>
     JSON.stringify(draft[key as keyof Decision]) !== JSON.stringify(target.decision[key as keyof Decision]))
   const close = (saved?: Decision) => { onClose(saved); afterClose.current?.() }
@@ -71,9 +72,9 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
     : (Object.keys(PERSONAL_RELATION_META) as PersonalRelation[]).map((key) => ({ key, ...PERSONAL_RELATION_META[key], tone: (key === 'ex' ? 'delete' : key === 'other' ? 'skip' : 'personal') as ChipTone }))
   const setPrimary = (key: WorkStatus | PersonalRelation) => setDraft((d) => bucket === 'work'
     ? { ...d, workStatus: d.workStatus === key ? undefined : key as WorkStatus }
-    : normalizeDecision({ ...d, relation: d.relation === key ? undefined : key as PersonalRelation }))
+    : { ...d, relation: d.relation === key ? undefined : key as PersonalRelation })
   const done = async (typesOnly = false) => {
-    if (saving.current || (!typesOnly && !primaryValue)) return
+    if (saving.current || (!typesOnly && !canComplete)) return
     changeBusy(true); setError(undefined)
     try {
       const values = typesOnly ? { ...target.decision, workTypes: draft.workTypes, personalTypes: draft.personalTypes, customTags: draft.customTags } : draft
@@ -91,17 +92,9 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
   }
   return <Sheet open onClose={dismiss} title={`${bucket} contact`} footer={
     <div ref={footerRef}>
-      {confirmLater && <div className="mb-2" role="group" aria-label="Unsaved selections">
-        <div className="deck-later-confirm flex items-center gap-1 t-meta">
-          <span>{types.length ? bucket === 'personal' && !target.decision.relation ? `Keep ${types.length} types · counts as Other` : `Keep ${types.length} selected types?` : draft.customTags.length ? 'Keep selected tags?' : 'Leave details for later?'}</span>
-          <Button variant="outline" disabled={busy} onClick={() => void done(true)}>Keep</Button>
-          <Button variant="ghost" disabled={busy} onClick={() => close()}>Discard</Button>
-        </div>
-        <p className="t-meta text-ink-2">{bucket === 'personal' ? 'A type without a relation is saved as Other' : 'Keep saves types and tags only; finish the status later.'}</p>
-      </div>}
       <SheetFooterActions
       secondary={{ label: 'Later', onClick: dismiss, disabled: busy }}
-      primary={{ label: 'Done', onClick: () => void done(), disabled: !primaryValue, loading: busy }} />
+      primary={{ label: 'Done', onClick: () => void done(), disabled: !canComplete, loading: busy }} />
     </div>
   }>
     <div className="deck-followup-body">
@@ -125,6 +118,13 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
       <ChipRow pass={bucket} draft={draft} toggleChip={(key) => setDraft((d) => toggleDeckType(d, bucket, key))}
         toggleTag={(tag) => setDraft((d) => toggleCustomTag(d, tag))} inputRef={inputRef} open={tagOpen} setOpen={setTagOpen} disabled={busy} sheet />
       {error && <InlineNotice tone="error">{error}</InlineNotice>}
+      {confirmLater && <fieldset disabled={busy} className="min-w-0">
+        <SheetConfirm title="Unsaved selections"
+          body={<>{types.length ? bucket === 'personal' && !target.decision.relation ? `Keep ${types.length} types · counts as Other` : `Keep ${types.length} selected types?` : draft.customTags.length ? 'Keep selected tags?' : 'Leave details for later?'}
+            <p>{bucket === 'personal' ? 'A type without a relation is saved as Other' : 'Keep saves types and tags only; finish the status later.'}</p></>}
+          confirmLabel="Keep" cancelLabel="Discard" onConfirm={() => void done(true)}
+          onCancel={() => { if (!saving.current) close() }} />
+      </fieldset>}
       <div className="flex items-center gap-2 t-meta text-ink-2">
         <span>Turn this off in</span>
         <button type="button" className="hit-44 underline" disabled={busy} onClick={() => {

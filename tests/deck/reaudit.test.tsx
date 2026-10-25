@@ -1,3 +1,4 @@
+// Audit #41: literal pass titles come from taxonomy.
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createRef } from 'react'
 import { MemoryRouter } from 'react-router'
@@ -37,7 +38,7 @@ it('#47/#13 shows SORTED only after classification, focuses the heading and anno
   const view = show()
   const focus = vi.spyOn(HTMLElement.prototype, 'focus')
   await click('Delete')
-  const heading = await screen.findByRole('heading', { name: 'Triage done.' })
+  const heading = await screen.findByRole('heading', { name: 'Sorting done.' })
   await waitFor(() => expect(heading).toHaveFocus())
   expect(heading).toHaveAttribute('tabindex', '-1')
   expect(focus).toHaveBeenCalledWith({ preventScroll: true })
@@ -56,7 +57,8 @@ it('#47 explicitly resets only the skipped session, preserving unrelated skips a
   await repo.saveDecision({ ...emptyDecision('a'), customTags: ['keep'] })
   show()
   await click('Skip'); await click('Skip')
-  expect(await screen.findByRole('heading', { name: 'Pass finished' })).toHaveFocus()
+  const heading = await screen.findByRole('heading', { name: 'Pass finished' })
+  await waitFor(() => expect(heading).toHaveFocus())
   expect(screen.queryByText('SORTED')).not.toBeInTheDocument()
   expect(screen.getByText('1 still need sorting')).toBeInTheDocument()
   expect(screen.getByText('This session: 0 of 1 classified')).toBeInTheDocument()

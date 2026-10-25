@@ -86,12 +86,13 @@ it('retains separate restore identities and conflicts on undoing an older restor
   expect(await undoRestore(second.restoreId)).toBe(true)
   expect((await restoreHistory()).map(entry => entry.id)).toEqual([first.restoreId])
 })
-it('retains only the last three entries and never redirects an evicted ID', async () => {
+it('retains all four unexpired IDs and reviews A instead of reporting expiration (#1/#56)', async () => {
   const ids: string[] = []
   for (let i = 0; i < 4; i++) ids.push((await restoreJson(backup())).restoreId)
   expect(new Set(ids).size).toBe(4)
-  expect((await restoreHistory()).map(entry => entry.id)).toEqual(ids.slice(1))
-  expect(await undoRestore(ids[0])).toBe(false)
+  expect((await restoreHistory()).map(entry => entry.id)).toEqual(ids)
+  for (const id of ids.slice(0, -1)) expect(await undoRestore(id)).toMatchObject({ conflict: true, restoreId: id })
+  expect(await undoRestore(ids[3])).toBe(true)
 })
 it('merge Undo restores overwritten data, removed photos and decisions, preserving older entries', async () => {
   const first = await restoreJson(backup())

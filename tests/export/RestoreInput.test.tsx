@@ -117,3 +117,19 @@ it('binds older toast actions to their original recovery entry', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Roll back data' }))
   await waitFor(async () => expect((await allContacts()).map(c => c.id)).toEqual(['existing']))
 })
+
+it('keeps four notices and the queued A action reviews A without claiming expiration (#1/#56)', async () => {
+  render(<MemoryRouter><RestoreInput /></MemoryRouter>)
+  for (const suffix of ['A', 'B', 'C', 'D']) {
+    choose(backup.replaceAll('new', suffix))
+    fireEvent.click(await screen.findByRole('button', { name: "Replace this app's data" }))
+    await screen.findByLabelText('Choose backup file')
+    // The input mounts before announce() finishes; a real user must wait for it to unlock.
+    await waitFor(() => expect(screen.getByLabelText('Choose backup file')).toBeEnabled())
+  }
+  await waitFor(() => expect(screen.getAllByRole('button', { name: 'Undo restore' })).toHaveLength(4))
+  const oldest = vi.mocked(toast).mock.calls[0][1]!.action!
+  await act(async () => { oldest.onClick() })
+  expect(await screen.findByRole('heading', { name: 'Review rollback' })).toBeVisible()
+  expect(vi.mocked(toast).mock.calls.some(([text]) => /expired|no longer available/i.test(String(text)))).toBe(false)
+})

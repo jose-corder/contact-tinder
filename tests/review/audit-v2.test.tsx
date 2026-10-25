@@ -1,3 +1,4 @@
+import { recoveryStore } from '@/ui/recoveryStore'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
@@ -12,7 +13,7 @@ import { readRawFields } from '@/import/rawFields'
 import { row } from '../export/fixtures'
 
 beforeEach(async () => { await repo.resetAll(); window.sessionStorage.clear() })
-afterEach(() => { cleanup(); notices.dismissToast(); vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); recoveryStore.list().forEach(entry => recoveryStore.remove(entry.id)); notices.dismissToast(); vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 it('#23/#46/#39: compact identity precedes classification; all preserved fields and original records are available', async () => {
   const item = row('Maria', { bucket: 'personal' })
@@ -97,13 +98,12 @@ it('#5/#34: single-row move requests ten seconds of high-priority Undo', async (
   await waitFor(async () => expect(await repo.getDecision('Maria')).toEqual(item.decision))
 })
 
-it('#54/#35: persisted pairs appear above an unfiltered list and the panel can be hidden', async () => {
+it('#54/#35: pair mode excludes the ordinary list and Back to list restores it', async () => {
   await repo.upsertContacts(['A', 'B', 'C'].map(id => row(id).contact))
   await repo.setMeta('possibleDuplicates', [{ ids: ['A', 'B', 'missing'], reason: 'Shared phone' }])
   render(<MemoryRouter initialEntries={['/review?tab=unsorted&dupes=1']}><ReviewScreen /></MemoryRouter>)
   expect(await screen.findByRole('region', { name: 'Possible duplicates' })).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Possible duplicates' })).toHaveAttribute('aria-pressed', 'true')
-  expect(screen.getAllByRole('button', { name: /^View/ })).toHaveLength(3)
-  fireEvent.click(screen.getByRole('button', { name: 'Possible duplicates' }))
+  expect(screen.queryByRole('button', { name: /^View/ })).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole('link', { name: 'Back to list' }))
   expect(screen.getAllByRole('button', { name: /^View/ })).toHaveLength(3)
 })

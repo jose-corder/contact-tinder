@@ -1,3 +1,4 @@
+import { recoveryStore } from '@/ui/recoveryStore'
 // Audit #6/#21/#22/#23/#31/#46: scoped search, radios, selection, visible identity and advanced fields.
 // Audit #30: row names now include organization and classification.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -19,7 +20,7 @@ beforeEach(async () => {
     phones: [{ value: `555-000${i}` }], emails: [{ value: `${r.contact.id}@example.com` }] })))
   await saveDecisions(seeded.map((r) => r.decision))
 })
-afterEach(() => { cleanup(); vi.useRealTimers() })
+afterEach(() => { cleanup(); recoveryStore.list().forEach(entry => recoveryStore.remove(entry.id)); vi.useRealTimers() })
 
 function open(path = '/review') {
   render(<MemoryRouter initialEntries={[path]}><Routes>

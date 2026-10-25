@@ -7,8 +7,8 @@ export function completePersonalTypes(decision: Decision): Decision {
 }
 
 export function toggleDeckType(decision: Decision, pass: Pass, key: WorkType | PersonalType): Decision {
-  // #53: explicit draft edits use the same rule as persistence, never a display inference.
-  return normalizeDecision(toggleChip(decision, pass, key))
+  // #60: selecting a chip is a draft edit; only an explicit completion infers Other.
+  return toggleChip(decision, pass, key)
 }
 
 export function nextUnfinishedPass(pass: Pass, counts: Counts): Pass | undefined {

@@ -1,6 +1,6 @@
 .deck-card { perspective: 1200px; }
 .deck-face { box-shadow: var(--shadow-card); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-.deck-front-scroll { overscroll-behavior: contain; scrollbar-width: thin; }
+.deck-front-scroll { overflow: visible; }
 .deck-field-row { height: 28px; }
 .deck-card-meta { margin-top: 4px; }
 .deck-chip-rail { scrollbar-width: thin; padding: 4px 2px; }
@@ -30,7 +30,6 @@
 .deck-toolbar-compact .deck-actions > div { flex-direction: row; justify-content: center; }
 .deck-toolbar-compact .deck-action-circle { width: 44px !important; height: 44px !important; }
 .deck-keyboard-open .deck-chip-region { scroll-margin-block: 4px; }
-.deck-later-confirm button { padding-inline: 8px; font: inherit; }
 @media (orientation: landscape) and (max-height: 500px) {
   .deck-screen { max-width: 900px; }
   .deck-subtitle { margin-bottom: 2px; }
@@ -45,22 +44,22 @@
 
 /* #14/#38/#57: reserve actual feedback height and let the column scroll. */
 .deck-column { min-width: 0; }
-.deck-stage { min-height: 240px; flex-shrink: 0; }
+.deck-stage { min-height: 320px; flex-shrink: 0; }
 .deck-toolbar { background: var(--paper); padding-bottom: max(4px, env(safe-area-inset-bottom)); }
 .deck-action-caption { min-height: 44px; display: flex; align-items: center; }
-.deck-later-confirm { flex-wrap: wrap; }
-.deck-later-confirm > span { flex: 1 0 100%; }
 .deck-field-row:has(.deck-copy-feedback [role='status']:not(:empty)) { height: auto; min-height: 28px; }
 .deck-copy-feedback:has([role='status']:not(:empty)) { display: block; white-space: normal; }
 .deck-column[data-constrained='true'] .deck-active { flex: 1 0 auto; }
-.deck-column[data-constrained='true'] [data-scroll-stage] { height: max(240px, 40dvh); min-height: 240px; flex: none; }
+.deck-column[data-constrained='true'] [data-scroll-stage] { height: auto; min-height: 240px; flex: none; }
 .deck-column[data-constrained='true'] .deck-toolbar { position: sticky; bottom: var(--deck-keyboard-inset, 0px); z-index: 30; }
-/* Keep the card's internal faces bounded despite the shared fallback's broad utilities. */
-.deck-column[data-constrained='true'] .deck-card,
-.deck-column[data-constrained='true'] .deck-card > div { height: 100%; min-height: 0; }
-.deck-column[data-constrained='true'] .deck-face { min-height: 0; overflow: hidden; }
-.deck-column[data-constrained='true'] .deck-front-scroll,
-.deck-column[data-constrained='true'] [aria-label='All contact fields'] { min-height: 0; flex: 1 1 0; overflow-y: auto; }
+/* #39: the active face contributes its full height; the deck owns constrained scrolling. */
+.deck-column[data-constrained='true'] .deck-current-card { position: relative; }
+.deck-card[data-constrained='true'],
+.deck-card[data-constrained='true'] > div { height: auto; min-height: 0; }
+.deck-card[data-constrained='true'] .deck-face { position: relative; min-height: 240px; overflow: visible; }
+.deck-card[data-constrained='true'] .deck-face[data-active='false'] { display: none; }
+.deck-card[data-constrained='true'] .deck-front-scroll,
+.deck-card[data-constrained='true'] [aria-label='All contact fields'] { flex: none; overflow: visible; }
 .deck-column[data-constrained='true'] .deck-chip-rail { flex-wrap: wrap; overflow: visible; }
 .deck-desktop-context { display: none; }
 @media (min-width: 1024px) and (pointer: fine) {

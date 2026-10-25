@@ -114,7 +114,7 @@ function ActiveDeck({ pass, deck, coach, onSwipe, undo, locked }: {
   return <div className={`deck-active flex min-h-0 flex-1 flex-col ${keyboard ? 'deck-keyboard-open' : ''}`}>
     <div ref={stage.ref} data-deck-stage data-scroll-stage className="deck-stage relative mb-2 flex-1">
       {deck.next && <NextCard contact={deck.next.contact} stageHeight={stage.height} advancing={!!swipe.committing} />}
-      <motion.div ref={swipe.cardRef} className="absolute inset-0 z-10" style={{ x: reduced ? 0 : swipe.x, y: reduced ? 0 : swipe.y, rotate: reduced ? 0 : swipe.rotate, opacity: swipe.opacity, touchAction: scrollable || detailsOpen || stage.height < 240 ? 'pan-y' : 'none' }}
+      <motion.div ref={swipe.cardRef} className="deck-current-card absolute inset-0 z-10" style={{ x: reduced ? 0 : swipe.x, y: reduced ? 0 : swipe.y, rotate: reduced ? 0 : swipe.rotate, opacity: swipe.opacity, touchAction: scrollable || detailsOpen || stage.height < 240 ? 'pan-y' : 'none' }}
         onPointerDown={swipe.onPointerDown} onPan={swipe.drag && !detailsOpen ? swipe.onDrag : undefined}
         onPanEnd={!detailsOpen ? swipe.onDragEnd : undefined} onPointerCancel={detailsOpen ? undefined : swipe.cancel}>
         <SwipeCard key={cardKey} contact={deck.top.contact} stageHeight={stage.height} onFlip={setDetailsOpen} />

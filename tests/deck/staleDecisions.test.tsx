@@ -32,7 +32,7 @@ it('deck_stale_snapshot_does_not_overwrite_another_tab: existing and never-store
   const moved = applySwipe(await repo.getDecision('b'), 'triage', 'up', 11)
   await repo.saveDecision(moved)
   await act(async () => { await work.result.current.swipe('down') })
-  expect(save).toHaveBeenLastCalledWith(expect.anything(), { expectedUpdatedAt: 10 })
+  expect(save).toHaveBeenLastCalledWith(expect.anything(), { exact: true, expectedUpdatedAt: 10 })
   expect(await repo.getDecision('b')).toEqual(moved)
   expect(work.result.current.remaining).toBe(0)
   expect(work.result.current.canUndo).toBe(false)

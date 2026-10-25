@@ -48,6 +48,8 @@ describe('Home dashboard', () => {
     expect(screen.getByText('5 classified, 3 fully sorted')).toBeInTheDocument()
     expect(within(ring).getByText('50%')).toBeInTheDocument()
     const steps = within(screen.getByRole('list', { name: 'Sorting passes' })).getAllByRole('listitem')
+    // #41: the stepper uses the literal taxonomy title.
+    expect(within(steps[0]).getByText('Sort contacts')).toBeVisible()
     // Finding #23: Work is current even though Triage has a skipped card.
     expect(steps[0]).not.toHaveAttribute('aria-current')
     expect(steps[1]).toHaveAttribute('aria-current', 'step')

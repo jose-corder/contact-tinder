@@ -1,9 +1,10 @@
 import Dexie from 'dexie'
 import type { Contact } from '@/domain/types'
 import { db } from '@/db/schema'
-import { allContacts, deleteContacts, getMeta, setMeta, upsertContacts } from '@/db/repo'
-import { mergeContactFields, type PossibleDuplicate } from './dedupe'
-import { migrateDecisions } from './decisions'
+import { allContacts, getMeta, setMeta } from '@/db/repo'
+import type { PossibleDuplicate } from './dedupe'
+export { prepareMerge, mergePair, undoMerge, type MergeComparison, type MergeOptions, type MergeResult, type UndoMergeResult } from './merge'
+export { proposedDecision, type DecisionChoice } from './mergeDecision'
 
 export type DuplicateIdentity = Pick<Contact, 'id' | 'displayName' | 'org'>
 export type PairResolution = 'kept' | 'merged' | 'dismissed'
@@ -55,13 +56,18 @@ export function prunePairs(pairs: DuplicatePair[], contacts: Contact[]): Duplica
 export async function readPossibleDuplicates(): Promise<DuplicatePair[]> {
   const read = async () => {
     const contacts = await allContacts()
-    const stored = await getMeta<Array<DuplicatePair | PossibleDuplicate>>('possibleDuplicates', [])
-    const pairs = stored.flatMap(pair => 'a' in pair ? [pair] : candidatePairs([{
-      ...pair, reason: ['shared phone', 'shared email', 'same name'].includes(pair.reason) ? pair.reason : 'same name',
-    }], contacts, 0))
-    return prunePairs(pairs, contacts)
+    return prunePairs(await readStoredPairs(contacts), contacts)
   }
   return Dexie.currentTransaction ? read() : db.transaction('r', db.contacts, db.meta, read)
+}
+
+/** #59: mutations must read candidates before a live view prunes missing members. */
+export async function readStoredPairs(contacts?: Contact[]): Promise<DuplicatePair[]> {
+  const stored = await getMeta<Array<DuplicatePair | PossibleDuplicate>>('possibleDuplicates', [])
+  const known = contacts ?? await allContacts()
+  return stored.flatMap(pair => 'a' in pair ? [pair] : candidatePairs([{
+    ...pair, reason: ['shared phone', 'shared email', 'same name'].includes(pair.reason) ? pair.reason : 'same name',
+  }], known, 0))
 }
 
 /** Persist a resolution without racing another tab's import or pair action. */
@@ -71,23 +77,7 @@ export async function savePairResolution(id: string, resolution: PairResolution)
   })
 }
 
-/** Explicitly merge b into a, preserving fields, decisions and tag counts atomically. */
-export async function mergePair(aId: string, bId: string): Promise<void> {
-  if (aId === bId) throw new Error('Choose two different contacts to merge.')
-  await db.transaction('rw', db.contacts, db.decisions, db.tags, db.meta, async () => {
-    const [a, b] = await db.contacts.bulkGet([aId, bId])
-    if (!a || !b) throw new Error('A contact in this pair no longer exists. Refresh the duplicate list.')
-    await upsertContacts([mergeContactFields(a, b)])
-    await migrateDecisions([{ from: bId, to: aId }])
-    await deleteContacts([bId])
-    await setMeta('possibleDuplicates', await readPossibleDuplicates())
-  })
-}
-
-/** Review agent contract (#35/#54): /review?dupes=1 is a cross-list "Possible duplicates"
- * view. useLiveQuery(readPossibleDuplicates) returns live pairs; filter !pair.resolved, then
- * display both names/organizations and reason.
- * Keep both / Dismiss call savePairResolution(id, 'kept' | 'dismissed'), which uses the pure
- * resolvePair helper. Merge calls mergePair(a.id, b.id). Deleted-member pairs are excluded
- * immediately from live views and pruned from persisted metadata on the next import/action.
- */
+/** Review integration (#58): prepareMerge is read-only. Present both saved classifications,
+ * sharedValues and proposedSurvivor, then pass keepDecisionFrom on confirmation.
+ * MergeComparison in features/import implements that review; retain result.mergeId for
+ * undoMerge, or mount MergeRecovery to recover persisted entries after navigation. */

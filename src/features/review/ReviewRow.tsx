@@ -1,8 +1,8 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { animate, motion, useMotionValue } from 'framer-motion'
 import { saveDecision, type ContactWithDecision } from '@/db/repo'
-import { BUCKET_META, WORK_STATUS_META, PERSONAL_RELATION_META, setBucket } from '@/domain/taxonomy'
-import { decisionLabels } from '@/domain/taxonomy'
+import { BUCKET_META, WORK_STATUS_META, PERSONAL_RELATION_META, normalizeDecision, setBucket } from '@/domain/taxonomy'
+import { uiDecisionLabels } from './labels'
 import QuickActions, { RevealedActions, destinationsFor, destinationLabel, type Destination } from './QuickActions'
 import { Avatar, IconButton, InlineNotice, LabelDot, formatPhone, useMediaQuery } from '@/ui'
 import { IconMore } from '@/ui/icons'
@@ -47,7 +47,7 @@ export default memo(function ReviewRow({ row: { contact, decision }, selecting, 
   const status = decision.bucket === 'work' && decision.workStatus ? WORK_STATUS_META[decision.workStatus] : undefined
   const relation = decision.bucket === 'personal' && decision.relation ? PERSONAL_RELATION_META[decision.relation] : undefined
   const classification = [bucket?.label ?? 'Unsorted', status?.label, relation?.label].filter(Boolean).join(' · ')
-  const labels = decisionLabels(decision)
+  const labels = uiDecisionLabels(decision)
   const summary = labels.slice(decision.bucket ? 1 + (status || relation ? 1 : 0) : 0)
   const accessible = [contact.displayName, contact.org, ...(decision.bucket ? labels : ['Unsorted', ...decision.customTags])].filter(Boolean).join(', ')
   async function move(destination: Destination) {
@@ -57,7 +57,7 @@ export default memo(function ReviewRow({ row: { contact, decision }, selecting, 
       const next = setBucket(decision, destination === 'unsorted' ? undefined : destination, Math.max(Date.now(), decision.updatedAt + 1))
       await saveDecision(next)
       reveal(false); setMenu(false)
-      rowUndoToast(decision, next, `${contact.displayName} → ${destinationLabel(destination)}`, destination === 'unsorted' ? 'default' : destination)
+      rowUndoToast(decision, normalizeDecision(next), `${contact.displayName} → ${destinationLabel(destination)}`, destination === 'unsorted' ? 'default' : destination)
     } catch { setError('Could not move contact. Please try again.') }
     finally { setBusy(false) }
   }

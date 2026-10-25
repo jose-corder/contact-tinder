@@ -1,6 +1,9 @@
-import { dumpAll, restoreAll, setMeta, getMeta, type Dump, type RestoreMode } from '@/db/repo'
+import { dumpAll, restoreAll, setMeta, type Dump, type RestoreMode } from '@/db/repo'
 import { db } from '@/db/schema'
 import { hash } from '@/import/hash'
+import { readStoredPairs } from '@/import/duplicates'
+import { canonical, recoveryId, recoveryHistory, saveRecoveryHistory, RESTORE_UNDO_MS, type RestoreEntry } from './recovery'
+export { RESTORE_UNDO_MS, restoreHistory, recoveryHistory, type RestoreEntry, type RecoveryEntry, type MergeEntry } from './recovery'
 
 type RecordValue = Record<string, unknown>
 const object = (value: unknown): value is RecordValue => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -77,14 +80,6 @@ export interface RestorePreview {
   details: { addedIds: string[]; changedIds: string[]; removedIds: string[]; decisionRemovedIds: string[] }
 }
 
-// Ignore property order, including for import-owned metadata preserved in backups.
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return '[' + value.map(canonical).join(',') + ']'
-  if (object(value)) return '{' + Object.keys(value).filter((key) => value[key] !== undefined).sort()
-    .map((key) => JSON.stringify(key) + ':' + canonical(value[key])).join(',') + '}'
-  return JSON.stringify(value) ?? ''
-}
-
 /** Read-only comparison with a consistent live snapshot; no file selection writes. */
 export async function previewRestore(text: string): Promise<RestorePreview> {
   const backup = parseBackup(text)
@@ -105,19 +100,6 @@ export async function previewRestore(text: string): Promise<RestorePreview> {
     details: { addedIds, changedIds, removedIds, decisionRemovedIds } }
 }
 
-export const RESTORE_UNDO_MS = 10 * 60 * 1000
-export interface RestoreEntry {
-  readonly id: string
-  at: number
-  mode: RestoreMode
-  snapshot: { dump: Dump; photos: Array<{ id: string; photo: Blob }> }
-  revisionAfter: string
-  /** Backup date for the persistent recovery label (older entries may omit it). */
-  backupAt?: string
-}
-const restoreId = () => globalThis.crypto?.randomUUID?.() ??   Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)
-export const restoreHistory = () => getMeta<RestoreEntry[]>('restoreHistory', [])
-
 /** Content revision, independent of metadata. Hashes also catch same-timestamp edits and enrichment imports. */
 export async function dbRevision(): Promise<string> {
   return db.transaction('r', db.contacts, db.decisions, async () => {
@@ -130,19 +112,19 @@ export async function dbRevision(): Promise<string> {
 }
 
 async function snapshotState() {
-  return { dump: await dumpAll(), photos: (await db.contacts.toArray()).flatMap((c) => c.photo ? [{ id: c.id, photo: c.photo }] : []) }
+  return { dump: await dumpAll(), pairs: await readStoredPairs(), photos: (await db.contacts.toArray()).flatMap((c) => c.photo ? [{ id: c.id, photo: c.photo }] : []) }
 }
 
 export async function restoreJson(text: string, mode: RestoreMode = 'replace'): Promise<{ contacts: number; decisions: number; restoreId: string }> {
   const parsed = parseBackup(text)
-  const id = restoreId()
+  const id = recoveryId()
   await db.transaction('rw', db.contacts, db.decisions, db.tags, db.meta, async () => {
     const snapshot = await snapshotState()
-    const history = await restoreHistory()
+    const history = await recoveryHistory()
     await restoreAll(parsed, mode)
-    const entry: RestoreEntry = { id, at: Date.now(), mode, snapshot,
+    const entry: RestoreEntry = { id, kind: 'restore', at: Date.now(), mode, snapshot,
       backupAt: parsed.exportedAt, revisionAfter: await dbRevision() }
-    await setMeta('restoreHistory', [...history, entry].slice(-3))
+    await saveRecoveryHistory([...history, entry])
   })
   return { contacts: parsed.contacts.length, decisions: parsed.decisions.length, restoreId: id }
 }
@@ -152,12 +134,12 @@ export type UndoRestoreResult = boolean | { conflict: true; preview: RestorePrev
 /** #56: both the recovery and any conflict approval target one immutable entry. */
 export async function undoRestore(id: string, approvedRevision?: string): Promise<UndoRestoreResult> {
   return db.transaction('rw', db.contacts, db.decisions, db.tags, db.meta, async () => {
-    const history = await restoreHistory()
+    const history = await recoveryHistory()
     const entry = history.find(item => item.id === id)
-    if (!entry) return false
+    if (!entry || entry.kind !== 'restore') return false
     const remaining = history.filter(item => item.id !== id)
     if (Date.now() - entry.at >= RESTORE_UNDO_MS) {
-      await setMeta('restoreHistory', remaining)
+      await saveRecoveryHistory(remaining)
       return false
     }
     const revision = await dbRevision()
@@ -169,13 +151,15 @@ export async function undoRestore(id: string, approvedRevision?: string): Promis
       return { conflict: true, preview: await previewRestore(JSON.stringify(entry.snapshot.dump)), revision: approvalRevision, restoreId: id }
     }
     const newer = changed ? await snapshotState() : null
+    // repo.restoreAll uses exact decision writes (#61).
     await restoreAll(entry.snapshot.dump, 'replace')
+    if (entry.snapshot.pairs) await setMeta('possibleDuplicates', entry.snapshot.pairs)
     // Absence of a thumbnail in the snapshot is meaningful too.
     await db.contacts.toCollection().modify(contact => { delete contact.photo })
     for (const { id, photo } of entry.snapshot.photos) await db.contacts.update(id, { photo })
-    if (newer) remaining.push({ id: restoreId(), at: Date.now(), mode: 'replace', snapshot: newer,
+    if (newer) remaining.push({ id: recoveryId(), kind: 'restore', at: Date.now(), mode: 'replace', snapshot: newer,
       backupAt: newer.dump.exportedAt, revisionAfter: await dbRevision() })
-    await setMeta('restoreHistory', remaining.slice(-3))
+    await saveRecoveryHistory(remaining)
     return true
   })
 }

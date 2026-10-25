@@ -4,6 +4,7 @@ import { previewRestore, restoreJson, type RestorePreview } from '@/export/json'
 import { readText } from '@/import/readFile'
 import { Button, InlineNotice } from '@/ui'
 import { useRestoreRecovery } from './useRestoreRecovery'
+import MergeRecovery from '@/features/import/MergeRecovery'
 
 export default function RestoreInput({ label = 'Choose backup file' }: { label?: string }) {
   const { recovery, announce } = useRestoreRecovery()
@@ -41,6 +42,7 @@ export default function RestoreInput({ label = 'Choose backup file' }: { label?:
   const decisionRemovals = mode === 'replace' ? preview?.details.decisionRemovedIds.length ?? 0 : 0
   const changed = preview ? new Set([...preview.details.changedIds, ...(mode === 'replace' ? preview.details.decisionRemovedIds : [])]).size : 0
   return <div className="space-y-3">
+    <MergeRecovery />
     {recovery}
     {!review ? <>
       <p className="t-body text-ink-2">Choose a backup to review its contacts and saved decisions before restoring.</p>

@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useLocation, useNavigate } from 'react-router'
-import { RESTORE_UNDO_MS, restoreHistory, undoRestore, type RestoreEntry, type UndoRestoreResult } from '@/export/json'
+import { undoRestore, type UndoRestoreResult } from '@/export/json'
+import { RESTORE_UNDO_MS, restoreEntries as restoreHistory, type RestoreEntry } from '@/export/recovery'
 import { Button, InlineNotice } from '@/ui'
 import { toast } from '@/ui/toast'
 
@@ -71,7 +72,7 @@ export function useRestoreRecovery() {
       if (result && revision) {
         const newer = (await restoreHistory()).at(-1)
         if (newer) await announce(newer.id)
-      } else toast(result ? 'Restore undone' : 'Undo has expired')
+      } else toast(result ? 'Restore undone' : 'This restore recovery is no longer available')
     } catch { setMessage('Could not undo the restore. Try again.') }
     finally { locked.current = false; setBusy(false) }
   }

@@ -36,7 +36,7 @@ export function ChipRow({ pass, draft, toggleChip, toggleTag, inputRef, open, se
       {draft.customTags.map((tag) => <Chip key={tag} label={tag} selected tone="ink" disabled={disabled} onClick={() => toggleTag(tag)} />)}
       <Chip label="+ tag" selected={open} disabled={disabled} onClick={() => setOpen(!open)} />
     </div>
-    {completePersonal && draft.relation && <Button disabled={disabled} onClick={completePersonal}>Done</Button>}
+    {completePersonal && (draft.relation || draft.personalTypes.length > 0) && <Button disabled={disabled} onClick={completePersonal}>Done</Button>}
     </div>
     {pass === 'personal' && !sheet && <p className="t-meta text-ink-2">A type without a relation is saved as Other</p>}
     {open && <div className="mt-2">

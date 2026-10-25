@@ -1,3 +1,4 @@
+// Audit #41: literal pass titles come from taxonomy.
 // Audit #3: persistent Undo now belongs to the top bar.
 import { StrictMode } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -156,7 +157,7 @@ describe('DeckScreen', () => {
     await seed()
     show('work')
     expect(await screen.findByText('Work sorted.')).toBeInTheDocument()
-    expect(await screen.findByRole('button', { name: 'Sort triage contacts' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Sort contacts' })).toBeInTheDocument()
   })
 
   it('reloads the local queue when the pass changes', async () => {

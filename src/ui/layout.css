@@ -1,4 +1,13 @@
 .toast-dock { min-width: 0; }
+.sheet-header, .sheet-body, .sheet-footer { min-width: 0; }
+.sheet-handle { height: 44px; }
+.sheet-title { min-height: 32px; margin-bottom: 12px; overflow-wrap: anywhere; }
+.sheet-panel[data-constrained='true'] .sheet-title { height: 32px; margin-bottom: 0; overflow: hidden; }
+.sheet-footer { background: var(--paper-2); overflow-wrap: anywhere; }
+.sheet-body { overflow-wrap: anywhere; }
+.sheet-actions > button { height: auto; min-height: 44px; padding-block: 10px; max-width: 100%; overflow-wrap: anywhere; }
+.sheet-actions-inline { margin-top: 16px; }
+.recovery-row { overflow-wrap: anywhere; }
 .toast-text {
   display: -webkit-box;
   -webkit-box-orient: vertical;

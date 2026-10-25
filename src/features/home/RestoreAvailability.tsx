@@ -6,7 +6,7 @@ import { RESTORE_UNDO_MS, restoreHistory } from '@/export/json'
 export default function RestoreAvailability() {
   const entries = useLiveQuery(restoreHistory)
   const [now, setNow] = useState(Date.now)
-  const available = (entries ?? []).filter(entry => now - entry.at < RESTORE_UNDO_MS)
+  const available = (entries ?? []).filter(entry => entry.kind === 'restore' && now - entry.at < RESTORE_UNDO_MS)
   useEffect(() => { setNow(Date.now()) }, [entries])
   useEffect(() => {
     const expiry = (entries ?? []).map(entry => entry.at + RESTORE_UNDO_MS).filter(at => at > Date.now())
@@ -14,5 +14,5 @@ export default function RestoreAvailability() {
     const timer = setTimeout(() => setNow(Date.now()), Math.max(0, Math.min(...expiry) - Date.now()))
     return () => clearTimeout(timer)
   }, [entries, now])
-  return available.length ? <p className="t-meta text-ink-2">You can undo a restore for 10 minutes</p> : null
+  return available.length ? <p className="t-meta text-ink-2">Undo available for 10 minutes; all unexpired restores are kept</p> : null
 }

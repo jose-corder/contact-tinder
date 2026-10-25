@@ -1,3 +1,4 @@
+import { recoveryStore } from '@/ui/recoveryStore'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
@@ -12,7 +13,7 @@ import { dismissToast } from '@/ui/toast'
 import { row } from '../export/fixtures'
 
 beforeEach(async () => { await repo.resetAll(); window.sessionStorage.clear() })
-afterEach(() => { cleanup(); while (getToast()) dismissToast(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); recoveryStore.list().forEach(entry => recoveryStore.remove(entry.id)); while (getToast()) dismissToast(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 it('#53: Other filters and editor use only the saved relation, then type edits persist completion', async () => {
   const legacy = row('Legacy', { bucket: 'personal', personalTypes: ['neighbor'] })
@@ -47,20 +48,25 @@ it.each(['work', 'personal', 'delete', 'unsorted'])('#54/#35: duplicate counterp
   render(<MemoryRouter initialEntries={['/review?tab=' + tab + '&dupes=1']}><ReviewScreen /></MemoryRouter>)
   const panel = within(await screen.findByRole('region', { name: 'Possible duplicates' }))
   for (const text of ['Existing', 'Incoming', 'Studio', 'School', 'shared phone']) expect(panel.getByText(text)).toBeVisible()
-  fireEvent.click(screen.getByRole('tab', { name: tab === 'work' ? /^Personal/ : /^Work/ }))
-  expect(screen.getByRole('region', { name: 'Possible duplicates' })).toBeInTheDocument()
+  expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'Back to list' })).toHaveAttribute('href', '/review?tab=' + tab)
 })
 
 it.each(['Keep both', 'Dismiss', 'Merge'])('#54: %s resolves the pair durably and shows All reviewed', async action => {
   await seedPair()
   const view = render(<MemoryRouter initialEntries={['/review?dupes=1']}><ReviewScreen /></MemoryRouter>)
   fireEvent.click(await screen.findByRole('button', { name: action }))
+  if (action === 'Merge') {
+    // #58: inspect and explicitly confirm before the mutation.
+    await screen.findByText('Saved classification: Work')
+    fireEvent.click(screen.getByRole('button', { name: 'Merge contacts' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  }
   expect(await screen.findByText('All reviewed')).toBeInTheDocument()
   expect((await readPossibleDuplicates()).filter(pair => !pair.resolved)).toHaveLength(0)
   if (action === 'Merge') {
     expect(await repo.contactById('Incoming')).toBeUndefined()
-    expect(getToast()?.message).toBe('Contacts merged')
-    expect(getToast()?.action).toBeUndefined()
+    expect(screen.getByRole('region', { name: 'Pending recoveries' })).toHaveTextContent('Merged Existing and Incoming')
   } else expect((await readPossibleDuplicates())[0].resolved).toBe(action === 'Keep both' ? 'kept' : 'dismissed')
   view.unmount()
   render(<MemoryRouter initialEntries={['/review?dupes=1']}><ReviewScreen /></MemoryRouter>)

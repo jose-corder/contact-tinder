@@ -16,6 +16,9 @@ export function useDeck(pass: Pass) {
   const completedIds = useRef(new Set<string>())
   const sessionIds = useRef<string[]>([])
   const skippedIds = useRef(new Set<string>())
+  // #60: only chips/tags travel with a skipped card; saved primary choices stay authoritative.
+  const drafts = useRef(new Map<string, Pick<Decision, 'workTypes' | 'personalTypes' | 'customTags'>>())
+  const draftFor = (item?: DeckItem) => item && { ...item.decision, ...drafts.current.get(item.contact.id) }
   const [loadAttempt, setLoadAttempt] = useState(0)
   const refreshRequested = useRef(false)
   const [refresh, setRefresh] = useState(0)
@@ -30,6 +33,7 @@ export function useDeck(pass: Pass) {
   const busy = useRef(false)
   const generation = useRef(0)
   const history = useUndo(({ item, prevDecision, direction }) => {
+    drafts.current.delete(item.contact.id)
     completedIds.current.delete(item.contact.id)
     skippedIds.current.delete(item.contact.id)
     const stillQueued = queue.some((row) => row.contact.id === item.contact.id)
@@ -53,6 +57,7 @@ export function useDeck(pass: Pass) {
     scope.current = null
     completedIds.current.clear()
     skippedIds.current.clear()
+    drafts.current.clear()
     sessionIds.current = []
     setScopeLabel(undefined)
     busy.current = false
@@ -113,6 +118,7 @@ export function useDeck(pass: Pass) {
       const retained = queue.flatMap((item) => {
         const latest = fresh.get(item.contact.id)
         fresh.delete(item.contact.id)
+        if (!latest || latest.decision.updatedAt !== item.decision.updatedAt) drafts.current.delete(item.contact.id)
         return latest ? [latest] : []
       })
       const reconciled = [...retained, ...fresh.values()]
@@ -121,7 +127,7 @@ export function useDeck(pass: Pass) {
       const sameTop = queue[0]?.contact.id === reconciled[0]?.contact.id &&
         queue[0]?.persisted === reconciled[0]?.persisted &&
         (!queue[0]?.persisted || queue[0]?.decision.updatedAt === reconciled[0]?.decision.updatedAt)
-      if (!sameTop) setDraft(reconciled[0]?.decision)
+      if (!sameTop) setDraft(draftFor(reconciled[0]))
       setEmpty(summary.total === 0)
       history.clear()
       dismissToast()
@@ -146,18 +152,23 @@ export function useDeck(pass: Pass) {
     setReturning(undefined)
     const version = generation.current
     const now = Math.max(Date.now(), item.decision.updatedAt + 1)
-    // #53: every saved type-only Personal draft follows repo normalization, including Skip.
-    const swipeDraft = direction === 'down' ? { ...draft, relation: item.decision.relation, workStatus: item.decision.workStatus } : draft
-    const decision = normalizeDecision(completion ? { ...completion, updatedAt: now } : applySwipe(swipeDraft, pass, direction, now))
+    const skipping = direction === 'down'
+    const previousDraft = drafts.current.get(item.contact.id)
+    const decision = skipping ? applySwipe(item.decision, pass, direction, now)
+      : normalizeDecision(completion ? { ...completion, updatedAt: now } : applySwipe(draft, pass, direction, now))
+    if (skipping) drafts.current.set(item.contact.id, {
+      workTypes: draft.workTypes, personalTypes: draft.personalTypes, customTags: draft.customTags,
+    })
+    else drafts.current.delete(item.contact.id)
     const stays = direction === 'down' && (scope.current?.mode === 'reclassify'
       ? decision.skips[pass] - (initialSkips.current.get(item.contact.id) ?? 0) < 2 : isInDeck(decision, pass))
     const rest = removeTop(queue)
     const nextQueue = stays ? enqueueSkipped(rest, { ...item, decision, persisted: true }) : rest
     setQueue(nextQueue)
-    setDraft(nextQueue[0]?.decision)
+    setDraft(draftFor(nextQueue[0]))
     if (!stays) { completedIds.current.add(item.contact.id); setDone((value) => value + 1) }
     try {
-      await saveDeckDecision(decision, { expectedUpdatedAt: item.persisted ? item.decision.updatedAt : null })
+      await saveDeckDecision(decision, { ...(skipping ? { exact: true } : {}), expectedUpdatedAt: item.persisted ? item.decision.updatedAt : null })
       if (version !== generation.current) return
       if (!stays && direction === 'down' && (scope.current?.mode === 'reclassify' || isUnsorted(decision, pass))) skippedIds.current.add(item.contact.id)
       history.push({ item, prevDecision: item.decision, writtenDecision: decision, direction })
@@ -165,14 +176,17 @@ export function useDeck(pass: Pass) {
     } catch (error) {
       if (version !== generation.current) return
       if (error instanceof StaleDecisionError) {
+        drafts.current.delete(item.contact.id)
         completedIds.current.add(item.contact.id)
         setQueue(rest)
-        setDraft(rest[0]?.decision)
+        setDraft(draftFor(rest[0]))
         if (stays) setDone((value) => value + 1)
         toast('This contact changed elsewhere — skipped')
         return
       }
       setQueue(queue)
+      if (previousDraft) drafts.current.set(item.contact.id, previousDraft)
+      else drafts.current.delete(item.contact.id)
       completedIds.current.delete(item.contact.id)
       setDraft(draft)
       if (!stays) setDone((value) => value - 1)
@@ -213,7 +227,7 @@ export function useDeck(pass: Pass) {
       setScopeLabel(`${items.length} selected`)
       initialSkips.current = new Map(items.map(item => [item.contact.id, 0]))
       completedIds.current.clear(); skippedIds.current.clear(); history.clear(); dismissToast()
-      initialDone.current = 0; setDone(0); setQueue(items); setDraft(items[0]?.decision)
+      initialDone.current = 0; setDone(0); setQueue(items); setDraft(draftFor(items[0]))
     } catch { throw new Error('Could not reset skips') }
     finally { if (version === generation.current) busy.current = false }
   }

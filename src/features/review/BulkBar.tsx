@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { saveDecisions, StaleDecisionError, type ContactWithDecision } from '@/db/repo'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { BUCKET_META, normalizeTag, setBucket, toggleCustomTag } from '@/domain/taxonomy'
+import { BUCKET_META, normalizeDecision, normalizeTag, setBucket, toggleCustomTag } from '@/domain/taxonomy'
 import type { Bucket, Decision } from '@/domain/types'
 import { dbRevision } from '@/export/json'
 import { ExportAction } from '@/features/export/ExportAction'
 import { vcfText } from '@/export/vcf'
-import { Button, InlineNotice, RadioGroup, Sheet, SheetFooterActions } from '@/ui'
+import { Button, InlineNotice, RadioGroup, Sheet, SheetFooterActions, useRecoveryStore } from '@/ui'
 import { dismissToast, setToastBottom, toast, type ToastHandle } from '@/ui/toast'
-import { observeVersions, snapshotUnchanged, undoDecisions, type UndoSnapshot } from './undo'
+import { registerDecisionRecovery, observeVersions, snapshotUnchanged, undoDecisions, type UndoSnapshot } from './undo'
 
 export default function BulkBar({ rows, onClear, onSelectAll, total = rows.length, resultCount = rows.length, tabLabel = 'contacts' }: {
   rows: ContactWithDecision[]; onClear: () => void; onSelectAll: () => void; total?: number; resultCount?: number; tabLabel?: string
 }) {
+  const recoveries = useRecoveryStore()
   const [open, setOpen] = useState(false)
   const [tagOpen, setTagOpen] = useState(false)
   const [tag, setTag] = useState('')
@@ -52,11 +53,12 @@ export default function BulkBar({ rows, onClear, onSelectAll, total = rows.lengt
   async function apply(next: Decision[], message: string) {
     if (locked.current) return
     const before = rows.map(({ decision }) => decision)
-    const after = next.map((decision, index) => ({ ...decision, updatedAt: Math.max(Date.now(), before[index].updatedAt + 1) }))
-    const snapshot = { before, after }
+    const after = next.map((decision, index) => normalizeDecision({ ...decision, updatedAt: Math.max(Date.now(), before[index].updatedAt + 1) }))
+    let snapshot = { before, after }
     locked.current = true; setBusy(true); setError('')
     try {
       await saveDecisions(after)
+      snapshot = registerDecisionRecovery(snapshot, message)
       observeVersions(after)
       setPrevious(snapshot); setOpen(false); setTagOpen(false); setTag('')
       if (notice.current) dismissToast(notice.current.id)
@@ -84,7 +86,7 @@ export default function BulkBar({ rows, onClear, onSelectAll, total = rows.lengt
         <ExportAction key={JSON.stringify(rows.map(row => row.contact.id))} label="selected contacts" revision={revision}
           disabled={!rows.length || busy} compact
           files={async () => [new File([vcfText(rows)], 'selected-contacts.vcf', { type: 'text/vcard' })]} />
-        {previous && <Button variant="ghost" disabled={busy} onClick={() => void undo(previous)}>Undo last action</Button>}
+        {previous && recoveries.list().some(entry => entry.id === previous.recoveryId) && <Button variant="ghost" disabled={busy} onClick={() => void undo(previous)}>Undo last action</Button>}
       </div>
       {!open && !tagOpen && error && <InlineNotice tone="error">{error}</InlineNotice>}
     </div>

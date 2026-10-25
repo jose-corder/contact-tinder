@@ -28,11 +28,11 @@ it('#54/#35/#41: Home links unresolved pairs and distinguishes classified, sorte
 it('#41: Data recovery copy appears for a real entry and disappears at expiry', async () => {
   await restoreJson(await backupJson())
   render(<MemoryRouter><SettingsScreen /></MemoryRouter>)
-  const copy = await screen.findByText('You can undo a restore for 10 minutes')
+  const copy = await screen.findByText('Undo available for 10 minutes; all unexpired restores are kept')
   expect(within(copy.closest('section')!).getByRole('heading', { name: 'Data' })).toBeVisible()
   const history = await restoreHistory()
   await act(async () => { await repo.setMeta('restoreHistory', history.map(entry => ({ ...entry, at: Date.now() - RESTORE_UNDO_MS }))) })
-  await waitFor(() => expect(screen.queryByText('You can undo a restore for 10 minutes')).not.toBeInTheDocument())
+  await waitFor(() => expect(screen.queryByText('Undo available for 10 minutes; all unexpired restores are kept')).not.toBeInTheDocument())
 })
 
 it.each(['iPhone AppleWebKit/605.1 Mobile Instagram', 'iPhone Version/18.0 Mobile Safari/605.1 FBAN/FBIOS'])('#37: embedded iOS browser gives Safari fallback: %s', userAgent => {

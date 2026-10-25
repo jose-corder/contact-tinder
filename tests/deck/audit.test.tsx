@@ -121,9 +121,9 @@ it('#4/#5 fixes the footer outside the one body scroller and owns Undo inside th
   expect((await repo.getDecision('a')).bucket).toBeUndefined()
 })
 
-it.each(['acquaintance', 'neighbor', 'service'] as const)('#7 automatically assigns Other for Personal type %s', (type) => {
+it.each(['acquaintance', 'neighbor', 'service'] as const)('#7/#60 leaves Personal type %s drafted until explicit completion', (type) => {
   const draft = { ...emptyDecision('a'), bucket: 'personal' as const }
-  expect(toggleDeckType(draft, 'personal', type).relation).toBe('other')
+  expect(toggleDeckType(draft, 'personal', type).relation).toBeUndefined()
   expect(toggleDeckType({ ...draft, relation: 'family' }, 'personal', type).relation).toBe('family')
 })
 
@@ -135,7 +135,7 @@ it('#7 saves a type-only Personal sheet and omits the contact from the later dec
   render(<FollowUpSheet target={{ contact, decision }} onClose={close} />)
   expect(screen.getByRole('button', { name: 'Other' })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Neighbor' }))
-  expect(screen.getByRole('button', { name: 'Other' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('button', { name: 'Other' })).toHaveAttribute('aria-pressed', 'false')
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Done' })) })
   await waitFor(() => expect(close).toHaveBeenCalledOnce())
   expect((await repo.getDecision('a')).relation).toBe('other')
@@ -147,7 +147,7 @@ it('#7 completes and undoes a type-only Personal deck decision', async () => {
   await repo.saveDecision({ ...emptyDecision('a'), bucket: 'personal' })
   render(<MemoryRouter><DeckScreen pass="personal" /></MemoryRouter>)
   fireEvent.click(await screen.findByRole('button', { name: 'Service provider' }))
-  expect(screen.getByRole('button', { name: 'Relation: Other' })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('button', { name: 'Relation: Other' })).toHaveAttribute('aria-pressed', 'false')
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Done' })) })
   expect(await screen.findByText('Personal sorted.')).toBeInTheDocument()
   expect((await repo.getDecision('a')).relation).toBe('other')

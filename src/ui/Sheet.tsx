@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { useMediaQuery } from './useMediaQuery'
 import { motionProps } from './motion'
 import { setToastSuppressed } from './toast'
+import { useSheetLayout } from './useSheetLayout'
 
 export interface SheetProps { open: boolean; onClose: () => void; title?: string; children: ReactNode; footer?: ReactNode }
 const sheets: HTMLElement[] = []
@@ -22,29 +23,38 @@ function lockBody() {
 
 function SheetContent({ onClose, title, children, footer }: Omit<SheetProps, 'open'>) {
   const panel = useRef<HTMLDivElement>(null)
+  const body = useRef<HTMLDivElement>(null)
+  const header = useRef<HTMLDivElement>(null)
+  const [footerHost] = useState(() => {
+    const node = document.createElement('div')
+    node.className = 'sheet-footer shrink-0 border-t border-rule pt-4'
+    node.style.paddingBottom = '16px'
+    return node
+  })
+  useLayoutEffect(() => {
+    panel.current?.append(footerHost)
+    return () => footerHost.remove()
+  }, [footerHost])
   const close = useRef(onClose)
   useLayoutEffect(() => { close.current = onClose }, [onClose])
   const titleId = useId()
   const drag = useDragControls()
   const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')
-  const [viewport, setViewport] = useState({ height: window.visualViewport?.height ?? window.innerHeight, bottom: 0 })
-
+  const viewport = useSheetLayout(panel, body, header, footerHost)
   useLayoutEffect(() => {
-    const visual = window.visualViewport
-    const resize = () => setViewport({
-      height: visual?.height ?? window.innerHeight,
-      bottom: visual ? Math.max(0, window.innerHeight - visual.height - visual.offsetTop) : 0,
-    })
-    resize()
-    visual?.addEventListener('resize', resize)
-    visual?.addEventListener('scroll', resize)
-    window.addEventListener('resize', resize)
-    return () => {
-      visual?.removeEventListener('resize', resize)
-      visual?.removeEventListener('scroll', resize)
-      window.removeEventListener('resize', resize)
+    footerHost.className = 'sheet-footer shrink-0 border-t border-rule pt-4'
+    footerHost.hidden = !footer
+    footerHost.style.paddingBottom = '16px'
+    footerHost.style.position = viewport.constrained && viewport.sticky ? 'sticky' : 'static'
+    footerHost.style.bottom = '0px'
+    const parent = viewport.constrained ? body.current : panel.current
+    if (parent && parent.lastElementChild !== footerHost) {
+      const focused = document.activeElement as HTMLElement | null
+      const restoreFocus = focused && footerHost.contains(focused)
+      parent.append(footerHost)
+      if (restoreFocus) focused.focus({ preventScroll: true })
     }
-  }, [])
+  }, [footerHost, footer, children, viewport.constrained, viewport.sticky])
 
   useLayoutEffect(() => {
     const dialog = panel.current!
@@ -93,26 +103,31 @@ function SheetContent({ onClose, title, children, footer }: Omit<SheetProps, 'op
     <motion.div aria-hidden="true" className="fixed inset-0 z-40 bg-ink/30"
       {...motionProps(reduced, { transition: { duration: 0.16 } })} onClick={onClose} />
     <motion.div ref={panel} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+      data-constrained={viewport.constrained}
       className="sheet-panel fixed inset-x-0 bottom-0 z-50 mx-auto flex w-full max-w-[440px] flex-col overflow-hidden rounded-t-[20px] border border-control bg-paper-2 shadow-card"
-      style={{ bottom: viewport.bottom,
-        maxHeight: `min(var(--sheet-max-height, 85vh), ${Math.max(0, viewport.height - 24)}px)`,
-        paddingLeft: 'max(20px, env(safe-area-inset-left))',
-        paddingRight: 'max(20px, env(safe-area-inset-right))',
+      style={{ bottom: viewport.bottom + viewport.safeBottom,
+        maxHeight: viewport.constrained ? Math.max(0, viewport.height - viewport.safeTop - viewport.safeBottom)
+          : `min(var(--sheet-max-height, 85vh), ${Math.max(0, viewport.height - Math.max(24, viewport.safeTop) - viewport.safeBottom)}px)`,
+        paddingLeft: 'max(20px, var(--sheet-safe-left, env(safe-area-inset-left)))',
+        paddingRight: 'max(20px, var(--sheet-safe-right, env(safe-area-inset-right)))',
       } as CSSProperties}
       {...motionProps(reduced, { initial: { y: '100%' }, animate: { y: 0, opacity: 1 },
         exit: { y: '100%' }, transition: { type: 'spring', stiffness: 400, damping: 40 } })}
       drag={reduced ? false : 'y'} dragListener={false} dragControls={drag} dragConstraints={{ top: 0, bottom: 0 }}
       dragElastic={{ top: 0, bottom: 0.5 }} dragSnapToOrigin
       onDragEnd={(_, info) => { if (info.offset.y > 120 || info.velocity.y > 600) onClose() }}>
-      <button type="button" aria-label="Close sheet" className="flex h-11 shrink-0 touch-none items-center justify-center"
-        onPointerDown={(event) => { if (!reduced) drag.start(event) }} onClick={onClose}>
-        <span aria-hidden="true" className="h-1 w-10 rounded-full bg-rule" />
-      </button>
-      <h2 id={titleId} className={title ? 'eyebrow t-eyebrow mb-3 shrink-0' : 'sr-only'}>{title ?? 'Options'}</h2>
-      <div className="sheet-body min-h-0 overflow-y-auto overscroll-contain"
+      <div ref={header} className="sheet-header shrink-0">
+        <button type="button" aria-label="Close sheet" className="sheet-handle flex w-full shrink-0 touch-none items-center justify-center"
+          onPointerDown={(event) => { if (!reduced) drag.start(event) }} onClick={onClose}>
+          <span aria-hidden="true" className="h-1 w-10 rounded-full bg-rule" />
+        </button>
+        <div className={title ? 'sheet-title' : undefined}>
+          <h2 id={titleId} className={title ? 'eyebrow t-eyebrow' : 'sr-only'}>{title ?? 'Options'}</h2>
+        </div>
+      </div>
+      <div ref={body} className="sheet-body min-h-0 overflow-y-auto overscroll-contain"
         style={{ scrollPaddingBottom: 96, paddingBottom: footer ? 16 : 'max(16px, env(safe-area-inset-bottom))' }}>{children}</div>
-      {footer && <div className="sheet-footer shrink-0 border-t border-rule pt-4"
-        style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>{footer}</div>}
+      {createPortal(footer, footerHost)}
     </motion.div>
   </>
 }

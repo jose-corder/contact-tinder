@@ -52,7 +52,7 @@ export function resetSessionSkips(pass: Pass, ids: string[]): Promise<DeckItem[]
     for (const row of rows) {
       const decision = { ...row.decision, skips: { ...row.decision.skips, [pass]: 0 },
         updatedAt: Math.max(Date.now(), row.decision.updatedAt + 1) }
-      await saveDecision(decision)
+      await saveDecision(decision, { exact: true })
       items.push({ ...row, decision, persisted: true })
     }
     return items

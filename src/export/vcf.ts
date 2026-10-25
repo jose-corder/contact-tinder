@@ -69,7 +69,7 @@ export function groupFiles(rows: ContactWithDecision[]): ExportFile[] {
       `Work · ${WORK_STATUS_META[status].label}`, [BUCKET_META.work.color, WORK_STATUS_META[status].color])
   }
   for (const [type, slug] of [['client', 'client'], ['vendor', 'vendor'], ['relationship', 'relationship'], ['namedrop', 'name-drop-flex']] as const) {
-    add(`work-${slug}`, ({ decision: d }) => d.bucket === 'work' && d.workTypes.includes(type), `Work · ${WORK_TYPE_META[type].label}`, [BUCKET_META.work.color])
+    add(`work-${slug}`, ({ decision: d }) => d.bucket === 'work' && d.workTypes.includes(type), `Work · ${WORK_TYPE_META[type].uiLabel}`, [BUCKET_META.work.color])
   }
   add('personal', ({ decision: d }) => d.bucket === 'personal', 'Personal', [BUCKET_META.personal.color])
   for (const relation of Object.keys(PERSONAL_RELATION_META) as Array<keyof typeof PERSONAL_RELATION_META>) {

@@ -1,20 +1,40 @@
 import { useState } from 'react'
-import { mergePair, savePairResolution, type DuplicatePair, type PairResolution } from '@/import/duplicates'
-import { Button, InlineNotice, toast } from '@/ui'
+import { savePairResolution, undoMerge, type DuplicatePair, type MergeResult, type PairResolution } from '@/import/duplicates'
+import { Button, InlineNotice, useRecoveryStore, type RecoveryEntry } from '@/ui'
+import MergeSheet from './MergeSheet'
 
-function PairCard({ pair }: { pair: DuplicatePair }) {
+export default function PossibleDuplicates({ pairs, filtered = false }: { pairs: DuplicatePair[]; filtered?: boolean }) {
+  const [comparison, setComparison] = useState<DuplicatePair>()
+  const recoveries = useRecoveryStore()
+  function merged(result: MergeResult) {
+    const entry: RecoveryEntry = {
+      id: result.mergeId, at: Date.now(), label: 'Merged ' + comparison!.a.displayName + ' and ' + comparison!.b.displayName,
+      onDismiss: () => {}, onUndo: async () => {
+        const outcome = await undoMerge(result.mergeId)
+        if (outcome !== true) {
+          recoveries.add({ ...entry, canUndo: async () => false })
+          return false
+        }
+      },
+    }
+    recoveries.add(entry)
+  }
+  return <section aria-label="Possible duplicates" className="space-y-3 py-4">
+    <h2 className="font-serif t-heading">Possible duplicates · {pairs.length}</h2>
+    {pairs.length ? pairs.map(pair => <PairCard key={pair.id} pair={pair} onMerge={() => setComparison(pair)} />)
+      : <p className="t-body text-ink-2">{filtered ? 'No matching pairs.' : 'All reviewed'}</p>}
+    {comparison && <MergeSheet pair={comparison} onClose={() => setComparison(undefined)} onMerged={merged} />}
+  </section>
+}
+
+function PairCard({ pair, onMerge }: { pair: DuplicatePair; onMerge: () => void }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   async function resolve(resolution: PairResolution) {
     if (busy) return
     setBusy(true); setError('')
-    try {
-      if (resolution === 'merged') {
-        await mergePair(pair.a.id, pair.b.id)
-        // mergePair has no recovery contract; do not advertise an unsafe Undo.
-        toast('Contacts merged')
-      } else await savePairResolution(pair.id, resolution)
-    } catch { setError('Could not review this pair. Please try again.') }
+    try { await savePairResolution(pair.id, resolution) }
+    catch { setError('Could not review this pair. Please try again.') }
     finally { setBusy(false) }
   }
   return <article aria-label={pair.a.displayName + ' and ' + pair.b.displayName} className="rounded-xl border border-control p-3">
@@ -27,16 +47,9 @@ function PairCard({ pair }: { pair: DuplicatePair }) {
     <p className="my-2 t-meta text-ink-2">{pair.reason}</p>
     <div className="flex flex-wrap gap-2">
       <Button variant="outline" disabled={busy} onClick={() => void resolve('kept')}>Keep both</Button>
-      <Button variant="outline" disabled={busy} onClick={() => void resolve('merged')}>Merge</Button>
+      <Button variant="outline" disabled={busy} onClick={onMerge}>Merge</Button>
       <Button variant="ghost" disabled={busy} onClick={() => void resolve('dismissed')}>Dismiss</Button>
     </div>
     {error && <InlineNotice tone="error">{error}</InlineNotice>}
   </article>
-}
-
-export default function PossibleDuplicates({ pairs }: { pairs: DuplicatePair[] }) {
-  return <section aria-label="Possible duplicates" className="space-y-3 py-4">
-    <h2 className="font-serif t-heading">Possible duplicates</h2>
-    {pairs.length ? pairs.map(pair => <PairCard key={pair.id} pair={pair} />) : <p className="t-body text-ink-2">All reviewed</p>}
-  </section>
 }

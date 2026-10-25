@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { allWithDecisions } from '@/db/repo'
 import { readPossibleDuplicates } from '@/import/duplicates'
-import { Button, Chip, Empty, Frame, InlineNotice, ScrollFallback, Skeleton, TopBar, useMediaQuery } from '@/ui'
-import PossibleDuplicates from './PossibleDuplicates'
+import { Button, Chip, Empty, Frame, InlineNotice, ScrollFallback, RecoveryBar, Skeleton, TopBar, useMediaQuery } from '@/ui'
+import PairReview from './PairReview'
 import { IconSearch } from '@/ui/icons'
 import Filters from './Filters'
 import ReviewList from './ReviewList'
@@ -59,6 +59,8 @@ export default function ReviewScreen() {
   const longPress = useCallback((id: string) => setSelection(previous => ({ scope,
     ids: new Set(previous?.scope === scope ? previous.ids : []).add(id),
   })), [scope])
+  if (duplicatesOnly) return <PairReview pairs={data?.duplicates ?? []} rows={rows} backTo={'/review?tab=' + tab}
+    error={data?.error} onRetry={() => setRetry(value => value + 1)} />
   return <ScrollFallback><Frame className="lg:max-w-[960px]">
     <h1 className="sr-only">Review contacts</h1>
     <div className="grid gap-6 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
@@ -72,6 +74,7 @@ export default function ReviewScreen() {
           options={(['delete', 'work', 'personal', 'unsorted'] as ReviewTab[]).map(value => ({ value,
             label: value.charAt(0).toUpperCase() + value.slice(1), count: (rows ?? []).filter(row => inTab(row, value)).length,
           }))} />
+        <RecoveryBar />
         <label className="sticky top-0 z-10 flex min-h-12 items-center gap-2 border-b border-rule bg-paper">
           <IconSearch size={18} />
           <input type="search" aria-label={'Search in ' + tabLabel} placeholder={'Search in ' + tabLabel + ' (' + baseRows.length + ')'}
@@ -83,7 +86,6 @@ export default function ReviewScreen() {
               clearSelection(); setParams(previous => { if (duplicatesOnly) previous.delete('dupes'); else previous.set('dupes', '1'); return previous }, { replace: true })
             }} />
           </div>}
-          {duplicatesOnly && data?.duplicates && <PossibleDuplicates pairs={data.duplicates} />}
           <Filters tab={tab} rows={baseRows} segment={segment} types={types} tags={tags} active={activeFilters} onClear={clearFilters}
             onSegment={value => { clearSelection(); setSegment(value); setTags([]) }}
             onType={value => { clearSelection(); setTypes(toggleFilter(types, value)) }} onTag={value => { clearSelection(); setTags(toggleFilter(tags, value)) }} />
