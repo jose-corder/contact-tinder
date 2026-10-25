@@ -53,6 +53,18 @@ export async function getDecision(contactId: string): Promise<Decision> {
   return (await db.decisions.get(contactId)) ?? emptyDecision(contactId)
 }
 
+/** Order-independent, field-complete serialization used by the full-content guard. */
+export function canonicalDecision(d: Decision | undefined): string {
+  if (!d) return ''
+  const sorted = (xs: readonly string[]) => [...xs].sort()
+  return JSON.stringify({
+    contactId: d.contactId, bucket: d.bucket ?? null, workStatus: d.workStatus ?? null,
+    workTypes: sorted(d.workTypes), relation: d.relation ?? null, personalTypes: sorted(d.personalTypes),
+    customTags: sorted(d.customTags), skips: { triage: d.skips.triage, work: d.skips.work, personal: d.skips.personal },
+    updatedAt: d.updatedAt,
+  })
+}
+
 /** Thrown by saveDecision when the stored row changed since the caller read it. */
 export class StaleDecisionError extends Error {
   readonly contactId: string
@@ -73,6 +85,14 @@ export interface SaveOptions {
    */
   expectedUpdatedAt?: number | null
   /**
+   * Full-content guard (audit #61): the complete decision the caller last read. The write is
+   * refused with StaleDecisionError unless the stored row deep-equals it (undefined = row must
+   * not exist). Stronger than expectedUpdatedAt, which a restore can reproduce.
+   */
+  expectedDecision?: Decision | null
+  /** Refuse the write if the contact row no longer exists (audit #61). */
+  requireContact?: boolean
+  /**
    * Write the row exactly as given, skipping completion normalization (audit #60/#61).
    * Use for Skip (postponement is not completion), Undo and restore (historical snapshots must
    * round-trip byte-for-byte). Explicit completing actions (swipe, Done, Keep, Review edits) leave
@@ -88,6 +108,13 @@ async function writeDecision(input: Decision, options?: SaveOptions): Promise<vo
     const expected = options.expectedUpdatedAt ?? undefined
     if ((prev?.updatedAt ?? undefined) !== expected) throw new StaleDecisionError(decision.contactId, prev)
   }
+  if (options && 'expectedDecision' in options) {
+    const expected = options.expectedDecision ?? undefined
+    if (canonicalDecision(prev) !== canonicalDecision(expected)) throw new StaleDecisionError(decision.contactId, prev)
+  }
+  if (options?.requireContact && !(await db.contacts.get(decision.contactId))) {
+    throw new StaleDecisionError(decision.contactId, prev)
+  }
   await db.decisions.put(decision)
   const before = new Set(prev?.customTags ?? [])
   const after = new Set(decision.customTags)
@@ -97,13 +124,14 @@ async function writeDecision(input: Decision, options?: SaveOptions): Promise<vo
 
 /** Persist a decision and keep the custom-tag vocabulary up to date. One transaction. */
 export async function saveDecision(decision: Decision, options?: SaveOptions): Promise<void> {
-  await db.transaction('rw', db.decisions, db.tags, () => writeDecision(decision, options))
+  // contacts is included so the requireContact guard can read inside the same transaction.
+  await db.transaction('rw', db.decisions, db.tags, db.contacts, () => writeDecision(decision, options))
 }
 
 /** Persist many decisions atomically: either every row is written or none is. */
 export async function saveDecisions(decisions: Decision[], options?: Pick<SaveOptions, 'exact'>): Promise<void> {
   if (decisions.length === 0) return
-  await db.transaction('rw', db.decisions, db.tags, async () => {
+  await db.transaction('rw', db.decisions, db.tags, db.contacts, async () => {
     for (const d of decisions) await writeDecision(d, options)
   })
 }

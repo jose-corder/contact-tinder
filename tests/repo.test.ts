@@ -5,7 +5,7 @@ import {
   saveDecision, saveDecisions, StaleDecisionError, upsertContacts,
 } from '@/db/repo'
 import { applySwipe, setBucket, toggleCustomTag } from '@/domain/taxonomy'
-import type { Contact } from '@/domain/types'
+import { emptyDecision as emptyDecisionFor, type Contact } from '@/domain/types'
 
 function contact(id: string, displayName: string): Contact {
   return {
@@ -108,6 +108,18 @@ describe('repo', () => {
     expect((await getDecision('a')).relation).toBeUndefined() // historical snapshot round-trips untouched
     await saveDecisions([await getDecision('a')]) // a live (non-exact) write still normalizes
     expect((await getDecision('a')).relation).toBe('other')
+  })
+
+  it('full-content guard refuses a write when content changed but updatedAt did not (audit #61)', async () => {
+    await upsertContacts([contact('a', 'Ana')])
+    const first = { ...applySwipe(emptyDecisionFor('a'), 'triage', 'right'), updatedAt: 1000 }
+    await saveDecision(first, { exact: true })
+    // A restore reproduces the same updatedAt with different content.
+    await saveDecision({ ...first, workStatus: 'current' }, { exact: true })
+    await expect(saveDecision(setBucket(first, 'personal'), { expectedDecision: first, exact: true })).rejects.toBeInstanceOf(StaleDecisionError)
+    expect((await getDecision('a')).workStatus).toBe('current')
+    await deleteContacts(['a'])
+    await expect(saveDecision(first, { requireContact: true, exact: true })).rejects.toBeInstanceOf(StaleDecisionError)
   })
 
   it('tag vocabulary tracks custom tags', async () => {
