@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { StaleDecisionError, type ContactWithDecision } from '@/db/repo'
 import { saveDeckDecision } from './deckSession'
-import { toast } from '@/ui/toast'
+import { useDeckToast } from './useDeckToast'
 import type { Decision, Direction } from '@/domain/types'
 
 export interface UndoEntry {
@@ -12,6 +12,7 @@ export interface UndoEntry {
 }
 
 export function useUndo(restore: (entry: UndoEntry) => void) {
+  const { notify } = useDeckToast()
   const stack = useRef<UndoEntry[]>([])
   const pending = useRef(false)
   const generation = useRef(0)
@@ -48,7 +49,7 @@ export function useUndo(restore: (entry: UndoEntry) => void) {
       if (version !== generation.current) return
       stack.current = stack.current.filter((row) => row.item.contact.id !== entry.item.contact.id)
       setSize(stack.current.length)
-      toast('This contact changed elsewhere — skipped')
+      notify('This contact changed elsewhere — skipped')
     } finally {
       pending.current = false
     }
@@ -57,5 +58,9 @@ export function useUndo(restore: (entry: UndoEntry) => void) {
     const entry = stack.current.at(-1)
     if (entry?.writtenDecision.contactId === decision.contactId && entry.writtenDecision.updatedAt === expectedUpdatedAt) entry.writtenDecision = decision
   }
-  return { push, undo, clear, amend, canUndo: size > 0 }
+  const stillUndoable = (contactId: string, updatedAt: number) => {
+    const entry = stack.current.at(-1)
+    return !pending.current && entry?.writtenDecision.contactId === contactId && entry.writtenDecision.updatedAt === updatedAt
+  }
+  return { push, undo, clear, amend, stillUndoable, canUndo: size > 0 }
 }

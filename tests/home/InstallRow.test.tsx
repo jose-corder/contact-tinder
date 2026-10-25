@@ -45,12 +45,12 @@ describe('Install app row', () => {
     act(() => { window.dispatchEvent(new Event('appinstalled')) })
     expect(screen.queryByRole('region', { name: 'Install app' })).not.toBeInTheDocument()
   })
-  // Audit #37: iOS guidance applies to Safari, Chrome, Firefox, and Edge.
+  // Audit #37: only Safari receives Share instructions; other containers get a Safari fallback.
   it.each(['Version/18.0', 'CriOS/131', 'FxiOS/131', 'EdgiOS/131'])('shows iOS instructions for %s and honors standalone', browser => {
     media()
     vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('iPhone ' + browser + ' Mobile Safari/604.1')
     const { unmount } = render(<InstallRow />)
-    expect(screen.getByText('Share → Add to Home Screen')).toBeInTheDocument()
+    expect(screen.getByText(browser.startsWith('Version') ? 'Share → Add to Home Screen' : 'Open this page in Safari to install')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Install app' }).querySelector('svg')).toBeInTheDocument()
     unmount()
     Object.defineProperty(navigator, 'standalone', { configurable: true, value: true })
@@ -67,6 +67,7 @@ describe('Install app row', () => {
   it('#37: recognizes iPad desktop mode without a prompt event', () => {
     media()
     vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel')
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Macintosh Version/18.0 Safari/605.1')
     Object.defineProperty(navigator, 'maxTouchPoints', { configurable: true, value: 5 })
     render(<InstallRow />)
     expect(screen.getByText('Share → Add to Home Screen')).toBeInTheDocument()

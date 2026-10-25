@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { dismissToast, setToastBottom, setToastSuppressed, toast, Toaster } from '@/ui/toast'
+import { getToast } from '@/ui/toastStore'
 
 // Motion exit frames are independent of the store's dismissal timer.
 vi.mock('framer-motion', () => ({
@@ -7,8 +8,9 @@ vi.mock('framer-motion', () => ({
   motion: { div: ({ children, initial: _initial, animate: _animate, exit: _exit, transition: _transition, transformTemplate: _transformTemplate, ...props }: React.HTMLAttributes<HTMLDivElement> & Record<string, unknown>) => <div {...props}>{children}</div> },
 }))
 
-beforeEach(() => { vi.useFakeTimers(); dismissToast(); setToastSuppressed(false) })
-afterEach(() => { cleanup(); dismissToast(); setToastSuppressed(false); setToastBottom(null); vi.useRealTimers() })
+function clearToasts() { while (getToast()) dismissToast() }
+beforeEach(() => { vi.useFakeTimers(); clearToasts(); setToastSuppressed(false) })
+afterEach(() => { cleanup(); clearToasts(); setToastSuppressed(false); setToastBottom(null); vi.useRealTimers() })
 
 it('retains a toast issued before React mounts', () => {
   toast('Ready to work offline')
@@ -34,14 +36,15 @@ it('auto-dismisses at the configured duration', () => {
   expect(screen.queryByText('Saved')).not.toBeInTheDocument()
 })
 
-it('cancels a replaced toast timer', () => {
+it('never lets a low-priority toast pre-empt and starts its timer when shown', () => {
   render(<Toaster />)
   act(() => toast('Old', { duration: 1000 }))
   act(() => vi.advanceTimersByTime(500))
   act(() => toast('New', { duration: 2000 }))
+  expect(screen.getByText('Old')).toBeInTheDocument()
   act(() => vi.advanceTimersByTime(500))
   expect(screen.getByText('New')).toBeInTheDocument()
-  act(() => vi.advanceTimersByTime(1500))
+  act(() => vi.advanceTimersByTime(2000))
   expect(screen.queryByText('New')).not.toBeInTheDocument()
 })
 
@@ -105,13 +108,10 @@ it('suppresses toasts for modal dialogs outside Sheet as well', async () => {
   expect(screen.getByRole('status')).toHaveTextContent('Saved')
 })
 
-it('queues high priority after the current notice and protects it from later informational replacement', () => {
+it('pre-empts immediately and returns to the interrupted notice before low priority', () => {
   render(<Toaster />)
   act(() => toast('First', { duration: 1000 }))
   act(() => toast('Recovery', { priority: 'high', duration: 2000, action: { label: 'Undo', onClick: vi.fn() } }))
-  expect(screen.getByRole('status')).toHaveTextContent('First')
-  expect(screen.queryByText('Recovery')).not.toBeInTheDocument()
-  act(() => vi.advanceTimersByTime(1000))
   expect(screen.getByText('Recovery')).toBeInTheDocument()
   act(() => toast('Information'))
   expect(screen.getByText('Recovery')).toBeInTheDocument()
@@ -119,6 +119,8 @@ it('queues high priority after the current notice and protects it from later inf
   act(() => vi.advanceTimersByTime(1999))
   expect(screen.getByText('Recovery')).toBeInTheDocument()
   act(() => vi.advanceTimersByTime(1))
+  expect(screen.getByText('First')).toBeInTheDocument()
+  act(() => vi.advanceTimersByTime(1000))
   expect(screen.getByText('Information')).toBeInTheDocument()
 })
 
@@ -132,9 +134,9 @@ it('retains all suppressed recoveries beyond six seconds and starts their timeou
   })
   act(() => vi.advanceTimersByTime(60000))
   act(() => setToastSuppressed(false))
-  expect(screen.getByRole('status')).toHaveTextContent('Undo restore')
-  act(() => vi.advanceTimersByTime(1000))
   expect(screen.getByRole('status')).toHaveTextContent('Reload app')
+  act(() => vi.advanceTimersByTime(1000))
+  expect(screen.getByRole('status')).toHaveTextContent('Undo restore')
   act(() => vi.advanceTimersByTime(1000))
   expect(screen.getByRole('status')).toBeEmptyDOMElement()
 })
@@ -144,9 +146,9 @@ it('protects existing Undo and Reload callers by default', () => {
   act(() => toast('Restore complete', { action: { label: 'Undo', onClick: vi.fn() } }))
   act(() => toast('Reload available', { action: { label: 'Reload', onClick: vi.fn() } }))
   act(() => toast('Saved'))
-  expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
   expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: 'Reload' }))
+  expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
   expect(screen.getByRole('status')).toHaveTextContent('Saved')
 })

@@ -1,0 +1,86 @@
+import type { Contact } from '@/domain/types'
+import { formatDate } from '@/ui/format'
+import { metadata, rawCards } from './metadata'
+import { emailKey, phoneKey } from './dedupe'
+import { structured } from './vcard'
+import { decodeQuotedPrintable, logicalLines, property, unescapeValue } from './vcardCodec'
+
+export interface RawField {
+  label: string
+  value: string
+  href?: string
+  kind: 'phone' | 'email' | 'url' | 'date' | 'address' | 'text'
+}
+const skip = new Set(['BEGIN', 'END', 'VERSION', 'FN', 'N', 'PHOTO', 'REV', 'X-ABLABEL'])
+const labels: Record<string, string> = { ADR: 'Address', BDAY: 'Birthday', URL: 'Website',
+  NICKNAME: 'Nickname', ANNIVERSARY: 'Anniversary', UID: 'Contact ID', PRODID: 'Created by',
+  TEL: 'Phone', EMAIL: 'Email', ORG: 'Organization', TITLE: 'Role', NOTE: 'Notes' }
+const decoded = (prop: NonNullable<ReturnType<typeof property>>) =>
+  prop.params.get('ENCODING')?.[0]?.toUpperCase() === 'QUOTED-PRINTABLE'
+    ? decodeQuotedPrintable(prop.value, prop.params.get('CHARSET')?.[0]) : prop.value
+
+function dateValue(value: string): string {
+  const partial = /^--(\d{2})-?(\d{2})$/.exec(value)
+  if (!partial) return formatDate(value)
+  const date = new Date('2000-' + partial[1] + '-' + partial[2] + 'T00:00:00Z')
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined,
+    { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(date)
+}
+
+export function websiteHref(value: string): string | undefined {
+  try {
+    const url = new URL(value)
+    return ['https:', 'http:'].includes(url.protocol) ? url.href : undefined
+  } catch { return undefined }
+}
+
+/** #42/#46: decoded, deduplicated extras from every source card, including merged records.
+ * Core values already projected onto Contact are omitted; secondary differing values survive.
+ * For original-record disclosure use rawCards(contact) from import/metadata alongside this reader.
+ */
+export function readRawFields(contact: Contact): RawField[] {
+  const result: RawField[] = []
+  const seen = new Set<string>()
+  const country = metadata(contact).defaultCountry
+  const phoneIdentity = (value: string) => phoneKey(value, country) ?? value.trim()
+  const phones = new Set(contact.phones.map(phone => phoneIdentity(phone.e164 ?? phone.value)))
+  const emails = new Set(contact.emails.map(email => emailKey(email.value) ?? email.value.trim()))
+  for (const raw of rawCards(contact)) {
+    const props = logicalLines(raw).map(property).filter(prop => !!prop)
+    const groups = new Map(props.filter(prop => prop.group && prop.name === 'X-ABLABEL')
+      .map(prop => [prop.group!, unescapeValue(decoded(prop)).replace(/^_\$!<|>!\$_$/g, '')]))
+    for (const prop of props) {
+      const key = prop.name
+      if (skip.has(key)) continue
+      const original = decoded(prop)
+      let value = unescapeValue(original).trim()
+      let kind: RawField['kind'] = 'text'
+      let href: string | undefined
+      if (key === 'ADR') { value = structured(original).filter(Boolean).join(', '); kind = 'address' }
+      if (key === 'BDAY' || key === 'ANNIVERSARY' || key === 'X-ABDATE') { value = dateValue(value); kind = 'date' }
+      if (key === 'URL') { kind = 'url'; href = websiteHref(value) }
+      if (key === 'ORG') {
+        value = structured(original).filter(Boolean).join(' · ')
+        if (value === contact.org) continue
+      }
+      if (key === 'TITLE' && value === contact.title) continue
+      if (key === 'NOTE' && value.split('\n').every(line => contact.notes?.split('\n').includes(line))) continue
+      if (key === 'TEL') {
+        kind = 'phone'; value = value.replace(/^tel:/i, '')
+        if (phones.has(phoneIdentity(value))) continue
+        if (/^\+?[\d ().-]+(?:;ext=\d+)?$/.test(value)) href = 'tel:' + value.replace(/[ ().-]/g, '')
+      }
+      if (key === 'EMAIL') {
+        kind = 'email'; value = value.replace(/^mailto:/i, '')
+        if (emails.has(emailKey(value) ?? value)) continue
+        if (/^[^\s@?&#]+@[^\s@?&#]+$/.test(value)) href = 'mailto:' + encodeURIComponent(value).replace(/%40/g, '@')
+      }
+      const label = (prop.group && groups.get(prop.group)) || labels[key] || key
+      const identity = JSON.stringify([kind, label, value])
+      if (!value || seen.has(identity)) continue
+      seen.add(identity)
+      result.push({ label, value, kind, ...(href ? { href } : {}) })
+    }
+  }
+  return result
+}

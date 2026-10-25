@@ -1,3 +1,4 @@
+// Finding #41: prepare and download buttons name their object.
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
@@ -24,7 +25,7 @@ describe('prepared exports (#48/#25/#26)', () => {
     await act(async () => { await saveDecision(row('Ada', { bucket: 'personal', relation: 'other', updatedAt: 10 }).decision) })
     expect(await screen.findByText('Contacts changed — prepare again')).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Share ready file' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Prepare' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Prepare clean address book' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Share ready file' }))
     await waitFor(() => expect(navigator.share).toHaveBeenCalledOnce())
     const file = vi.mocked(navigator.share).mock.calls[0][0]!.files![0]
@@ -34,15 +35,15 @@ describe('prepared exports (#48/#25/#26)', () => {
     expect(contents).toContain('CATEGORIES:Personal,Other')
   })
 
-  it('invalidates Download instead after a later import', async () => {
+  it('invalidates Download prepared file after a later import', async () => {
     vi.mocked(navigator.share).mockRejectedValue(new Error('No sharing'))
     Object.defineProperty(navigator, 'userActivation', { value: { isActive: true }, configurable: true })
     render(<MemoryRouter><ExportScreen /></MemoryRouter>)
     fireEvent.click(await screen.findByRole('button', { name: 'Share clean address book' }))
-    await screen.findByRole('button', { name: 'Download instead' })
+    await screen.findByRole('button', { name: 'Download prepared file' })
     await act(async () => { await upsertContacts([row('New').contact]) })
-    await screen.findByRole('button', { name: 'Prepare' })
-    expect(screen.queryByRole('button', { name: 'Download instead' })).not.toBeInTheDocument()
+    await screen.findByRole('button', { name: 'Prepare clean address book' })
+    expect(screen.queryByRole('button', { name: 'Download prepared file' })).not.toBeInTheDocument()
     expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled()
   })
 
@@ -56,7 +57,7 @@ describe('prepared exports (#48/#25/#26)', () => {
       await db.contacts.update('Ada', { displayName: 'Updated' })
       finish([new File(['old'], 'test.vcf')])
     })
-    expect(await screen.findByRole('button', { name: 'Prepare' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: 'Prepare contacts' })).toBeEnabled()
     expect(navigator.share).not.toHaveBeenCalled()
   })
 

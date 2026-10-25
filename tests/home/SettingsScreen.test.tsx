@@ -56,7 +56,9 @@ describe('Settings', () => {
     await saveDecisions([rows[0].decision])
     open()
     // #26/#36: restore is hosted directly in Settings.
-    expect(screen.getByText("Restore replaces or merges this device's data; you can undo for 10 minutes.")).toBeInTheDocument()
+    // #41: recovery is promised only when an available recovery entry exists.
+    expect(screen.getByText("Restore replaces or merges this device's data.")).toBeInTheDocument()
+    expect(screen.queryByText('You can undo a restore for 10 minutes')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Choose backup file').closest('details')).toBeNull()
     expect(screen.getByLabelText('Choose backup file')).toBeInTheDocument()
     expect(await screen.findByText('Reset will erase 2 contacts, 1 sorting decision, and 1 tag, and saved progress.')).toBeInTheDocument()

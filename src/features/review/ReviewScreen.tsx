@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { allWithDecisions, getMeta } from '@/db/repo'
-import type { PossibleDuplicate } from '@/import/dedupe'
-import { Button, Chip, Empty, Frame, InlineNotice, Skeleton, TopBar, useMediaQuery } from '@/ui'
+import { allWithDecisions } from '@/db/repo'
+import { readPossibleDuplicates } from '@/import/duplicates'
+import { Button, Chip, Empty, Frame, InlineNotice, ScrollFallback, Skeleton, TopBar, useMediaQuery } from '@/ui'
+import PossibleDuplicates from './PossibleDuplicates'
 import { IconSearch } from '@/ui/icons'
 import Filters from './Filters'
 import ReviewList from './ReviewList'
@@ -17,20 +18,16 @@ import { useReviewContext } from './useReviewContext'
 export default function ReviewScreen() {
   const [retry, setRetry] = useState(0)
   const data = useLiveQuery(async () => {
-    try { return { rows: await allWithDecisions(), duplicates: await getMeta<PossibleDuplicate[]>('possibleDuplicates', []), error: '' } }
+    try { return { rows: await allWithDecisions(), duplicates: (await readPossibleDuplicates()).filter(pair => !pair.resolved), error: '' } }
     catch { return { rows: undefined, error: 'Could not load contacts. Try again.' } }
   }, [retry])
   const rows = data?.rows
   const desktop = useMediaQuery('(min-width: 1024px)')
   const navigate = useNavigate()
-  const { tab, changeTab, limit, setLimit, params, setParams } = useReviewContext(!!rows)
-  const duplicateIds = new Set(data?.duplicates?.flatMap(pair => pair.ids) ?? [])
+  const { tab, changeTab, limit, setLimit, params, setParams, search, setSearch, segment, setSegment,
+    types, setTypes, tags, setTags, setSelectedId } = useReviewContext(!!rows)
   const duplicatesOnly = params.get('dupes') === '1'
   const tabLabel = tab.charAt(0).toUpperCase() + tab.slice(1)
-  const [segment, setSegment] = useState('all')
-  const [types, setTypes] = useState<string[]>([])
-  const [tags, setTags] = useState<string[]>([])
-  const [search, setSearch] = useState('')
   const [openId, setOpenId] = useState<string>()
   const [selection, setSelection] = useState<{ scope: string; ids: Set<string> }>()
   const [busy, setBusy] = useState(false)
@@ -42,14 +39,13 @@ export default function ReviewScreen() {
   const filtered = useMemo(() => baseRows.filter(row => {
     const d = row.decision
     const available: string[] = tab === 'work' ? d.workTypes : tab === 'personal' ? d.personalTypes : []
-    return (!duplicatesOnly || duplicateIds.has(row.contact.id)) && (segment === 'all' || (tab === 'work' ? d.workStatus : d.relation ?? (d.personalTypes.length ? 'other' : undefined)) === segment) &&
+    return (segment === 'all' || (tab === 'work' ? d.workStatus : d.relation) === segment) &&
       types.every(type => available.includes(type)) && tags.every(tag => d.customTags.includes(tag)) && matchesSearch(row, search)
-  }).sort((a, b) => a.contact.displayName.localeCompare(b.contact.displayName)), [baseRows, tab, segment, types, tags, search, duplicatesOnly, data?.duplicates])
-  const activeFilters = segment !== 'all' || types.length > 0 || tags.length > 0 || !!search || duplicatesOnly
+  }).sort((a, b) => a.contact.displayName.localeCompare(b.contact.displayName)), [baseRows, tab, segment, types, tags, search])
+  const activeFilters = segment !== 'all' || types.length > 0 || tags.length > 0 || !!search
   const clearSelection = () => setSelection(undefined)
   const clearFilters = () => {
     clearSelection(); setSegment('all'); setTypes([]); setTags([]); setSearch(''); setLimit(60)
-    if (duplicatesOnly) setParams(previous => { previous.delete('dupes'); return previous }, { replace: true })
   }
   const openRow = rows?.find(({ contact }) => contact.id === openId)
   const selectedRows = filtered.filter(({ contact }) => selected.has(contact.id))
@@ -63,7 +59,7 @@ export default function ReviewScreen() {
   const longPress = useCallback((id: string) => setSelection(previous => ({ scope,
     ids: new Set(previous?.scope === scope ? previous.ids : []).add(id),
   })), [scope])
-  return <Frame className="lg:max-w-[960px]">
+  return <ScrollFallback><Frame className="lg:max-w-[960px]">
     <h1 className="sr-only">Review contacts</h1>
     <div className="grid gap-6 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
       <div className="min-w-0">
@@ -82,12 +78,12 @@ export default function ReviewScreen() {
             value={search} onChange={event => { clearSelection(); setSearch(event.target.value) }} className="min-w-0 flex-1 bg-transparent py-3 t-body outline-offset-2" />
         </label>
         <div role="tabpanel" id={'review-' + tab} aria-labelledby={'review-' + tab + '-tab'}>
-          {!!data?.duplicates?.length && <div className="space-y-2 py-2">
-            {duplicatesOnly && <InlineNotice tone="info">{data.duplicates.length} possible duplicates were kept apart</InlineNotice>}
+          {(duplicatesOnly || !!data?.duplicates?.length) && <div className="space-y-2 py-2">
             <Chip label="Possible duplicates" selected={duplicatesOnly} onClick={() => {
               clearSelection(); setParams(previous => { if (duplicatesOnly) previous.delete('dupes'); else previous.set('dupes', '1'); return previous }, { replace: true })
             }} />
           </div>}
+          {duplicatesOnly && data?.duplicates && <PossibleDuplicates pairs={data.duplicates} />}
           <Filters tab={tab} rows={baseRows} segment={segment} types={types} tags={tags} active={activeFilters} onClear={clearFilters}
             onSegment={value => { clearSelection(); setSegment(value); setTags([]) }}
             onType={value => { clearSelection(); setTypes(toggleFilter(types, value)) }} onTag={value => { clearSelection(); setTags(toggleFilter(tags, value)) }} />
@@ -109,7 +105,8 @@ export default function ReviewScreen() {
           </div>
           {data?.error ? <InlineNotice tone="error">{data.error}<Button variant="ghost" onClick={() => setRetry(value => value + 1)}>Retry</Button></InlineNotice> :
             !rows ? <div role="status" aria-label="Loading contacts" className="space-y-3 py-6">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-20" />)}</div> :
-              <ReviewList key={scope} limit={limit} onLimit={setLimit} rows={filtered} tab={tab} filtered={activeFilters} selecting={selecting} selected={selected} onOpen={setOpenId}
+              <ReviewList key={scope} limit={limit} onLimit={setLimit} rows={filtered} tab={tab} filtered={activeFilters} selecting={selecting} selected={selected}
+                onOpen={id => { setSelectedId(id); setOpenId(id) }}
                 onToggle={toggleSelection} onLongPress={longPress} onClear={clearFilters} />}
           {selecting && <div aria-hidden="true" className="h-64 shrink-0" />}
         </div>
@@ -123,5 +120,5 @@ export default function ReviewScreen() {
     {!desktop && openId && rows && !openRow && <InlineNotice tone="info">This contact is no longer in the app.<Button variant="ghost" onClick={() => setOpenId(undefined)}>Dismiss</Button></InlineNotice>}
     {selecting && <BulkBar key={scope} rows={selectedRows} total={baseRows.length} resultCount={filtered.length} tabLabel={tabLabel} onClear={clearSelection}
       onSelectAll={() => setSelection({ scope, ids: new Set(filtered.map(({ contact }) => contact.id)) })} />}
-  </Frame>
+  </Frame></ScrollFallback>
 }

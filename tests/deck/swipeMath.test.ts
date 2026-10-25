@@ -1,6 +1,7 @@
-// Audit #32: the stamp reaches full opacity at 70% of the threshold.
+// Audit #32: the stamp reaches full opacity exactly at the commit threshold.
 import { describe, expect, it } from 'vitest'
 import { flingTarget, isDrag, lockAxis, resistDown, resolveDirection, rotationFor, stampOpacity } from '@/features/deck/swipeMath'
+import { DECK_MOTION } from '@/features/deck/motion'
 
 describe('swipe math', () => {
   it.each([
@@ -13,7 +14,7 @@ describe('swipe math', () => {
     expect(resolveDirection(dx as number, dy as number, vx as number, vy as number, 400)).toBe(expected)
   })
   it('uses only the dominant stamp and clamps its opacity', () => {
-    expect(stampOpacity(49, 30, 400)).toEqual({ left: 0, right: 0.5, up: 0, down: 0 })
+    expect(stampOpacity(70, 30, 400)).toEqual({ left: 0, right: 0.5, up: 0, down: 0 })
     expect(stampOpacity(20, -280, 400)).toEqual({ left: 0, right: 0, up: 1, down: 0 })
     expect(stampOpacity(0, 0, 0)).toEqual({ left: 0, right: 0, up: 0, down: 0 })
   })
@@ -40,7 +41,7 @@ it('ignores sub-six-pixel movement and locks the dominant axis at twelve pixels'
   expect(lockAxis(12, 0, null)).toBe('x')
   expect(lockAxis(0, -12, null)).toBe('y')
   expect(lockAxis(20, 200, 'x')).toBe('x')
-  expect(stampOpacity(49, 120, 400, 'x')).toEqual({ left: 0, right: 0.5, up: 0, down: 0 })
+  expect(stampOpacity(70, 120, 400, 'x')).toEqual({ left: 0, right: 0.5, up: 0, down: 0 })
   expect(resolveDirection(20, 200, 0, 800, 400, 'x')).toBeNull()
 })
 
@@ -56,4 +57,14 @@ it('continues an already distant drag at a minimum average speed of 1200 px/s', 
   const target = flingTarget('right', 800, 400, 390, 844)
   expect((target.x - 800) / 0.32).toBeGreaterThanOrEqual(1200)
   expect(target.y / target.x).toBe(0.5)
+})
+
+it.each(['left', 'right', 'up', 'down'] as const)('#32 a solid %s stamp equals the distance release threshold', direction => {
+  const distance = 320 * DECK_MOTION.commitThreshold
+  const x = direction === 'left' ? -distance : direction === 'right' ? distance : 0
+  const y = direction === 'up' ? -distance : direction === 'down' ? distance : 0
+  expect(stampOpacity(x, y, 320)[direction]).toBe(1)
+  expect(resolveDirection(x, y, 0, 0, 320)).toBe(direction)
+  expect(stampOpacity(x * .999, y * .999, 320)[direction]).toBeLessThan(1)
+  expect(resolveDirection(x * .999, y * .999, 0, 0, 320)).toBeNull()
 })

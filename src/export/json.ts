@@ -106,7 +106,17 @@ export async function previewRestore(text: string): Promise<RestorePreview> {
 }
 
 export const RESTORE_UNDO_MS = 10 * 60 * 1000
-interface RestoreUndo { dump: Dump; at: number; photos: Array<{ id: string; photo: Blob }>; revisionAfterRestore: string }
+export interface RestoreEntry {
+  readonly id: string
+  at: number
+  mode: RestoreMode
+  snapshot: { dump: Dump; photos: Array<{ id: string; photo: Blob }> }
+  revisionAfter: string
+  /** Backup date for the persistent recovery label (older entries may omit it). */
+  backupAt?: string
+}
+const restoreId = () => globalThis.crypto?.randomUUID?.() ??   Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)
+export const restoreHistory = () => getMeta<RestoreEntry[]>('restoreHistory', [])
 
 /** Content revision, independent of metadata. Hashes also catch same-timestamp edits and enrichment imports. */
 export async function dbRevision(): Promise<string> {
@@ -123,39 +133,49 @@ async function snapshotState() {
   return { dump: await dumpAll(), photos: (await db.contacts.toArray()).flatMap((c) => c.photo ? [{ id: c.id, photo: c.photo }] : []) }
 }
 
-export async function restoreJson(text: string, mode: RestoreMode = 'replace'): Promise<{ contacts: number; decisions: number }> {
+export async function restoreJson(text: string, mode: RestoreMode = 'replace'): Promise<{ contacts: number; decisions: number; restoreId: string }> {
   const parsed = parseBackup(text)
+  const id = restoreId()
   await db.transaction('rw', db.contacts, db.decisions, db.tags, db.meta, async () => {
-    const before = mode === 'replace' ? await snapshotState() : null
+    const snapshot = await snapshotState()
+    const history = await restoreHistory()
     await restoreAll(parsed, mode)
-    await setMeta('restoreUndo', before ? { ...before, at: Date.now(), revisionAfterRestore: await dbRevision() } satisfies RestoreUndo : null)
+    const entry: RestoreEntry = { id, at: Date.now(), mode, snapshot,
+      backupAt: parsed.exportedAt, revisionAfter: await dbRevision() }
+    await setMeta('restoreHistory', [...history, entry].slice(-3))
   })
-  return { contacts: parsed.contacts.length, decisions: parsed.decisions.length }
+  return { contacts: parsed.contacts.length, decisions: parsed.decisions.length, restoreId: id }
 }
 
-export type UndoRestoreResult = boolean | { conflict: true; preview: RestorePreview; revision: string }
+export type UndoRestoreResult = boolean | { conflict: true; preview: RestorePreview; revision: string; restoreId: string }
 
-/** Approval is bound to the reviewed revision; another edit always requires another review. */
-export async function undoRestore(approvedRevision?: string): Promise<UndoRestoreResult> {
+/** #56: both the recovery and any conflict approval target one immutable entry. */
+export async function undoRestore(id: string, approvedRevision?: string): Promise<UndoRestoreResult> {
   return db.transaction('rw', db.contacts, db.decisions, db.tags, db.meta, async () => {
-    const snapshot = await getMeta<RestoreUndo | null>('restoreUndo', null)
-    if (!snapshot) return false
-    if (Date.now() - snapshot.at >= RESTORE_UNDO_MS) {
-      await db.meta.delete('restoreUndo')
+    const history = await restoreHistory()
+    const entry = history.find(item => item.id === id)
+    if (!entry) return false
+    const remaining = history.filter(item => item.id !== id)
+    if (Date.now() - entry.at >= RESTORE_UNDO_MS) {
+      await setMeta('restoreHistory', remaining)
       return false
     }
     const revision = await dbRevision()
-    const changed = revision !== snapshot.revisionAfterRestore
-    if (changed && approvedRevision !== revision) {
-      return { conflict: true, preview: await previewRestore(JSON.stringify(snapshot.dump)), revision }
+    const latestId = history.at(-1)?.id
+    const changed = revision !== entry.revisionAfter || latestId !== id
+    // An identical later restore still invalidates an older recovery/approval.
+    const approvalRevision = revision + ':' + latestId
+    if (changed && approvedRevision !== approvalRevision) {
+      return { conflict: true, preview: await previewRestore(JSON.stringify(entry.snapshot.dump)), revision: approvalRevision, restoreId: id }
     }
     const newer = changed ? await snapshotState() : null
-    await restoreAll(snapshot.dump, 'replace')
-    // Clear inherited photos too: absence in the snapshot is meaningful.
-    await db.contacts.toCollection().modify((contact) => { delete contact.photo })
-    for (const { id, photo } of snapshot.photos ?? []) await db.contacts.update(id, { photo })
-    if (newer) await setMeta('restoreUndo', { ...newer, at: Date.now(), revisionAfterRestore: await dbRevision() } satisfies RestoreUndo)
-    else await db.meta.delete('restoreUndo')
+    await restoreAll(entry.snapshot.dump, 'replace')
+    // Absence of a thumbnail in the snapshot is meaningful too.
+    await db.contacts.toCollection().modify(contact => { delete contact.photo })
+    for (const { id, photo } of entry.snapshot.photos) await db.contacts.update(id, { photo })
+    if (newer) remaining.push({ id: restoreId(), at: Date.now(), mode: 'replace', snapshot: newer,
+      backupAt: newer.dump.exportedAt, revisionAfter: await dbRevision() })
+    await setMeta('restoreHistory', remaining.slice(-3))
     return true
   })
 }

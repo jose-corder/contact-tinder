@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { deleteContacts, saveDecision, type ContactWithDecision } from '@/db/repo'
+import { deleteContacts, getDecision, saveDecision, type ContactWithDecision } from '@/db/repo'
 import type { Decision } from '@/domain/types'
-import { Avatar, Button, InlineNotice, Sheet, SheetFooterActions } from '@/ui'
+import { Button, InlineNotice, ScrollFallback, Sheet, SheetFooterActions } from '@/ui'
 import ClassificationEditor from './ClassificationEditor'
-import ContactDetails from './ContactDetails'
+import { ContactFields, ContactIdentity } from './ContactFields'
 import { prepareReswipe } from './reswipe'
 
 export default function RowSheet({ row, onClose, pane = false }: { row: ContactWithDecision; onClose: () => void; pane?: boolean }) {
@@ -22,8 +22,8 @@ export default function RowSheet({ row, onClose, pane = false }: { row: ContactW
     if (locked.current) return false
     locked.current = true; setBusy(true); setSaveError('')
     try {
-      const completed = next.bucket === 'personal' && next.personalTypes.length && !next.relation ? { ...next, relation: 'other' as const } : next
-      await saveDecision(completed); setDecision(completed); return true
+      await saveDecision({ ...next, updatedAt: Math.max(Date.now(), decision.updatedAt + 1) })
+      setDecision(await getDecision(contact.id)); return true
     }
     catch { setSaveError('Could not save this change. Please try again.'); return false }
     finally { locked.current = false; setBusy(false) }
@@ -45,14 +45,10 @@ export default function RowSheet({ row, onClose, pane = false }: { row: ContactW
     <SheetFooterActions secondary={{ label: 'Remove from app', onClick: () => setConfirm(true), disabled: busy || confirm }}
       primary={{ label: 'Done', onClick: close, disabled: busy }} />
   </>
-  const content = <>
-    <header className="flex items-center gap-3">
-      <Avatar name={contact.displayName} photo={contact.photo} size={56} />
-      <div className="min-w-0"><h2 className="break-words font-serif t-title">{contact.displayName}</h2>
-        {contact.org && <p className="t-body text-ink-2">{contact.org}</p>}</div>
-    </header>
+  const content = <ScrollFallback>
+    <ContactIdentity contact={contact} />
     <ClassificationEditor decision={decision} busy={busy} error={saveError} save={save} />
-    <ContactDetails contact={contact} />
+    <ContactFields contact={contact} />
     <div className="py-3">
       <Button variant="ghost" disabled={busy} onClick={async () => {
         if (locked.current) return
@@ -66,7 +62,7 @@ export default function RowSheet({ row, onClose, pane = false }: { row: ContactW
       <p className="t-meta text-ink-2">Nothing changes until you swipe.</p>
       {deckError && <InlineNotice tone="error">{deckError}</InlineNotice>}
     </div>
-  </>
+  </ScrollFallback>
   return pane ? <section aria-label="Contact details" className="flex min-w-0 flex-col rounded-[20px] border border-rule bg-paper-2 p-5">
     {content}<div className="mt-auto border-t border-rule pt-4">{footer}</div>
   </section> : <Sheet open onClose={close} title="Contact details" footer={footer}>{content}</Sheet>

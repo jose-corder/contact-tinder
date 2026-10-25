@@ -7,7 +7,7 @@ import QuickActions, { RevealedActions, destinationsFor, destinationLabel, type 
 import { Avatar, IconButton, InlineNotice, LabelDot, formatPhone, useMediaQuery } from '@/ui'
 import { IconMore } from '@/ui/icons'
 import { haptic } from '@/ui/theme'
-import { toast } from '@/ui/toast'
+import { rowUndoToast } from './undo'
 
 interface Props {
   row: ContactWithDecision
@@ -45,21 +45,19 @@ export default memo(function ReviewRow({ row: { contact, decision }, selecting, 
   }, [reduced, revealed, decision.bucket, x])
   const bucket = decision.bucket && BUCKET_META[decision.bucket]
   const status = decision.bucket === 'work' && decision.workStatus ? WORK_STATUS_META[decision.workStatus] : undefined
-  const effective = decision.bucket === 'personal' && !decision.relation && decision.personalTypes.length ? { ...decision, relation: 'other' as const } : decision
-  const relation = effective.bucket === 'personal' && effective.relation ? PERSONAL_RELATION_META[effective.relation] : undefined
+  const relation = decision.bucket === 'personal' && decision.relation ? PERSONAL_RELATION_META[decision.relation] : undefined
   const classification = [bucket?.label ?? 'Unsorted', status?.label, relation?.label].filter(Boolean).join(' · ')
-  const labels = decisionLabels(effective)
+  const labels = decisionLabels(decision)
   const summary = labels.slice(decision.bucket ? 1 + (status || relation ? 1 : 0) : 0)
   const accessible = [contact.displayName, contact.org, ...(decision.bucket ? labels : ['Unsorted', ...decision.customTags])].filter(Boolean).join(', ')
   async function move(destination: Destination) {
     if (busy) return
     setBusy(true); setError('')
     try {
-      await saveDecision(setBucket(decision, destination === 'unsorted' ? undefined : destination))
+      const next = setBucket(decision, destination === 'unsorted' ? undefined : destination, Math.max(Date.now(), decision.updatedAt + 1))
+      await saveDecision(next)
       reveal(false); setMenu(false)
-      toast(`${contact.displayName} → ${destinationLabel(destination)}`, { duration: 10000, priority: 'high', tone: destination === 'unsorted' ? 'default' : destination, action: {
-        label: 'Undo', onClick: () => { void saveDecision(decision).catch(() => toast('Could not undo. Please try again.')) },
-      } })
+      rowUndoToast(decision, next, `${contact.displayName} → ${destinationLabel(destination)}`, destination === 'unsorted' ? 'default' : destination)
     } catch { setError('Could not move contact. Please try again.') }
     finally { setBusy(false) }
   }
@@ -76,7 +74,7 @@ export default memo(function ReviewRow({ row: { contact, decision }, selecting, 
           <input type="checkbox" aria-label={`Select ${contact.displayName}`} checked={selected} onChange={() => onToggle(contact.id)}
             className="h-5 w-5 accent-ink" />
         </label>}
-        <button type="button" className="flex h-full min-w-0 flex-1 touch-pan-y items-center gap-3 text-left"
+        <button type="button" id={'review-row-' + contact.id} className="flex h-full min-w-0 flex-1 touch-pan-y items-center gap-3 text-left"
           aria-label={`${selecting ? 'Select' : 'View'} ${accessible}`} aria-description="Swipe left or press Left Arrow for quick actions."
           onKeyDown={(event) => {
             if (!selecting && ['ArrowLeft', 'ArrowRight', 'Escape'].includes(event.key)) {

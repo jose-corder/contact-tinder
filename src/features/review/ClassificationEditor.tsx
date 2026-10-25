@@ -29,10 +29,11 @@ export default function ClassificationEditor({ decision, busy, error, save }: {
         {decision.bucket === 'personal' && <>
           <div><h3 className="eyebrow mb-2">Relationship</h3><div className="flex flex-wrap gap-2">
             {(Object.keys(PERSONAL_RELATION_META) as PersonalRelation[]).map((relation) => <Chip key={relation} label={PERSONAL_RELATION_META[relation].label}
-              selected={(decision.relation ?? (decision.personalTypes.length ? 'other' : undefined)) === relation} tone={relation === 'ex' ? 'delete' : relation === 'other' ? 'skip' : 'personal'}
+              selected={decision.relation === relation} tone={relation === 'ex' ? 'delete' : relation === 'other' ? 'skip' : 'personal'}
               onClick={() => void save({ ...decision, relation: decision.relation === relation ? undefined : relation, updatedAt: Date.now() })} />)}
           </div></div>
-          <div><h3 className="eyebrow mb-2">Personal types</h3><div className="flex flex-wrap gap-2">
+          <div><h3 className="eyebrow mb-2">Personal types</h3>
+            <p className="mb-2 t-meta text-ink-2">Choosing a type saves this contact as Other until you pick a relation</p><div className="flex flex-wrap gap-2">
             {(Object.keys(PERSONAL_TYPE_META) as PersonalType[]).map((type) => <Chip key={type} label={PERSONAL_TYPE_META[type].label}
               selected={decision.personalTypes.includes(type)} tone="personal" onClick={() => void save(toggleDeckType(decision, 'personal', type))} />)}
           </div></div>

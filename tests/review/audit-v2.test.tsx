@@ -8,13 +8,13 @@ import RowSheet from '@/features/review/RowSheet'
 import ReviewRow from '@/features/review/ReviewRow'
 import ReviewScreen from '@/features/review/ReviewScreen'
 import BulkBar from '@/features/review/BulkBar'
-import { rawFields } from '@/features/review/rawFields'
+import { readRawFields } from '@/import/rawFields'
 import { row } from '../export/fixtures'
 
 beforeEach(async () => { await repo.resetAll(); window.sessionStorage.clear() })
 afterEach(() => { cleanup(); notices.dismissToast(); vi.restoreAllMocks(); vi.useRealTimers(); vi.unstubAllGlobals() })
 
-it('#23/#46/#39: visible values follow classification; all preserved fields and the original record are available', async () => {
+it('#23/#46/#39: compact identity precedes classification; all preserved fields and original records are available', async () => {
   const item = row('Maria', { bucket: 'personal' })
   item.contact.phones = [{ value: '+12025550101;ext=42', type: 'CELL' }]
   item.contact.emails = [{ value: 'maria@example.com' }]
@@ -25,7 +25,7 @@ it('#23/#46/#39: visible values follow classification; all preserved fields and 
   const phone = screen.getByRole('link', { name: formatPhone(item.contact.phones[0].value) })
   expect(phone.closest('details')).toBeNull()
   expect(phone).toHaveAttribute('href', 'tel:+12025550101;ext=42')
-  expect(screen.getByRole('region', { name: 'Classification' }).compareDocumentPosition(phone) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(phone.compareDocumentPosition(screen.getByRole('region', { name: 'Classification' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Copy maria@example.com' }))
   expect(await screen.findByText('Copied')).toBeInTheDocument()
   expect(copy).toHaveBeenCalledWith('maria@example.com')
@@ -33,18 +33,18 @@ it('#23/#46/#39: visible values follow classification; all preserved fields and 
   expect(disclosure).not.toHaveAttribute('open')
   fireEvent.click(screen.getByText('All fields'))
   expect(screen.getByText(formatDate('19900412'))).toBeVisible()
-  expect(screen.getByText('12 Main; Apt 2 · Town · 123 · US')).toBeVisible()
+  expect(screen.getByText('12 Main; Apt 2, Town, 123, US')).toBeVisible()
   expect(screen.getByRole('link', { name: 'https://example.com/profile' })).toHaveAttribute('rel', 'noopener noreferrer')
   expect(screen.getByText('Longvalue')).toBeVisible()
-  fireEvent.click(screen.getByText('Original contact record'))
+  fireEvent.click(screen.getByText('Original contact record 1'))
   expect(disclosure.querySelector('pre')).toHaveTextContent('X-MERGED-CUSTOM:Long')
 })
 
 it('#46: unsafe websites stay text, and repeated/grouped properties survive', () => {
-  expect(rawFields('item1.URL:javascript:alert(1)\nBDAY:invalid\nX-FIELD:first\nX-FIELD:second')).toEqual([
-    { label: 'Website', value: 'javascript:alert(1)', href: undefined },
-    { label: 'Birthday', value: 'invalid', href: undefined },
-    { label: 'X-FIELD', value: 'first', href: undefined }, { label: 'X-FIELD', value: 'second', href: undefined },
+  expect(readRawFields({ ...row('Raw').contact, raw: 'item1.URL:javascript:alert(1)\nBDAY:invalid\nX-FIELD:first\nX-FIELD:second' })).toEqual([
+    { label: 'Website', value: 'javascript:alert(1)', kind: 'url' },
+    { label: 'Birthday', value: 'invalid', kind: 'date' },
+    { label: 'X-FIELD', value: 'first', kind: 'text' }, { label: 'X-FIELD', value: 'second', kind: 'text' },
   ])
 })
 
@@ -59,15 +59,16 @@ it('#7: choosing only a Personal type persists Other and keeps it when the type 
   await waitFor(async () => expect(await repo.getDecision('Maria')).toMatchObject({ relation: 'other', personalTypes: [] }))
 })
 
-it('#7/#30: legacy type-only rows show Other and a two-item visible summary with overflow count', () => {
+it('#53/#30: legacy type-only rows show only saved state and a two-item visible summary with overflow count', () => {
   render(<ul><ReviewRow row={row('Maria', { bucket: 'personal', personalTypes: ['neighbor', 'service'], customTags: ['vip', 'school'] })}
     selecting={false} selected={false} onOpen={vi.fn()} onToggle={vi.fn()} onLongPress={vi.fn()} /></ul>)
-  expect(screen.getByText('Personal · Other')).toBeVisible()
+  expect(screen.getByText('Personal')).toBeVisible()
+  expect(screen.queryByText('Personal · Other')).not.toBeInTheDocument()
   expect(screen.getByText('Neighbor')).toBeVisible()
   expect(screen.getByText('Service provider')).toBeVisible()
   expect(screen.getByText('+2')).toBeVisible()
   expect(screen.queryByText('vip')).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'View Maria, Personal, Other, Neighbor, Service provider, vip, school' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'View Maria, Personal, Neighbor, Service provider, vip, school' })).toBeInTheDocument()
 })
 
 it.each(['Move to…', 'Tag…'])('#14/#34: %s stages changes and uses Cancel / Apply outside the scroller', async action => {
@@ -96,13 +97,13 @@ it('#5/#34: single-row move requests ten seconds of high-priority Undo', async (
   await waitFor(async () => expect(await repo.getDecision('Maria')).toEqual(item.decision))
 })
 
-it('#35: persisted possible duplicates filter resolves live IDs and can be removed', async () => {
+it('#54/#35: persisted pairs appear above an unfiltered list and the panel can be hidden', async () => {
   await repo.upsertContacts(['A', 'B', 'C'].map(id => row(id).contact))
   await repo.setMeta('possibleDuplicates', [{ ids: ['A', 'B', 'missing'], reason: 'Shared phone' }])
   render(<MemoryRouter initialEntries={['/review?tab=unsorted&dupes=1']}><ReviewScreen /></MemoryRouter>)
-  expect(await screen.findByText('1 possible duplicates were kept apart')).toBeInTheDocument()
+  expect(await screen.findByRole('region', { name: 'Possible duplicates' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Possible duplicates' })).toHaveAttribute('aria-pressed', 'true')
-  expect(screen.getAllByRole('button', { name: /^View/ })).toHaveLength(2)
+  expect(screen.getAllByRole('button', { name: /^View/ })).toHaveLength(3)
   fireEvent.click(screen.getByRole('button', { name: 'Possible duplicates' }))
   expect(screen.getAllByRole('button', { name: /^View/ })).toHaveLength(3)
 })

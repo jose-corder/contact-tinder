@@ -9,7 +9,7 @@ export const DECK_MOTION = {
   next: { type: 'spring' as const, stiffness: 300, damping: 30 },
   settle: { duration: 0.2, ease: 'easeOut' as const },
   stampHold: 0.12,
-  stampThreshold: 0.7, // #32: full opacity at 70% of the actual commit distance.
+  commitThreshold: 0.35, // #32: stamp saturation and release use the same distance.
   tickMs: 600,
 }
 

@@ -1,6 +1,8 @@
+// Finding #56: recovery targets immutable restore IDs and preserves merge snapshots.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { allContacts, allDecisions, allTags, dumpAll, getMeta, resetAll, saveDecision, upsertContacts } from '@/db/repo'
 import { previewRestore, restoreJson, undoRestore, RESTORE_UNDO_MS } from '@/export/json'
+import { restoreHistory } from '@/export/json'
 import { contact, row } from './fixtures'
 import { db } from '@/db/schema'
 
@@ -17,7 +19,7 @@ describe('reviewed restore (#1)', () => {
     expect(preview).toMatchObject({ exportedAt: '2026-10-12T12:00:00Z', contacts: 4, decisions: 1, added: 1, changed: 2, removed: 1,
       details: { addedIds: ['new'], changedIds: ['changed', 'decision'], removedIds: ['removed'] } })
     expect(await allContacts()).toEqual(before)
-    expect(await getMeta('restoreUndo', null)).toBeNull()
+    expect(await getMeta('restoreHistory', [])).toEqual([])
   })
 
   it('reports decisions cleared only by replace separately and ignores property order', async () => {
@@ -33,32 +35,33 @@ describe('reviewed restore (#1)', () => {
     await saveDecision(row('before', { bucket: 'personal', relation: 'other', customTags: ['vip'] }).decision)
     const before = await dumpAll()
     const photos = (await allContacts())[0].photo
-    await restoreJson(backup(), 'replace')
-    expect(await getMeta('restoreUndo', null)).toMatchObject({ dump: { ...before, exportedAt: expect.any(String) }, at: expect.any(Number) })
+    const { restoreId } = await restoreJson(backup(), 'replace')
+    expect(await restoreHistory()).toMatchObject([{ id: restoreId, snapshot: { dump: { ...before, exportedAt: expect.any(String) } }, at: expect.any(Number) }])
     expect((await allContacts()).map((c) => c.id)).toEqual(['new'])
-    expect(await undoRestore()).toBe(true)
+    expect(await undoRestore(restoreId)).toBe(true)
     expect((await dumpAll()).contacts).toEqual(before.contacts)
     expect(await allDecisions()).toEqual(before.decisions)
     expect(await allTags()).toEqual(['vip'])
     expect((await allContacts())[0].photo).toEqual(photos)
-    expect(await getMeta('restoreUndo', null)).toBeNull()
-    expect(await undoRestore()).toBe(false)
+    expect(await getMeta('restoreHistory', [])).toEqual([])
+    expect(await undoRestore(restoreId)).toBe(false)
   })
 
   it('expires Undo after ten minutes without changing restored data', async () => {
     const now = Date.now()
-    await restoreJson(backup())
+    const { restoreId } = await restoreJson(backup())
     vi.spyOn(Date, 'now').mockReturnValue(now + RESTORE_UNDO_MS + 1000)
-    expect(await undoRestore()).toBe(false)
+    expect(await undoRestore(restoreId)).toBe(false)
     expect((await allContacts()).map((c) => c.id)).toEqual(['new'])
-    expect(await getMeta('restoreUndo', null)).toBeNull()
+    expect(await getMeta('restoreHistory', [])).toEqual([])
   })
 
-  it('merges without removing other contacts and does not create a replace snapshot', async () => {
+  it('merges without removing other contacts and restores the pre-merge state (#56)', async () => {
     await upsertContacts([contact('before')])
-    await restoreJson(backup(), 'merge')
+    const { restoreId } = await restoreJson(backup(), 'merge')
     expect(await allContacts()).toHaveLength(2)
-    expect(await getMeta('restoreUndo', null)).toBeNull()
+    expect(await undoRestore(restoreId)).toBe(true)
+    expect((await allContacts()).map(c => c.id)).toEqual(['before'])
   })
 
   it('rolls back the snapshot and replacement together if saving fails', async () => {
@@ -66,7 +69,7 @@ describe('reviewed restore (#1)', () => {
     vi.spyOn(db.contacts, 'bulkPut').mockRejectedValueOnce(new Error('Storage full'))
     await expect(restoreJson(backup())).rejects.toThrow('Storage full')
     expect((await allContacts()).map((c) => c.id)).toEqual(['before'])
-    expect(await getMeta('restoreUndo', null)).toBeNull()
+    expect(await getMeta('restoreHistory', [])).toEqual([])
   })
 
   it('rejects ambiguous decision identities and dates before mutation', async () => {

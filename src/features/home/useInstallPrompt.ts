@@ -18,6 +18,8 @@ export function useInstallPrompt() {
   const [error, setError] = useState('')
   const ios = (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+  const safari = ios && /Version\/[\d.]+.*Safari\//.test(navigator.userAgent) &&
+    !/CriOS|FxiOS|EdgiOS|OPiOS|DuckDuckGo|GSA|FBAN|FBAV|Instagram|Line\//i.test(navigator.userAgent)
   useEffect(() => {
     const beforeInstall = (event: Event) => { event.preventDefault(); setPrompt(event as InstallPromptEvent) }
     const onInstalled = () => { setInstalled(true); setPrompt(undefined) }
@@ -42,5 +44,5 @@ export function useInstallPrompt() {
     } catch { setError('Could not open installation. Try again.') }
     finally { setBusy(false) }
   }
-  return { visible: browser && !installed && (ios || !!prompt), ios, available: !!prompt, busy, error, install }
+  return { visible: browser && !installed && (ios || !!prompt), ios, safari, available: !!prompt, busy, error, install }
 }

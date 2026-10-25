@@ -11,7 +11,7 @@ export function lockAxis(dx: number, dy: number, locked: Axis | null): Axis | nu
 }
 
 export function resistDown(dy: number, cardWidth: number): number {
-  const start = Math.max(1, cardWidth * 0.35) * 0.4
+  const start = Math.max(1, cardWidth * DECK_MOTION.commitThreshold) * 0.4
   return dy > start ? start + (dy - start) * 0.55 : dy
 }
 
@@ -24,7 +24,7 @@ export function resolveDirection(dx: number, dy: number, vx: number, vy: number,
   const horizontal = direction === 'left' || direction === 'right'
   const distance = horizontal ? dx : dy
   const velocity = horizontal ? vx : vy
-  if (Math.abs(distance) >= Math.max(1, cardWidth * 0.35)) return direction
+  if (Math.abs(distance) >= Math.max(1, cardWidth * DECK_MOTION.commitThreshold)) return direction
   if (Math.abs(velocity) > 500) return horizontal ? (velocity < 0 ? 'left' : 'right') : (velocity < 0 ? 'up' : 'down')
   return null
 }
@@ -33,7 +33,7 @@ export function stampOpacity(dx: number, dy: number, cardWidth: number, axis?: A
   const result = { left: 0, right: 0, up: 0, down: 0 }
   const direction = dominant(dx, dy, axis)
   const distance = direction === 'left' || direction === 'right' ? Math.abs(dx) : Math.abs(dy)
-  result[direction] = Math.min(1, distance / Math.max(1, cardWidth * 0.35 * DECK_MOTION.stampThreshold))
+  result[direction] = Math.min(1, distance / Math.max(1, cardWidth * DECK_MOTION.commitThreshold))
   return result
 }
 

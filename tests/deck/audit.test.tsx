@@ -12,7 +12,6 @@ import { DeckEnd } from '@/features/deck/DeckEnd'
 import { SwipeCard } from '@/features/deck/SwipeCard'
 import { FollowUpSheet } from '@/features/deck/FollowUpSheet'
 import { formatContactDate } from '@/features/deck/CardFront'
-import { FeedbackSlot } from '@/features/deck/FeedbackSlot'
 import { ActionBar } from '@/features/deck/ActionBar'
 import { setFollowUpEnabled } from '@/ui/theme'
 import { Toaster, dismissToast, toast } from '@/ui/toast'
@@ -122,14 +121,6 @@ it('#4/#5 fixes the footer outside the one body scroller and owns Undo inside th
   expect((await repo.getDecision('a')).bucket).toBeUndefined()
 })
 
-it('#5 measures reserved feedback-slot clearance and removes the override on unmount', () => {
-  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ top: window.innerHeight - 108 } as DOMRect))
-  const view = render(<FeedbackSlot />)
-  expect(document.documentElement.style.getPropertyValue('--toast-bottom')).toBe('108px')
-  view.unmount()
-  expect(document.documentElement.style.getPropertyValue('--toast-bottom')).toBe('')
-})
-
 it.each(['acquaintance', 'neighbor', 'service'] as const)('#7 automatically assigns Other for Personal type %s', (type) => {
   const draft = { ...emptyDecision('a'), bucket: 'personal' as const }
   expect(toggleDeckType(draft, 'personal', type).relation).toBe('other')
@@ -184,7 +175,7 @@ it('#13/#15/#19 exposes friendly labels, accessible copying, full labels and loc
   expect(details).not.toHaveTextContent(contact.rev!)
   expect(details).toHaveTextContent(formatContactDate(contact.rev)!)
   expect(details).toHaveTextContent('vCard file')
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy mobile 111' })) })
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy Mobile' })) })
   expect(writeText).toHaveBeenCalledWith('111')
   expect(screen.getByRole('button', { name: 'Back' })).not.toHaveAttribute('tabindex', '-1')
   expect(formatContactDate('invalid')).toBeUndefined()

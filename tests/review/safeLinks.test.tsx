@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
 import RowSheet from '@/features/review/RowSheet'
@@ -15,11 +15,11 @@ it('mailto_reserved_characters_cannot_add_headers', () => {
   contact.contact.emails = emails.map((value) => ({ value }))
   contact.contact.phones = phones.map((value) => ({ value }))
   render(<MemoryRouter><RowSheet row={contact} onClose={vi.fn()} /></MemoryRouter>)
-  // Audit #23/#46: values are immediately visible.
+  // Audit #23/#46: compact identity precedes classification; remaining values are in All fields.
+  fireEvent.click(screen.getByText('All fields'))
   expect(screen.queryByRole('link')).not.toBeInTheDocument()
-  for (const value of [...emails, ...phones]) {
-    expect(screen.getByRole('button', { name: `Copy ${value}`.replace(/\s+/g, ' ').trim() })).toBeInTheDocument()
-  }
+  expect(screen.getAllByRole('button', { name: 'Copy Phone' })).toHaveLength(phones.length)
+  expect(screen.getAllByRole('button', { name: 'Copy Email' })).toHaveLength(emails.length)
 })
 
 it('encodes valid email addresses and permits only supported dial characters and extensions', () => {

@@ -9,13 +9,14 @@ import { homeProgress } from './progress'
 import ProgressOverview from './ProgressOverview'
 import FirstRun from './FirstRun'
 import InstallRow from './InstallRow'
+import { readPossibleDuplicates } from '@/import/duplicates'
 
 export default function HomeScreen() {
   const [retry, setRetry] = useState(0)
   const data = useLiveQuery(async () => {
     try {
-      const [rows, modelSeen] = await Promise.all([allWithDecisions(), getMeta('homeModelSeen', false)])
-      return { rows, modelSeen, error: '' }
+      const [rows, modelSeen, pairs] = await Promise.all([allWithDecisions(), getMeta('homeModelSeen', false), readPossibleDuplicates()])
+      return { rows, modelSeen, duplicates: pairs.filter(pair => !pair.resolved).length, error: '' }
     } catch { return { rows: undefined, modelSeen: false, error: 'Could not load your contacts. Try again.' } }
   }, [retry])
   const rows = data?.rows
@@ -67,7 +68,7 @@ export default function HomeScreen() {
         }}>Retry skipped</Button>}
         {error && <InlineNotice tone="error">{error}</InlineNotice>}
       </section>
-      <ProgressOverview progress={progress} total={rows.length} />
+      <ProgressOverview progress={progress} total={rows.length} unsorted={unsorted} />
       <nav aria-label="Contact counts" className="my-5 border-t border-rule lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:my-0">
         {(Object.keys(BUCKET_META) as Array<keyof typeof BUCKET_META>).map((key) =>
           <Link key={key} to={`/review?tab=${key}`} className="flex min-h-12 items-center justify-between border-b border-rule">
@@ -77,6 +78,9 @@ export default function HomeScreen() {
         <Link to="/review?tab=unsorted" className="flex min-h-12 items-center justify-between border-b border-rule">
           <LabelDot tone="skip" label="Unsorted" size={8} />{' '}<span className="font-serif t-heading tabular">{unsorted}</span>
         </Link>
+        {!!data?.duplicates && <Link to="/review?dupes=1" className="flex min-h-12 items-center border-b border-rule t-body">
+          Possible duplicates · {data.duplicates}
+        </Link>}
       </nav>
       </div>
       <nav aria-label="Contacts" className="flex flex-wrap justify-between gap-4 t-meta underline underline-offset-4">

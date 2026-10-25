@@ -1,13 +1,11 @@
-// #7/#16: Personal types imply Other when no relation is chosen; Done saves the draft.
-// Later confirms unsaved selections. Keep saves types/tags only (no new status/relation);
-// Discard retains the saved list and labels. Both leave completion for a later pass.
+// #53: Later → Keep saves Personal types as Other under the shared persistence rule.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { StaleDecisionError } from '@/db/repo'
 import { saveDeckDecision } from '@/hooks/deckSession'
-import { dismissToast, toast } from '@/ui/toast'
-import { PERSONAL_RELATION_META, WORK_STATUS_META, toggleCustomTag } from '@/domain/taxonomy'
-import { completePersonalTypes, toggleDeckType } from '@/domain/decks'
+import { toast } from '@/ui/toast'
+import { normalizeDecision, PERSONAL_RELATION_META, WORK_STATUS_META, toggleCustomTag } from '@/domain/taxonomy'
+import { toggleDeckType } from '@/domain/decks'
 import type { Contact, Decision, PersonalRelation, WorkStatus } from '@/domain/types'
 import { Avatar, Button, Chip, InlineNotice, Sheet, SheetFooterActions, motionProps, type ChipTone } from '@/ui'
 import { ChipRow } from './ChipRow'
@@ -27,7 +25,7 @@ export function FollowUpSheet(props: Props) {
 }
 
 function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: Props & { target: FollowUpTarget }) {
-  const [draft, setDraft] = useState(() => completePersonalTypes(target.decision))
+  const [draft, setDraft] = useState(target.decision)
   const [busy, setBusy] = useState(false)
   const [tagOpen, setTagOpen] = useState(false)
   const [confirmLater, setConfirmLater] = useState(false)
@@ -48,10 +46,12 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
   const close = (saved?: Decision) => { onClose(saved); afterClose.current?.() }
   const dismiss = () => { if (!saving.current) { if (changed) setConfirmLater(true); else close() } }
   useLayoutEffect(() => {
-    dismissToast()
     // Adapter until shared SheetFooterActions exposes aria-description on actions.
-    footerRef.current?.querySelector('button')?.setAttribute('aria-description', `Keep in ${title}; finish details in the ${title} deck`)
-  }, [title])
+    const later = [...(footerRef.current?.querySelectorAll('button') ?? [])].find(button => button.textContent === 'Later')
+    later?.setAttribute('aria-description', bucket === 'personal'
+      ? 'Keep in Personal as Other if types are selected; otherwise finish later'
+      : 'Keep in Work; finish details in the Work deck')
+  }, [bucket, confirmLater])
   useEffect(() => {
     alive.current = true
     let active = true
@@ -71,13 +71,13 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
     : (Object.keys(PERSONAL_RELATION_META) as PersonalRelation[]).map((key) => ({ key, ...PERSONAL_RELATION_META[key], tone: (key === 'ex' ? 'delete' : key === 'other' ? 'skip' : 'personal') as ChipTone }))
   const setPrimary = (key: WorkStatus | PersonalRelation) => setDraft((d) => bucket === 'work'
     ? { ...d, workStatus: d.workStatus === key ? undefined : key as WorkStatus }
-    : { ...d, relation: d.relation === key ? (d.personalTypes.length ? 'other' : undefined) : key as PersonalRelation })
+    : normalizeDecision({ ...d, relation: d.relation === key ? undefined : key as PersonalRelation }))
   const done = async (typesOnly = false) => {
     if (saving.current || (!typesOnly && !primaryValue)) return
     changeBusy(true); setError(undefined)
     try {
       const values = typesOnly ? { ...target.decision, workTypes: draft.workTypes, personalTypes: draft.personalTypes, customTags: draft.customTags } : draft
-      const decision = { ...values, updatedAt: Math.max(Date.now(), target.decision.updatedAt + 1) }
+      const decision = normalizeDecision({ ...values, updatedAt: Math.max(Date.now(), target.decision.updatedAt + 1) })
       await saveDeckDecision(decision, { expectedUpdatedAt: target.decision.updatedAt })
       if (alive.current) close(decision)
     } catch (error) {
@@ -93,11 +93,11 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
     <div ref={footerRef}>
       {confirmLater && <div className="mb-2" role="group" aria-label="Unsaved selections">
         <div className="deck-later-confirm flex items-center gap-1 t-meta">
-          <span>{types.length ? `Keep ${types.length} selected types?` : draft.customTags.length ? 'Keep selected tags?' : 'Leave details for later?'}</span>
+          <span>{types.length ? bucket === 'personal' && !target.decision.relation ? `Keep ${types.length} types · counts as Other` : `Keep ${types.length} selected types?` : draft.customTags.length ? 'Keep selected tags?' : 'Leave details for later?'}</span>
           <Button variant="outline" disabled={busy} onClick={() => void done(true)}>Keep</Button>
           <Button variant="ghost" disabled={busy} onClick={() => close()}>Discard</Button>
         </div>
-        <p className="t-meta text-ink-2">Keep saves types and tags only; finish the {bucket === 'work' ? 'status' : 'relation'} later.</p>
+        <p className="t-meta text-ink-2">{bucket === 'personal' ? 'A type without a relation is saved as Other' : 'Keep saves types and tags only; finish the status later.'}</p>
       </div>}
       <SheetFooterActions
       secondary={{ label: 'Later', onClick: dismiss, disabled: busy }}
@@ -120,7 +120,7 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
         className="mb-2 flex flex-wrap gap-2" role="group" aria-label={bucket === 'work' ? 'Status' : 'Relation'}>
         {primary.map((p) => <Chip key={p.key} label={p.label} tone={p.tone} selected={primaryValue === p.key} disabled={busy} onClick={() => setPrimary(p.key)} />)}
       </motion.div>
-      <p className="mb-2 t-meta text-ink-2">{bucket === 'personal' ? 'A type counts as Other if no relation fits' : 'Choose a status to finish, or leave it for Later.'}</p>
+      <p className="mb-2 t-meta text-ink-2">{bucket === 'personal' ? 'A type without a relation is saved as Other' : 'Choose a status to finish, or leave it for Later.'}</p>
       <div className="t-eyebrow text-ink-2">Type</div>
       <ChipRow pass={bucket} draft={draft} toggleChip={(key) => setDraft((d) => toggleDeckType(d, bucket, key))}
         toggleTag={(tag) => setDraft((d) => toggleCustomTag(d, tag))} inputRef={inputRef} open={tagOpen} setOpen={setTagOpen} disabled={busy} sheet />

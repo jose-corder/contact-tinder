@@ -36,7 +36,7 @@ function unionEntries<T extends { value: string }>(a: T[], b: T[], key: (entry: 
   return [...entries.values()]
 }
 
-function combine(first: Contact, next: Contact, defaultCountry: string): ImportedContact {
+export function mergeContactFields(first: Contact, next: Contact, defaultCountry: string = regionCountry()): ImportedContact {
   const phones = unionEntries(first.phones, next.phones, (p) => phoneKey(p.e164 || p.value, (p as PhoneEntry & { defaultCountry?: string }).defaultCountry || defaultCountry))
   const emails = unionEntries(first.emails, next.emails, (e) => emailKey(e.value))
   const keys = keysFor(phones, emails, defaultCountry)
@@ -80,12 +80,8 @@ const nameOnly = (c: Contact) => !c.phones.length && !c.emails.length
 const intersects = (a: string[], b: string[]) => a.some((key) => b.includes(key))
 
 interface Group { contact: Contact; names: Set<string>; existing: Set<string>; touched: boolean }
-/** meta.possibleDuplicates: complete latest successful import's candidate pairs.
- * ids are sorted, surviving Contact IDs; reason is display text. No twenty-pair cap.
- * A later successful import replaces the array (including []); failed imports preserve it.
- * Review /review?tab=unsorted&dupes=1 should resolve IDs against live contacts, ignoring missing IDs.
- */
-export interface PossibleDuplicate { ids: string[]; reason: string }
+/** Transient candidate IDs; persisted review uses DuplicatePair in duplicates.ts. */
+export interface PossibleDuplicate { ids: string[]; reason: 'shared phone' | 'shared email' | 'same name' }
 export interface MergeResult {
   toUpsert: Contact[]; merged: number; added: number; superseded: string[]
   migrations: Array<{ from: string; to: string }>
@@ -150,7 +146,7 @@ function* mergeSteps(incoming: Contact[], existing: Contact[], defaultCountry: s
       const later = groups[remove]
       parents[remove] = keep
       groups[keep] = {
-        contact: combine(earlier.contact, later.contact, metadata(earlier.contact).defaultCountry || defaultCountry),
+        contact: mergeContactFields(earlier.contact, later.contact, metadata(earlier.contact).defaultCountry || defaultCountry),
         names: new Set([...earlier.names, ...later.names]),
         existing: new Set([...earlier.existing, ...later.existing]), touched: earlier.touched || later.touched,
       }
@@ -191,7 +187,7 @@ function* mergeSteps(incoming: Contact[], existing: Contact[], defaultCountry: s
       const left = groups[root(a)], right = groups[root(b)]
       if (root(a) === root(b) || (!left.touched && !right.touched)) return undefined
       const ids = [left.contact.id, right.contact.id].sort()
-      return [ids.join('|'), { ids, reason: 'Shared details with conflicting identity evidence' }] as const
+      return [ids.join('|'), { ids, reason: (intersects(left.contact.phoneKeys, right.contact.phoneKeys) ? 'shared phone' : intersects(left.contact.emailKeys, right.contact.emailKeys) ? 'shared email' : 'same name') as PossibleDuplicate['reason'] }] as const
     }).filter((entry) => entry !== undefined)).values()],
     migrations: touched.flatMap((group) => [...group.existing].filter((id) => id !== group.contact.id).map((from) => ({ from, to: group.contact.id }))),
     toUpsert: touched.map((group) => group.contact), added, merged: incoming.length - added,

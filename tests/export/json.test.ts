@@ -1,3 +1,4 @@
+// Finding #56: restore results include their recovery identity.
 import { beforeEach, describe, expect, it } from 'vitest'
 import { allWithDecisions, allTags, resetAll, saveDecision, upsertContacts } from '@/db/repo'
 import { backupJson, restoreJson } from '@/export/json'
@@ -11,7 +12,7 @@ describe('JSON backups', () => {
     await saveDecision(r.decision)
     const backup = await backupJson()
     await resetAll()
-    expect(await restoreJson(backup)).toEqual({ contacts: 1, decisions: 1 })
+    expect(await restoreJson(backup)).toMatchObject({ contacts: 1, decisions: 1, restoreId: expect.any(String) })
     expect(await allWithDecisions()).toEqual([r])
     expect(await allTags()).toEqual(['vip'])
   })

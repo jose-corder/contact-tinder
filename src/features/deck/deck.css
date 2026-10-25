@@ -6,7 +6,7 @@
 .deck-chip-rail { scrollbar-width: thin; padding: 4px 2px; }
 .deck-chip-rail > button { flex-shrink: 0; white-space: nowrap; }
 .deck-action-caption { white-space: nowrap; }
-.deck-subtitle { white-space: nowrap; }
+.deck-subtitle { overflow-wrap: anywhere; }
 .deck-screen > header { margin-bottom: 4px; flex-shrink: 0; }
 .deck-screen > header .eyebrow { letter-spacing: .06em; }
 .deck-keyboard-help { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); }
@@ -29,13 +29,8 @@
 .deck-front-columns .deck-summary-fields { margin: 0; padding: 0 0 0 12px; border-top: 0; border-left: 1px solid var(--rule); }
 .deck-toolbar-compact .deck-actions > div { flex-direction: row; justify-content: center; }
 .deck-toolbar-compact .deck-action-circle { width: 44px !important; height: 44px !important; }
-.deck-keyboard-open { overflow-y: auto; overscroll-behavior: contain; }
-.deck-keyboard-open [data-deck-stage] { min-height: 120px; }
 .deck-keyboard-open .deck-chip-region { scroll-margin-block: 4px; }
 .deck-later-confirm button { padding-inline: 8px; font: inherit; }
-/* #5: setToastBottom anchors the top of the reserved 44px feedback slot. */
-body:has(.deck-feedback-slot) [role="status"][style*="--toast-bottom"] { translate: 0 100%; }
-body:has(.deck-feedback-slot) [role="status"][style*="--toast-bottom"] > div { padding-block: 0; border-block-width: 0; min-height: 44px; }
 @media (orientation: landscape) and (max-height: 500px) {
   .deck-screen { max-width: 900px; }
   .deck-subtitle { margin-bottom: 2px; }
@@ -46,4 +41,30 @@ body:has(.deck-feedback-slot) [role="status"][style*="--toast-bottom"] > div { p
   .deck-chips-stage > p { display: none; }
   .deck-chips-stage > div:last-child:not(:first-child) { grid-column: 1 / -1; }
   .deck-chips-stage:has([aria-label="Relation"]) > div:nth-child(2) { grid-column: 2; }
+}
+
+/* #14/#38/#57: reserve actual feedback height and let the column scroll. */
+.deck-column { min-width: 0; }
+.deck-stage { min-height: 240px; flex-shrink: 0; }
+.deck-toolbar { background: var(--paper); padding-bottom: max(4px, env(safe-area-inset-bottom)); }
+.deck-action-caption { min-height: 44px; display: flex; align-items: center; }
+.deck-later-confirm { flex-wrap: wrap; }
+.deck-later-confirm > span { flex: 1 0 100%; }
+.deck-field-row:has(.deck-copy-feedback [role='status']:not(:empty)) { height: auto; min-height: 28px; }
+.deck-copy-feedback:has([role='status']:not(:empty)) { display: block; white-space: normal; }
+.deck-column[data-constrained='true'] .deck-active { flex: 1 0 auto; }
+.deck-column[data-constrained='true'] [data-scroll-stage] { height: max(240px, 40dvh); min-height: 240px; flex: none; }
+.deck-column[data-constrained='true'] .deck-toolbar { position: sticky; bottom: var(--deck-keyboard-inset, 0px); z-index: 30; }
+/* Keep the card's internal faces bounded despite the shared fallback's broad utilities. */
+.deck-column[data-constrained='true'] .deck-card,
+.deck-column[data-constrained='true'] .deck-card > div { height: 100%; min-height: 0; }
+.deck-column[data-constrained='true'] .deck-face { min-height: 0; overflow: hidden; }
+.deck-column[data-constrained='true'] .deck-front-scroll,
+.deck-column[data-constrained='true'] [aria-label='All contact fields'] { min-height: 0; flex: 1 1 0; overflow-y: auto; }
+.deck-column[data-constrained='true'] .deck-chip-rail { flex-wrap: wrap; overflow: visible; }
+.deck-desktop-context { display: none; }
+@media (min-width: 1024px) and (pointer: fine) {
+  .deck-workspace { display: grid; grid-template-columns: 440px 240px; gap: 40px; justify-content: center; align-items: start; }
+  .deck-desktop-context { display: flex; flex-direction: column; gap: 24px; padding-block: 32px; padding-right: 20px; }
+  .deck-keyboard-help { display: none; }
 }

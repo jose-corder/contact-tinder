@@ -10,9 +10,9 @@ import { DeckEnd } from '@/features/deck/DeckEnd'
 import { FollowUpSheet } from '@/features/deck/FollowUpSheet'
 import { CardFields } from '@/features/deck/CardFields'
 import { ChipRow } from '@/features/deck/ChipRow'
-import { FeedbackSlot } from '@/features/deck/FeedbackSlot'
+import { ToastDock, Toaster, toast } from '@/ui/toast'
 import { DECK_MOTION } from '@/features/deck/motion'
-import { stampOpacity } from '@/features/deck/swipeMath'
+import { resolveDirection, stampOpacity } from '@/features/deck/swipeMath'
 import { setFollowUpEnabled } from '@/ui/theme'
 import { dismissDeckCoaches } from './helpers'
 
@@ -83,14 +83,17 @@ it('#47 does not certify an unchanged reclassification after two skips', async (
 
 it('#24 shows only a skeleton until counts resolve and retries a failed summary read', async () => {
   let reject!: (reason: Error) => void
-  vi.spyOn(repo, 'counts').mockImplementationOnce(() => new Promise((_, fail) => { reject = fail }))
+  const pending = new Promise<Awaited<ReturnType<typeof repo.counts>>>((_, fail) => { reject = fail })
+  // Keep live-query invalidations on the same pending read until the explicit retry.
+  const count = vi.spyOn(repo, 'counts').mockImplementation(() => pending)
   render(<MemoryRouter><DeckEnd pass="triage" sessionIds={['a']} skippedIds={['a']} scoped={false} retrySkipped={async () => {}} /></MemoryRouter>)
   expect(screen.getByTestId('deck-end-loading')).toBeInTheDocument()
   expect(screen.queryByRole('heading')).not.toBeInTheDocument()
-  await waitFor(() => expect(reject).toBeTypeOf('function'))
+  await waitFor(() => expect(count).toHaveBeenCalled())
   await act(async () => reject(new Error('unavailable')))
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not load')
   expect(screen.queryByText('SORTED')).not.toBeInTheDocument()
+  count.mockRestore()
   await click('Retry')
   expect(await screen.findByRole('heading', { name: 'Pass finished' })).toBeInTheDocument()
 })
@@ -103,7 +106,7 @@ it('#24 retries a rejected deckContacts read in place', async () => {
   expect(await screen.findByRole('article')).toBeInTheDocument()
 })
 
-it.each(['work', 'personal'] as const)('#16 Later Keep persists %s types without a status/relation', async bucket => {
+it.each(['work', 'personal'] as const)('#53/#16 Later Keep persists %s types with shared completion semantics', async bucket => {
   const decision = { ...emptyDecision('a'), bucket }
   await repo.saveDecision(decision)
   const onClose = vi.fn()
@@ -113,38 +116,40 @@ it.each(['work', 'personal'] as const)('#16 Later Keep persists %s types without
   await click(bucket === 'work' ? 'Vendor' : 'Acquaintance')
   await click('Later')
   expect(onClose).not.toHaveBeenCalled()
-  expect(screen.getByText('Keep 2 selected types?')).toBeInTheDocument()
+  expect(screen.getByText(bucket === 'personal' ? 'Keep 2 types · counts as Other' : 'Keep 2 selected types?')).toBeInTheDocument()
   await click('Keep')
   await waitFor(() => expect(onClose).toHaveBeenCalledOnce())
   const saved = await repo.getDecision('a')
   expect(saved.bucket).toBe(bucket)
   expect(saved[bucket === 'work' ? 'workTypes' : 'personalTypes']).toHaveLength(2)
-  expect(saved.workStatus).toBeUndefined(); expect(saved.relation).toBeUndefined()
+  // #53: the repo persists Other for Personal types, while Work still awaits status.
+  expect(saved.workStatus).toBeUndefined(); expect(saved.relation).toBe(bucket === 'personal' ? 'other' : undefined)
+  expect(onClose.mock.lastCall?.[0]).toEqual(saved)
 })
 
-it('#7/#16 saved Personal types offer Other on return, but Skip does not complete them', async () => {
+it('#53/#7/#16 returning saved Personal types show the persisted Other relation', async () => {
   await repo.saveDecision({ ...emptyDecision('a'), bucket: 'personal', personalTypes: ['neighbor'] })
+  // #53: completed Other returns only through explicit reclassification.
+  expect(await repo.deckContacts('personal')).toHaveLength(0)
+  await repo.setMeta('deckScope', { pass: 'personal', ids: ['a'], mode: 'reclassify', createdAt: Date.now() })
   render(<MemoryRouter><DeckScreen pass="personal" /></MemoryRouter>)
   expect(await screen.findByRole('button', { name: 'Relation: Other' })).toHaveAttribute('aria-pressed', 'true')
-  await click('Skip'); await click('Skip')
-  expect((await repo.getDecision('a')).relation).toBeUndefined()
-  expect(await screen.findByText('1 still need sorting')).toBeInTheDocument()
-  await click('Sort the skipped ones'); await click('Done')
+  await click('Done')
   expect((await repo.getDecision('a')).relation).toBe('other')
   expect(await screen.findByText('SORTED')).toBeInTheDocument()
 })
 
 it('#49 preserves ext even with e164 and keeps unsupported addresses copyable', () => {
-  render(<CardFields full hold={() => {}} contact={{ ...contact,
+  render(<CardFields contact={{ ...contact,
     phones: [{ value: '+1 555 0100;ext=42', e164: '+15550100' }, { value: '123;foo=4' }],
     emails: [{ value: 'valid@example.com' }, { value: 'bad@example.com?subject=x' }],
   }} />)
   expect(screen.getByRole('link', { name: '+1 555 0100;ext=42' })).toHaveAttribute('href', 'tel:+15550100;ext=42')
   expect(screen.getByRole('link', { name: 'valid@example.com' })).toHaveAttribute('href', 'mailto:valid%40example.com')
   expect(screen.queryByRole('link', { name: '123;foo=4' })).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Copy phone 123;foo=4' })).toBeInTheDocument()
+  expect(screen.getAllByRole('button', { name: 'Copy Phone' })[1]).toBeInTheDocument()
   expect(screen.queryByRole('link', { name: 'bad@example.com?subject=x' })).not.toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Copy email bad@example.com?subject=x' })).toBeInTheDocument()
+  expect(screen.getAllByRole('button', { name: 'Copy Email' })[1]).toBeInTheDocument()
 })
 
 it('#50 uses the shared inner label for a 32-character custom tag in a 280px rail', () => {
@@ -186,17 +191,23 @@ it('#14/#38 uses measured short-landscape cards and compact actions, then expose
   expect(document.querySelector('.deck-active')).not.toHaveClass('deck-keyboard-open')
 })
 
-it('#5 repositions toast clearance when the chip rail changes height', () => {
-  let top = 400
-  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({ top } as DOMRect))
-  const view = render(<FeedbackSlot />)
-  expect(document.querySelector('.deck-feedback-slot')).toHaveClass('h-11', 'shrink-0')
-  expect(document.documentElement.style.getPropertyValue('--toast-bottom')).toBe(`${window.innerHeight - 400}px`)
-  top = 300; view.rerender(<FeedbackSlot />)
-  expect(document.documentElement.style.getPropertyValue('--toast-bottom')).toBe(`${window.innerHeight - 300}px`)
+it('#57/#5 docks wrapped feedback in flow without a fixed height or translation', () => {
+  const view = render(<><ToastDock /><Toaster /></>)
+  const handle = toast('LongName'.repeat(30), { priority: 'high' })
+  act(() => handle.update('LongName'.repeat(30)))
+  const dock = view.container.querySelector('.toast-dock')!
+  expect(dock).toHaveStyle({ height: 'auto', minHeight: '44px', flexShrink: '0' })
+  expect(dock).toContainElement(screen.getByText('LongName'.repeat(30)))
+  expect(readFileSync('src/features/deck/deck.css', 'utf8')).not.toContain('translate: 0 100%')
+  act(() => handle.dismiss())
 })
 
-it('#32 saturates at 70% of the threshold and keeps a 320ms fling', () => {
-  expect(stampOpacity(400 * .35 * .7, 0, 400).right).toBe(1)
+it('#32 saturates exactly at the commit threshold and holds for 120ms during a 320ms fling', () => {
+  const threshold = 400 * DECK_MOTION.commitThreshold
+  expect(stampOpacity(threshold - 1, 0, 400).right).toBeLessThan(1)
+  expect(resolveDirection(threshold - 1, 0, 0, 0, 400)).toBeNull()
+  expect(stampOpacity(threshold, 0, 400).right).toBe(1)
+  expect(resolveDirection(threshold, 0, 0, 0, 400)).toBe('right')
+  expect(DECK_MOTION.stampHold).toBe(.12)
   expect(DECK_MOTION.fling.duration).toBe(.32)
 })

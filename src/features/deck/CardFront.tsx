@@ -1,10 +1,12 @@
 import type { RefObject } from 'react'
 import type { Contact } from '@/domain/types'
 import { formatDate, formatPhone } from '@/ui/format'
-import { Avatar } from '@/ui'
+import { Avatar, useLongPressCopy } from '@/ui'
 import { sourceLabel } from '@/import/sourceLabel'
 import { useElementSize } from '@/hooks/useElementSize'
 import { friendlyType } from './CardFields'
+import { isDrag } from './swipeMath'
+import { useRef } from 'react'
 
 export function formatContactDate(value: string | number | undefined): string | undefined {
   if (value === undefined) return undefined
@@ -12,13 +14,13 @@ export function formatContactDate(value: string | number | undefined): string | 
   return formatted === value && Number.isNaN(new Date(value).getTime()) ? undefined : formatted
 }
 
-export function CardFront({ contact, stageHeight, preview, hold, toggleRef, flip }: {
-  contact: Contact; stageHeight: number; preview: boolean; hold: (value: string) => void
+export function CardFront({ contact, stageHeight, preview, toggleRef, flip }: {
+  contact: Contact; stageHeight: number; preview: boolean
   toggleRef: RefObject<HTMLButtonElement | null>; flip: () => void
 }) {
   const compact = stageHeight < 680
   const landscape = stageHeight > 0 && stageHeight < 420 && window.innerWidth > window.innerHeight
-  const roomy = stageHeight >= 680 || window.innerHeight >= 680 && stageHeight >= 380
+  const roomy = stageHeight >= 680
   const content = useElementSize<HTMLDivElement>()
   const viewport = useElementSize<HTMLDivElement>()
   const identity = useElementSize<HTMLDivElement>()
@@ -43,15 +45,14 @@ export function CardFront({ contact, stageHeight, preview, hold, toggleRef, flip
         <div ref={identity.ref}>
         <div className={compact ? 'flex items-center gap-3' : 'flex flex-col gap-3'}>
           <Avatar name={contact.displayName} photo={contact.photo} size={compact ? 44 : 72} />
-          <h2 className={`min-w-0 font-serif ${landscape ? 't-title' : 't-display'} ${roomy || landscape ? 'line-clamp-2 break-words' : 'truncate'}`}>{contact.displayName}</h2>
+          <h2 className={`min-w-0 font-serif ${landscape ? 't-title' : 't-display'} ${roomy ? 'line-clamp-2 break-words' : 'truncate'}`}>{contact.displayName}</h2>
         </div>
-        <p className={`mt-1 t-body text-ink-2 ${compact ? 'truncate' : 'line-clamp-2'}`}>{[contact.title, contact.org].filter(Boolean).join(' · ') || '\u00a0'}</p>
+        <p className={`mt-1 t-body text-ink-2 ${roomy ? 'line-clamp-2 break-words' : 'truncate'}`}>{[contact.title, contact.org].filter(Boolean).join(' · ') || '\u00a0'}</p>
         </div>
         <dl className="deck-summary-fields mt-2 border-t border-rule pt-1">
           {visible.map((row, index) => <div key={index} className="deck-field-row grid grid-cols-[58px_minmax(0,1fr)] items-center gap-2">
             <dt className="truncate t-meta text-ink-2">{row.label}</dt>
-            <dd className="truncate t-body" title={row.value} onPointerDown={row.phone ? () => hold(row.value) : undefined}
-              onContextMenu={row.phone ? (event) => event.preventDefault() : undefined}>{row.phone ? formatPhone(row.value) : row.value}</dd>
+            {row.phone && !preview ? <FrontPhone value={row.value} /> : <dd className="truncate t-body" title={row.value}>{row.phone ? formatPhone(row.value) : row.value}</dd>}
           </div>)}
         </dl>
       </div>
@@ -64,4 +65,21 @@ export function CardFront({ contact, stageHeight, preview, hold, toggleRef, flip
       {!preview && <button ref={toggleRef} type="button" className="hit-44 min-h-11 min-w-11 t-meta text-ink-2" onClick={(event) => { event.stopPropagation(); flip() }}>View all fields</button>}
     </div>
   </>
+}
+
+function FrontPhone({ value }: { value: string }) {
+  const copy = useLongPressCopy(value)
+  const origin = useRef({ x: 0, y: 0 })
+  return <dd className="deck-front-phone min-w-0 t-body" {...copy.handlers}
+    onPointerDown={event => { origin.current = { x: event.clientX, y: event.clientY }; copy.handlers.onPointerDown?.(event) }}
+    onPointerMove={event => {
+      // Cancel at the deck's drag slop even though the shared gesture allows 10px.
+      if (isDrag(event.clientX - origin.current.x, event.clientY - origin.current.y)) copy.handlers.onPointerCancel?.(event)
+      else copy.handlers.onPointerMove?.(event)
+    }}>
+    <span className="block truncate" title={value}>{formatPhone(value)}</span>
+    <span className="deck-copy-feedback t-meta" onClick={event => event.stopPropagation()}>{copy.feedback}
+      {copy.result === 'Copy failed' && <button type="button" className="hit-44 underline" onClick={() => void copy.copy()}>Retry copy</button>}
+    </span>
+  </dd>
 }

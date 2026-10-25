@@ -80,7 +80,9 @@ describe('Review audit regressions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Other' }))
     await waitFor(async () => expect((await repo.getDecision('Maria')).relation).toBe('other'))
     fireEvent.click(screen.getByText('All fields'))
+    // #23: compact identity and expanded fields both offer copying.
     expect(screen.getByRole('button', { name: 'Copy 555-1234' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy Phone · Mobile' })).toBeInTheDocument()
     expect(screen.getByText('Phone · Mobile')).toBeInTheDocument()
     expect(screen.getByText('vCard file')).toBeInTheDocument()
     expect(screen.queryByText(contact.contact.rev)).not.toBeInTheDocument()

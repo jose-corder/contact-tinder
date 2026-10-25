@@ -68,8 +68,9 @@ describe('Review screen', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^View Bo(?:,|$)/ }))
     fireEvent.click(screen.getByText('All fields'))
     // Finding #27: dial separators are normalized and email addresses encoded.
-    expect(screen.getByRole('link', { name: '555-0001' })).toHaveAttribute('href', 'tel:5550001')
-    expect(screen.getByRole('link', { name: 'bo@example.com' })).toHaveAttribute('href', 'mailto:bo%40example.com')
+    // #23: identity is also present above the expanded field list.
+    expect(screen.getAllByRole('link', { name: '555-0001' })[0]).toHaveAttribute('href', 'tel:5550001')
+    expect(screen.getAllByRole('link', { name: 'bo@example.com' })[0]).toHaveAttribute('href', 'mailto:bo%40example.com')
     fireEvent.click(screen.getByRole('button', { name: 'Jump to deck' }))
     await screen.findByText('Deck destination')
     expect((await getDecision('bo')).workStatus).toBe('current')

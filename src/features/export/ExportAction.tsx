@@ -4,11 +4,28 @@ import { Button, InlineNotice } from '@/ui'
 import { dbRevision } from '@/export/json'
 import { canShareFiles, downloadFiles, fileAction, shareOrDownload } from '@/export/share'
 import { yieldToBrowser } from '@/import/progress'
+import { packageFiles } from '@/export/zip'
 
-export default function ExportAction({ label, prepare, stubs, disabled, primary, downloadOnly = false, compact = false, revision, prepareFirst = false }: {
-  label: string; prepare: () => Promise<File[]>; stubs: File[]; disabled?: boolean; primary?: boolean
-  downloadOnly?: boolean; compact?: boolean; revision?: string; prepareFirst?: boolean
-}) {
+/** Generic contract for Review BulkBar. Pass dbRevision(); key the component by selected IDs when the selection changes. */
+export interface ExportActionProps {
+  files: () => Promise<File[]>
+  label: string
+  revision: string | undefined
+}
+interface PresentationProps {
+  disabled?: boolean; primary?: boolean; downloadOnly?: boolean; compact?: boolean; prepareFirst?: boolean
+}
+/** Compatibility for existing export callers while they adopt the generic files prop. */
+interface LegacyProps extends PresentationProps {
+  label: string; prepare: () => Promise<File[]>; stubs: File[]; revision?: string
+}
+export function ExportAction(props: (ExportActionProps & PresentationProps) | LegacyProps) {
+  const { label, disabled, primary, downloadOnly = false, compact = false, revision } = props
+  const generic = 'files' in props
+  const prepare = generic ? props.files : props.prepare
+  const prepareFirst = props.prepareFirst ?? generic
+  const stubs = generic ? [] : props.stubs.length > 1
+    ? [new File([], 'contacts-export.zip', { type: 'application/zip' })] : props.stubs
   const liveRevision = useLiveQuery(async () => revision ?? await dbRevision(), [revision])
   const currentRevision = revision ?? liveRevision
   const [busy, setBusy] = useState(false)
@@ -18,8 +35,8 @@ export default function ExportAction({ label, prepare, stubs, disabled, primary,
   const [stale, setStale] = useState(false)
   const [downloadInstead, setDownloadInstead] = useState(false)
   const locked = useRef(false)
-  const action = downloadOnly || downloadInstead ? 'Download' : fileAction(stubs)
-  const multiple = action === 'Download' && stubs.length > 1
+  const action = downloadOnly || downloadInstead ? 'Download' : fileAction(ready?.files ?? stubs)
+  const multiple = (!generic && props.stubs.length > 1) || ready?.files[0]?.name === 'contacts-export.zip'
 
   function invalidate() {
     setReady(null); setDownloadInstead(false); setStale(true); setFailed(false)
@@ -38,7 +55,7 @@ export default function ExportAction({ label, prepare, stubs, disabled, primary,
       if ((ready && ready.revision !== before) || (currentRevision && currentRevision !== before)) { invalidate(); return }
       if (!prepared) {
         await yieldToBrowser()
-        prepared = { files: await prepare(), revision: before }
+        prepared = { files: await packageFiles(await prepare()), revision: before }
       }
       if (await dbRevision() !== prepared.revision) { invalidate(); return }
       const files = prepared.files
@@ -46,11 +63,13 @@ export default function ExportAction({ label, prepare, stubs, disabled, primary,
         setReady(prepared); setDownloadInstead(true)
         setMessage('These files are ready to download. Sharing is unavailable for this export.')
       } else if (!ready && (stale || prepareFirst || (action === 'Share' && navigator.userActivation?.isActive === false))) {
-        setReady(prepared); setStale(false); setMessage(`Ready to ${action.toLowerCase()}.`)
+        setReady(prepared); setStale(false)
+        const readyAction = downloadOnly || downloadInstead ? 'Download' : fileAction(files)
+        setMessage(`Ready to ${readyAction.toLowerCase()}.`)
       } else {
         if (action === 'Download') {
-          await downloadFiles(files, (done, total) => setMessage(`Downloading ${done} of ${total} files`))
-          setMessage(files.length > 1 ? `${files.length} file downloads started.` : 'Download started.')
+          await downloadFiles(files)
+          setMessage('Download started.')
         } else {
           await shareOrDownload(files, 'Contacts.', false)
           setMessage('Shared.')
@@ -67,15 +86,17 @@ export default function ExportAction({ label, prepare, stubs, disabled, primary,
     } finally { locked.current = false; setBusy(false) }
   }
 
-  const buttonLabel = stale ? 'Prepare' : !ready && prepareFirst ? `Prepare ${label}`
-    : multiple ? `Download ${stubs.length} files` : downloadInstead ? 'Download instead'
-      : ready && action === 'Share' ? 'Share ready file' : `${action} ${label}`
+  const buttonLabel = stale ? 'Prepare ' + label : !ready && prepareFirst ? 'Prepare ' + label
+    : downloadInstead ? 'Download prepared file'
+      : ready && action === 'Share' ? 'Share ready file' : action + ' ' + (multiple ? 'contacts-export.zip' : label)
   return <div>
     <Button full variant={primary ? 'primary' : 'outline'} loading={busy} disabled={disabled} onClick={() => void run()}
       className={compact ? 'h-auto min-h-11 whitespace-normal px-2 t-meta' : undefined}>{buttonLabel}</Button>
     <div className="mt-2 space-y-2 break-words">
-      {multiple && <InlineNotice tone="info">{stubs.length} files will download, one at a time.</InlineNotice>}
+      {multiple && <InlineNotice tone="info">All files are included in contacts-export.zip.</InlineNotice>}
       {message && <InlineNotice tone={failed ? 'error' : 'info'}>{message}</InlineNotice>}
     </div>
   </div>
 }
+
+export default ExportAction

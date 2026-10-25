@@ -11,6 +11,7 @@ import { mergeContactsChunked, type PossibleDuplicate } from './dedupe'
 import { parseCsvChunks, parseVcfChunks } from './parseChunks'
 import { yieldToBrowser, type OnProgress } from './progress'
 import type { MergePair } from './mergeSummary'
+import { candidatePairs, prunePairs, readPossibleDuplicates, upsertPairs } from './duplicates'
 
 export type { ImportProgress, OnProgress } from './progress'
 
@@ -36,10 +37,16 @@ export interface ImportPreview extends ImportResult {
 export async function importContacts(contacts: Contact[], onProgress?: OnProgress, defaultCountry: string = regionCountry()): Promise<ImportResult> {
   // Keep dedupe and all batches atomic, including concurrent imports in other tabs.
   const result = await db.transaction('rw', db.contacts, db.decisions, db.tags, db.meta, async () => {
+    const previousPairs = await readPossibleDuplicates()
     const existing = (await repo.allContacts()).sort((a, b) => a.importedAt - b.importedAt || a.id.localeCompare(b.id))
     const { toUpsert, added, merged, superseded, migrations, possibleDuplicates } = await Dexie.waitFor(mergeContactsChunked(contacts, existing, onProgress, defaultCountry))
-    // #35: the complete latest-import candidate set, not the twenty-pair preview sample.
-    await repo.setMeta('possibleDuplicates', possibleDuplicates)
+    // #54: append durable pairs and prune deleted members, never reset earlier unresolved work.
+    const live = new Map(existing.map(contact => [contact.id, contact]))
+    for (const contact of toUpsert) live.set(contact.id, contact)
+    for (const id of superseded) live.delete(id)
+    const current = [...live.values()]
+    await repo.setMeta('possibleDuplicates', upsertPairs(prunePairs(previousPairs, current),
+      candidatePairs(possibleDuplicates, current)))
     onProgress?.({ parsed: 0, total: toUpsert.length, phase: 'saving' })
     for (let offset = 0; offset < toUpsert.length; offset += 500) {
       await repo.upsertContacts(toUpsert.slice(offset, offset + 500))
@@ -47,6 +54,7 @@ export async function importContacts(contacts: Contact[], onProgress?: OnProgres
     }
     const decisionsMigrated = await migrateDecisions(migrations)
     if (superseded.length) await repo.deleteContacts(superseded)
+
     return { added, merged, total: contacts.length, errors: [], possibleDuplicates, decisionsMigrated }
   })
   return { ...result, storageNote: contacts.length ? await storageAfterImport() : undefined }

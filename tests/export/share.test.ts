@@ -11,7 +11,6 @@ describe('share or download', () => {
     expect(share).toHaveBeenCalledWith({ files, title: 'Contacts' })
   })
   it('downloads fallback files and revokes temporary URLs', async () => {
-    vi.useFakeTimers()
     vi.stubGlobal('navigator', {})
     const create = vi.fn().mockReturnValue('blob:test')
     const revoke = vi.fn()
@@ -19,18 +18,14 @@ describe('share or download', () => {
     const names: string[] = []
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { names.push(this.download) })
     const pending = shareOrDownload([new File(['one'], 'one.vcf'), new File(['two'], 'two.vcf')])
-    // #25: downloads are separated by 300 ms, including the low-level fallback.
-    expect(names).toEqual(['one.vcf'])
-    await vi.advanceTimersByTimeAsync(299)
-    expect(names).toEqual(['one.vcf'])
-    await vi.advanceTimersByTimeAsync(1)
+    // #25: exactly one ZIP download, never timer-driven individual files.
     expect(await pending).toBe('downloaded')
     downloadText('backup.json', '{}', 'application/json')
-    expect(names).toEqual(['one.vcf', 'two.vcf', 'backup.json'])
-    expect(create.mock.calls[2][0].type).toBe('application/json')
+    expect(names).toEqual(['contacts-export.zip', 'backup.json'])
+    expect(create.mock.calls[1][0].type).toBe('application/json')
     expect(document.querySelector('a[download]')).toBeNull()
-    vi.runAllTimers()
-    expect(revoke).toHaveBeenCalledTimes(3)
+    await new Promise(resolve => setTimeout(resolve, 1100))
+    expect(revoke).toHaveBeenCalledTimes(2)
   })
   it('does not download when a user cancels native sharing', async () => {
     vi.stubGlobal('navigator', { canShare: () => true, share: vi.fn().mockRejectedValue(new DOMException('Cancelled', 'AbortError')) })

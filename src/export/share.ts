@@ -1,3 +1,5 @@
+import { packageFiles } from './zip'
+
 function downloadFile(file: File): void {
   const url = URL.createObjectURL(file)
   const anchor = document.createElement('a')
@@ -21,14 +23,13 @@ export function fileAction(files: File[]): 'Share' | 'Download' {
 }
 
 export async function downloadFiles(files: File[], onProgress?: (done: number, total: number) => void): Promise<void> {
-  for (const [index, file] of files.entries()) {
-    if (index) await new Promise<void>((resolve) => setTimeout(resolve, 300))
-    downloadFile(file)
-    onProgress?.(index + 1, files.length)
-  }
+  const packaged = await packageFiles(files)
+  for (const file of packaged) downloadFile(file)
+  onProgress?.(packaged.length, packaged.length)
 }
 
 export async function shareOrDownload(files: File[], title = 'Contacts.', fallback = true): Promise<'shared' | 'downloaded' | 'fallback'> {
+  files = await packageFiles(files)
   if (canShareFiles(files)) {
     try {
       await navigator.share({ files, title })

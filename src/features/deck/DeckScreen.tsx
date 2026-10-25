@@ -3,12 +3,12 @@ import { Link, useLocation, useNavigate } from 'react-router'
 import { motion } from 'framer-motion'
 import { PASS_META } from '@/domain/taxonomy'
 import type { Direction, Pass } from '@/domain/types'
-import { Button, Frame, TopBar, Empty, InlineNotice, Skeleton, VisuallyHidden } from '@/ui'
+import { Button, Frame, TopBar, Empty, InlineNotice, Skeleton, VisuallyHidden, ScrollFallback, ToastDock, useConstrainedViewport, useToastHeight } from '@/ui'
 import { useDeck } from '@/hooks/useDeck'
 import { useSwipe } from '@/hooks/useSwipe'
 import { useKeyboard } from '@/hooks/useKeyboard'
 import { useElementSize } from '@/hooks/useElementSize'
-import { FeedbackSlot } from './FeedbackSlot'
+import { DesktopContext } from './DesktopContext'
 import { useDeckViewport } from '@/hooks/useDeckViewport'
 import { ActionBar } from './ActionBar'
 import { ChipRow } from './ChipRow'
@@ -18,7 +18,6 @@ import { Stamp } from './Stamp'
 import { SwipeCard } from './SwipeCard'
 import { FollowUpSheet, type FollowUpTarget } from './FollowUpSheet'
 import { followUpEnabled } from '@/ui/theme'
-import { dismissToast, toast } from '@/ui/toast'
 import { useCoach } from '@/hooks/useCoach'
 import { DeckCoach, PASS_SUBTITLE } from './DeckCoach'
 import { useDeckReducedMotion } from './motion'
@@ -30,6 +29,8 @@ export default function DeckScreen({ pass }: { pass: Pass }) {
 
 function DeckSession({ pass }: { pass: Pass }) {
   const deck = useDeck(pass)
+  const { shortHeight, keyboardOpen, largeText } = useConstrainedViewport()
+  const constrained = shortHeight || keyboardOpen || largeText
   const coach = useCoach(pass)
   const navigate = useNavigate()
   const [followUp, setFollowUp] = useState<FollowUpTarget>()
@@ -38,27 +39,28 @@ function DeckSession({ pass }: { pass: Pass }) {
   useLayoutEffect(() => { latestUndo.current = deck.undo }, [deck.undo])
   const undo = useCallback(() => {
     if (followUpBusy.current) return
-    dismissToast(); setFollowUp(undefined); void latestUndo.current()
-  }, [])
+    deck.dismissToast(); setFollowUp(undefined); void latestUndo.current()
+  }, [deck.dismissToast])
   const onSwipe = async (direction: Direction) => {
-    coach.dismiss(); dismissToast()
+    coach.dismiss(); deck.dismissToast()
     const result = await deck.swipe(direction)
     if (!result) return
     if (pass === 'triage' && followUpEnabled() && (result.decision.bucket === 'work' || result.decision.bucket === 'personal')) {
-      dismissToast()
       setFollowUp({ contact: result.item.contact, decision: result.decision })
     } else {
       const outcome = PASS_META[pass].swipes[direction]
       const firstName = result.item.contact.givenName?.trim().split(/\s+/)[0] || result.item.contact.displayName.trim().split(/\s+/)[0] || 'Contact'
       const tone = outcome.kind === 'skip' ? 'default' : outcome.kind === 'bucket' ? outcome.value : pass === 'work' ? 'work' : 'personal'
-      toast(firstName + ' → ' + outcome.label, { tone, priority: 'high', action: { label: 'Undo', onClick: undo } })
+      const { contactId, updatedAt } = result.decision
+      deck.toast(firstName + ' → ' + outcome.label, { tone, priority: 'high',
+        validUntil: () => deck.stillUndoable(contactId, updatedAt), action: { label: 'Undo', onClick: undo } })
     }
   }
   useKeyboard({ swipe: () => {}, toggleChip: () => {}, focusTag: () => {}, undo, disabled: !!deck.top || deck.pending || !!followUp })
   const [announcement, setAnnouncement] = useState('')
   const card = deck.top?.contact
   useEffect(() => { if (card) setAnnouncement('') }, [card])
-  return <Frame className="deck-screen h-dvh overflow-hidden">
+  return <div className="deck-workspace"><ScrollFallback when={constrained} className="deck-column"><Frame className="deck-screen h-dvh overflow-y-auto">
     <TopBar title={PASS_META[pass].title + (deck.scopeLabel ? ` · ${deck.scopeLabel}` : '')} backTo="/" right={<span className="flex items-center gap-2">
       <span>{deck.done} / {deck.total}</span>
       {deck.canUndo && <button type="button" className="hit-44 h-11 min-w-11 t-meta" disabled={!!followUp || deck.pending} onClick={undo}>Undo</button>}
@@ -74,7 +76,7 @@ function DeckSession({ pass }: { pass: Pass }) {
       if (saved && followUp) deck.amendUndo(saved, followUp.decision.updatedAt)
       setFollowUp(undefined)
     }} />
-  </Frame>
+  </Frame></ScrollFallback><DesktopContext contacts={deck.upNext} done={deck.sessionDone} remaining={deck.remaining} skipped={deck.skippedIds.length} /></div>
 }
 
 function ActiveDeck({ pass, deck, coach, onSwipe, undo, locked }: {
@@ -83,6 +85,9 @@ function ActiveDeck({ pass, deck, coach, onSwipe, undo, locked }: {
   const inputRef = useRef<HTMLInputElement>(null)
   const railRef = useRef<HTMLDivElement>(null)
   const keyboard = useDeckViewport(inputRef, railRef)
+  const { shortHeight, keyboardOpen, largeText } = useConstrainedViewport()
+  const scrollable = shortHeight || keyboardOpen || largeText
+  const toastHeight = useToastHeight()
   const [tagOpen, setTagOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const stage = useElementSize<HTMLDivElement>()
@@ -107,9 +112,9 @@ function ActiveDeck({ pass, deck, coach, onSwipe, undo, locked }: {
   if (!deck.top || !deck.draft) return null
   const compact = stage.height > 0 && stage.height < 420 && window.innerWidth > window.innerHeight
   return <div className={`deck-active flex min-h-0 flex-1 flex-col ${keyboard ? 'deck-keyboard-open' : ''}`}>
-    <div ref={stage.ref} data-deck-stage className="relative mb-2 min-h-0 flex-1">
+    <div ref={stage.ref} data-deck-stage data-scroll-stage className="deck-stage relative mb-2 flex-1">
       {deck.next && <NextCard contact={deck.next.contact} stageHeight={stage.height} advancing={!!swipe.committing} />}
-      <motion.div ref={swipe.cardRef} className="absolute inset-0 z-10" style={{ x: reduced ? 0 : swipe.x, y: reduced ? 0 : swipe.y, rotate: reduced ? 0 : swipe.rotate, opacity: swipe.opacity, touchAction: detailsOpen || stage.height < 240 ? 'pan-y' : 'none' }}
+      <motion.div ref={swipe.cardRef} className="absolute inset-0 z-10" style={{ x: reduced ? 0 : swipe.x, y: reduced ? 0 : swipe.y, rotate: reduced ? 0 : swipe.rotate, opacity: swipe.opacity, touchAction: scrollable || detailsOpen || stage.height < 240 ? 'pan-y' : 'none' }}
         onPointerDown={swipe.onPointerDown} onPan={swipe.drag && !detailsOpen ? swipe.onDrag : undefined}
         onPanEnd={!detailsOpen ? swipe.onDragEnd : undefined} onPointerCancel={detailsOpen ? undefined : swipe.cancel}>
         <SwipeCard key={cardKey} contact={deck.top.contact} stageHeight={stage.height} onFlip={setDetailsOpen} />
@@ -121,9 +126,9 @@ function ActiveDeck({ pass, deck, coach, onSwipe, undo, locked }: {
     </div>
     <div ref={railRef} className="deck-chip-region relative z-20 shrink-0" onClickCapture={coach.dismiss}>
       <ChipRow pass={pass} draft={deck.draft} toggleChip={deck.toggleChip} toggleTag={deck.toggleTag} inputRef={inputRef} open={tagOpen} setOpen={setTagOpen} disabled={disabled}
-        setRelation={pass === 'personal' ? deck.setRelation : undefined} completePersonal={pass === 'personal' ? () => { dismissToast(); void deck.completePersonal() } : undefined} />
+        setRelation={pass === 'personal' ? deck.setRelation : undefined} completePersonal={pass === 'personal' ? () => { deck.dismissToast(); void deck.completePersonal() } : undefined} />
     </div>
-    <FeedbackSlot />
+    <ToastDock className="deck-feedback-dock" data-toast-height={toastHeight} />
     <ActionBar pass={pass} triggerSwipe={triggerSwipe} disabled={disabled} compact={compact} keyboard={keyboard} />
   </div>
 }

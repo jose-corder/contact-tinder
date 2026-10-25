@@ -1,0 +1,31 @@
+.toast-dock { min-width: 0; }
+.toast-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+}
+.scroll-fallback[data-constrained='true'],
+.scroll-fallback[data-constrained='true'] > * {
+  display: flex;
+  flex-direction: column;
+  height: auto !important;
+  max-height: none !important;
+  min-height: min-content;
+  overflow: visible !important;
+}
+.scroll-fallback[data-constrained='true'] :where(.flex-1, .h-full, .h-dvh, .overflow-y-auto, .overflow-hidden) {
+  height: auto;
+  max-height: none;
+  min-height: min-content;
+  flex-shrink: 0;
+  overflow: visible;
+}
+.scroll-fallback[data-constrained='true'] [data-scroll-stage] { min-height: 280px; flex: 0 0 auto; }
+.field-list { display: grid; gap: 12px; min-width: 0; }
+.field-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px 12px; }
+@media (min-width: 400px) {
+  .field-row { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+}

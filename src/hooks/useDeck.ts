@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { StaleDecisionError } from '@/db/repo'
-import { dismissToast, toast } from '@/ui/toast'
+import { useDeckToast } from './useDeckToast'
 import { clearDeckScope, loadDeck, resetSessionSkips, saveDeckDecision, type DeckItem, type DeckScope } from './deckSession'
-import { applySwipe, isInDeck, toggleCustomTag } from '@/domain/taxonomy'
+import { applySwipe, isInDeck, isUnsorted, normalizeDecision, toggleCustomTag } from '@/domain/taxonomy'
 import { completePersonalTypes, enqueueSkipped, progressOf, reinsertFront, removeTop, toggleDeckType } from '@/domain/decks'
 import type { Decision, Direction, Pass, PersonalRelation, PersonalType, WorkType } from '@/domain/types'
 import { useUndo } from './useUndo'
 
 export function useDeck(pass: Pass) {
+  const { notify: toast, dismiss: dismissToast } = useDeckToast()
   const [queue, setQueue] = useState<DeckItem[]>([])
   const [scopeLabel, setScopeLabel] = useState<string>()
   const scope = useRef<DeckScope | null>(null)
@@ -85,7 +86,7 @@ export function useDeck(pass: Pass) {
       dismissToast()
       if (scope.current) void clearDeckScope(scope.current).catch(() => {})
     }
-  }, [pass, history.clear, loadAttempt])
+  }, [pass, history.clear, loadAttempt, dismissToast])
 
   useEffect(() => {
     const visible = () => {
@@ -127,7 +128,7 @@ export function useDeck(pass: Pass) {
     }).catch(() => { settled = true; if (active) setError('Could not refresh contacts. Please try again.') })
     return () => { active = false; if (!settled) refreshRequested.current = true }
   // Queue edits during a refresh cancel its snapshot and request a fresh one.
-  }, [refresh, loading, pending, pass, queue, history.clear])
+  }, [refresh, loading, pending, pass, queue, history.clear, dismissToast])
 
   const finished = !loading && !queue.length && !empty && !error && !pending
   useEffect(() => {
@@ -145,9 +146,9 @@ export function useDeck(pass: Pass) {
     setReturning(undefined)
     const version = generation.current
     const now = Math.max(Date.now(), item.decision.updatedAt + 1)
-    // #16: Skip keeps types/tags but leaves completion to a deliberate choice.
+    // #53: every saved type-only Personal draft follows repo normalization, including Skip.
     const swipeDraft = direction === 'down' ? { ...draft, relation: item.decision.relation, workStatus: item.decision.workStatus } : draft
-    const decision = completion ? { ...completion, updatedAt: now } : applySwipe(swipeDraft, pass, direction, now)
+    const decision = normalizeDecision(completion ? { ...completion, updatedAt: now } : applySwipe(swipeDraft, pass, direction, now))
     const stays = direction === 'down' && (scope.current?.mode === 'reclassify'
       ? decision.skips[pass] - (initialSkips.current.get(item.contact.id) ?? 0) < 2 : isInDeck(decision, pass))
     const rest = removeTop(queue)
@@ -158,7 +159,7 @@ export function useDeck(pass: Pass) {
     try {
       await saveDeckDecision(decision, { expectedUpdatedAt: item.persisted ? item.decision.updatedAt : null })
       if (version !== generation.current) return
-      if (!stays && direction === 'down') skippedIds.current.add(item.contact.id)
+      if (!stays && direction === 'down' && (scope.current?.mode === 'reclassify' || isUnsorted(decision, pass))) skippedIds.current.add(item.contact.id)
       history.push({ item, prevDecision: item.decision, writtenDecision: decision, direction })
       return { item, decision }
     } catch (error) {
@@ -217,13 +218,14 @@ export function useDeck(pass: Pass) {
     finally { if (version === generation.current) busy.current = false }
   }
   return {
-    top: queue[0], next: queue[1], remaining: queue.length, done, total: done + queue.length,
+    top: queue[0], next: queue[1], upNext: queue.slice(1, 6).map(item => item.contact), remaining: queue.length, done, total: done + queue.length,
     sessionDone: Math.max(0, done - initialDone.current), sessionTotal: Math.max(0, done - initialDone.current) + queue.length, scoped: !!scope.current,
-    progress: progressOf(done, queue.length), draft: draft && completePersonalTypes(draft), loading, empty, pending, error, returning, scopeLabel,
+    progress: progressOf(done, queue.length), draft, loading, empty, pending, error, returning, scopeLabel,
     finished, amendUndo: history.amend,
     sessionIds: sessionIds.current, skippedIds: [...skippedIds.current], retrySkipped,
     retry: () => setLoadAttempt(value => value + 1),
-    canUndo: history.canUndo && !pending, swipe, undo,
+    canUndo: history.canUndo && !pending, swipe, undo, toast, dismissToast,
+    stillUndoable: (contactId: string, updatedAt: number) => !busy.current && history.stillUndoable(contactId, updatedAt),
     completePersonal: () => pass === 'personal' && draft && (draft.relation || draft.personalTypes.length)
       ? swipe('right', completePersonalTypes(draft)) : Promise.resolve(undefined),
     setRelation: (relation: PersonalRelation) => {

@@ -2,7 +2,7 @@ import { IconCheck } from '@/ui/icons'
 import { cx } from '@/ui'
 import type { homeProgress } from './progress'
 
-export default function ProgressOverview({ progress, total }: { progress: ReturnType<typeof homeProgress>; total: number }) {
+export default function ProgressOverview({ progress, total, unsorted = 0 }: { progress: ReturnType<typeof homeProgress>; total: number; unsorted?: number }) {
   const circumference = 2 * Math.PI * 32
   return <section aria-label="Sorting progress" className="my-5 grid grid-cols-[72px_minmax(0,1fr)] items-center gap-4 lg:col-start-1">
     <div className="relative h-[72px] w-[72px] shrink-0" role="progressbar" aria-label="Overall completion"
@@ -31,5 +31,6 @@ export default function ProgressOverview({ progress, total }: { progress: Return
       </ol>
     </div>
     {progress.classified !== progress.completed && <p className="col-span-2 t-meta text-ink-2 tabular">{progress.classified} classified, {progress.completed} fully sorted</p>}
+    {unsorted > 0 && <p className="col-span-2 t-meta text-ink-2 tabular">{unsorted} waiting in Review</p>}
   </section>
 }

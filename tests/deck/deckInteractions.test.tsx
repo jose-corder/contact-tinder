@@ -87,7 +87,7 @@ it('deck_hit_areas_are_at_least_44px_without_growing_chip_visuals', async () => 
   expect(screen.getByRole('link', { name: 'Back' })).toHaveClass('hit-44')
   await click('View all fields')
   expect(screen.getByRole('button', { name: 'Back' })).toHaveClass('min-h-11', 'min-w-11')
-  expect(screen.getByRole('link', { name: '111' })).toHaveClass('min-h-11', 'min-w-11')
+  expect(screen.getByRole('link', { name: '111' })).toHaveClass('hit-44') // #42 shared FieldList
   await click('Current')
   await waitFor(() => expect(screen.getByRole('button', { name: 'Undo' })).toHaveClass('h-11', 'min-w-11'))
   // jsdom does not lay out pixels or pseudo-elements; assert CSS/class contracts.

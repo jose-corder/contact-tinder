@@ -89,7 +89,7 @@ it('visibility_reconciles_membership_removes_old_cards_and_appends_new_cards', a
   expect(result.current.next?.contact.id).toBe('0')
 })
 
-it('pass_change_and_unmount_clear_global_undo_toast', async () => {
+it('#57 pass change and unmount leave unrelated global notices alone', async () => {
   const view = renderHook(({ pass }: { pass: Pass }) => useDeck(pass), { initialProps: { pass: 'triage' } })
   await waitFor(() => expect(view.result.current.loading).toBe(false))
   await act(async () => { await view.result.current.swipe('right') })
@@ -97,8 +97,8 @@ it('pass_change_and_unmount_clear_global_undo_toast', async () => {
   view.rerender({ pass: 'work' })
   await waitFor(() => expect(view.result.current.loading).toBe(false))
   expect(view.result.current.canUndo).toBe(false)
-  expect(dismiss).toHaveBeenCalled()
+  expect(dismiss).not.toHaveBeenCalled()
   dismiss.mockClear()
   view.unmount()
-  expect(dismiss).toHaveBeenCalled()
+  expect(dismiss).not.toHaveBeenCalled()
 })

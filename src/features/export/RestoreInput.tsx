@@ -3,7 +3,6 @@ import type { RestoreMode } from '@/db/repo'
 import { previewRestore, restoreJson, type RestorePreview } from '@/export/json'
 import { readText } from '@/import/readFile'
 import { Button, InlineNotice } from '@/ui'
-import { toast } from '@/ui/toast'
 import { useRestoreRecovery } from './useRestoreRecovery'
 
 export default function RestoreInput({ label = 'Choose backup file' }: { label?: string }) {
@@ -31,11 +30,9 @@ export default function RestoreInput({ label = 'Choose backup file' }: { label?:
         setMessage('Your app data changed. Review the updated counts before restoring.')
         return
       }
-      await restoreJson(review.text, mode)
+      const result = await restoreJson(review.text, mode)
       setReview(null)
-      // One success announcement, with the full ten-minute recovery window.
-      if (mode === 'replace') announce('Restored ·')
-      else toast('Backup merged')
+      await announce(result.restoreId)
     } catch (error) { setFailed(true); setMessage(error instanceof Error ? error.message : 'Could not restore this backup. Try again.') }
     finally { locked.current = false; setBusy(false) }
   }
@@ -76,11 +73,11 @@ export default function RestoreInput({ label = 'Choose backup file' }: { label?:
         </label>)}
       </fieldset>
       <p className="mb-3 t-body text-ink-2">{mode === 'replace'
-        ? `${preview.removed} contacts will be removed from this app.${decisionRemovals ? ` ${decisionRemovals} saved decisions on remaining contacts will be cleared.` : ''} You can undo for 10 minutes.`
-        : 'Matching contacts and decisions use the backup’s version, even if older. Other contacts and decisions stay here.'}</p>
+        ? `${preview.removed} contacts will be removed from this app.${decisionRemovals ? ` ${decisionRemovals} saved decisions on remaining contacts will be cleared.` : ''} You can undo this restore for 10 minutes.`
+        : 'Matching contacts and decisions use the backup’s version, even if older. Other contacts and decisions stay here. You can undo this restore for 10 minutes.'}</p>
       <Button full loading={busy} onClick={() => void commit()}>{mode === 'replace' ? "Replace this app's data" : 'Merge backup'}</Button>
       {message && <InlineNotice tone={failed ? 'error' : 'info'}>{message}</InlineNotice>}
-      <Button full variant="ghost" disabled={busy} onClick={() => { setReview(null); setMessage('') }}>Cancel</Button>
+      <Button full variant="ghost" disabled={busy} onClick={() => { setReview(null); setMessage('') }}>Cancel restore</Button>
     </section>}
     {!review && message && <InlineNotice tone={failed ? 'error' : 'info'}>{message}</InlineNotice>}
   </div>

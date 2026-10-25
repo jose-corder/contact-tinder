@@ -43,3 +43,19 @@ it('keeps failed undo entries available for retry', async () => {
   await act(async () => { await result.current.undo() })
   expect(restore).toHaveBeenCalledTimes(1)
 })
+
+it('#57 binds toast validity to the top contact and exact written version', async () => {
+  const { result } = renderHook(() => useUndo(vi.fn()))
+  act(() => result.current.push(entry(1)))
+  const valid = result.current.stillUndoable
+  expect(valid('1', 2)).toBe(true)
+  expect(valid('1', 3)).toBe(false)
+  act(() => result.current.push(entry(2)))
+  expect(valid('1', 2)).toBe(false)
+  expect(valid('2', 2)).toBe(true)
+  act(() => result.current.amend({ ...entry(2).writtenDecision, updatedAt: 3 }, 2))
+  expect(valid('2', 2)).toBe(false)
+  expect(valid('2', 3)).toBe(true)
+  act(() => result.current.clear())
+  expect(valid('2', 3)).toBe(false)
+})

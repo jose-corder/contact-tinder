@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { readPossibleDuplicates } from '@/import/duplicates'
 import { Link, useNavigate } from 'react-router'
 import { Button, Frame, InlineNotice, TopBar, cx } from '@/ui'
 import { IconUpload } from '@/ui/icons'
@@ -12,6 +14,8 @@ type Phase = 'choose' | 'preview' | 'importing' | 'done' | 'error'
 
 export default function ImportScreen() {
   const navigate = useNavigate()
+  const pairs = useLiveQuery(readPossibleDuplicates)
+  const unresolved = pairs?.filter(pair => !pair.resolved).length ?? 0
   const locked = useRef(false)
   const heading = useRef<HTMLHeadingElement>(null)
   const retry = useRef<(() => Promise<ImportResult | Preview>) | null>(null)
@@ -83,7 +87,7 @@ export default function ImportScreen() {
           <span className="t-body text-ink-2">Contact file (vCard (.vcf)) or CSV (.csv)<span className="hidden [@media(pointer:fine)]:inline"> · or drop files here</span></span>
         </label>
         <div className="mt-4 flex flex-col items-center gap-2">
-          {isContactPickerSupported() && <Button variant="outline" full onClick={() => void run(async () => importContacts(await pickContacts(), setProgress))}>Pick from phone</Button>}
+          {isContactPickerSupported() && <Button variant="outline" full onClick={() => void run(async () => importContacts(await pickContacts(), setProgress))}>Pick phone contacts</Button>}
           <Button variant="ghost" onClick={() => void run(() => importDemo(setProgress))}>Try 40 sample contacts</Button>
           <p className="text-center t-meta text-ink-2">Samples will be added to this app.</p>
         </div>
@@ -95,13 +99,14 @@ export default function ImportScreen() {
       </>}
       {phase === 'importing' && progress && <ImportProgressView progress={progress} />}
       {phase === 'done' && result && <section className="rounded-[20px] border border-rule bg-paper-2 p-5 text-center">
-        {result.possibleDuplicates.length > 0 && <Link to="/review?tab=unsorted&dupes=1" className="mb-4 inline-flex min-h-11 items-center t-body underline underline-offset-4">Review possible duplicates ({result.possibleDuplicates.length})</Link>}
+        {unresolved > 0 && <Link to="/review?dupes=1" className="mb-4 inline-flex min-h-11 items-center t-body underline underline-offset-4">Review possible duplicates ({unresolved})</Link>}
+        <p className="mb-3 t-body">Next, sort contacts into Work, Personal, or Delete.</p>
         <Button full size="lg" onClick={() => navigate('/deck/triage')}>Sort contacts</Button>
-        <Button full variant="ghost" onClick={reset}>Import another</Button>
+        <Button full variant="ghost" onClick={reset}>Import another file</Button>
       </section>}
       {phase === 'error' && <section className="rounded-[20px] border border-rule p-5">
         <InlineNotice tone="error"><ul className="my-3 space-y-2 break-words t-body">{errors.map((error, index) => <li key={index}>{error}</li>)}</ul></InlineNotice>
-        <Button full onClick={() => retry.current && void run(retry.current)}>Retry</Button>
+        <Button full onClick={() => retry.current && void run(retry.current)}>Retry import</Button>
         <Button full variant="ghost" onClick={reset}>Choose another file</Button>
       </section>}
       {phase !== 'error' && errors.length > 0 && <InlineNotice tone="error"><ul className="mt-4 space-y-2 break-words t-body">{errors.map((error, index) => <li key={index}>{error}</li>)}</ul></InlineNotice>}

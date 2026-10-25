@@ -22,13 +22,13 @@ export default function ImportPreview({ preview, busy, onConfirm, onCancel }: {
   return <section className="mt-6 border-y border-rule py-5" aria-label="Import preview">
     {preview.allAlreadyImported ? <>
       <h2 className="font-serif t-title">All {preview.total.toLocaleString()} already imported</h2>
-      <Button full className="mt-4" onClick={onCancel}>Done</Button>
+      <Button full className="mt-4" onClick={onCancel}>Choose another file</Button>
     </> : <>
       <h2 className="font-serif t-title">{preview.added.toLocaleString()} contacts will be added</h2>
       <p className="tabular mt-2 t-body text-ink-2">{preview.total.toLocaleString()} contacts found · {preview.merged.toLocaleString()} duplicates will merge{preview.photos > 0 ? ` · ${preview.photos.toLocaleString()} with photos` : ''}</p>
       <div className="mt-3">
-        <Button full disabled={busy} onClick={onConfirm}>Import {preview.total.toLocaleString()}</Button>
-        <Button full variant="ghost" disabled={busy} onClick={onCancel}>Cancel</Button>
+        <Button full disabled={busy} onClick={onConfirm}>Import {preview.total.toLocaleString()} contacts</Button>
+        <Button full variant="ghost" disabled={busy} onClick={onCancel}>Cancel import</Button>
       </div>
       {(preview.merged > 0 || preview.possibleDuplicates.length > 0) && <details className="mt-2 t-body">
         <summary className="min-h-11 cursor-pointer py-3">See what merges</summary>

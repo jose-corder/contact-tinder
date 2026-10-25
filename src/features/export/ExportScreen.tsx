@@ -30,7 +30,7 @@ export default function ExportScreen() {
   return <Frame>
     <TopBar title="Export" backTo="/" />
     <p className="t-body leading-relaxed text-ink-2">Delete marks a list. Your phone's contacts are unchanged until you act on it.</p>
-    <h1 className="my-6 text-center font-serif t-display leading-tight">Take it with you.</h1>
+    <h1 className="my-6 text-center font-serif t-display leading-tight">Export your contacts.</h1>
     {!data ? <section aria-label="Loading exports" aria-busy="true" className="space-y-4 border-y border-rule py-5">
       <InlineNotice tone="info">Loading contacts…</InlineNotice>
       <Skeleton className="h-8 w-2/3" /><Skeleton className="h-24 w-full" />
@@ -38,14 +38,14 @@ export default function ExportScreen() {
     </section> : data.error ? <section className="rounded-[20px] border border-rule p-5">
       <h2 className="font-serif t-title">Contacts could not be loaded</h2>
       <InlineNotice tone="error">Try reading this app’s saved contacts again.</InlineNotice>
-      <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>
+      <Button onClick={() => setAttempt((value) => value + 1)}>Reload contacts</Button>
     </section> : !rows?.length ? <Empty title="No contacts yet.">
       <p>Import a contact file to create your lists.</p>
       <Link to="/import" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Import contacts</Link>
     </Empty> : <>
       <section className="mb-6 border-y border-rule py-5">
         <h2 className="font-serif t-title">Clean address book</h2>
-        <p className="mt-2 t-body text-ink-2">{clean.description}</p>
+        <p className="mt-2 t-body text-ink-2">Import this vCard into your phone’s Contacts app. {clean.description}</p>
         <p className="tabular my-3 t-body text-ink-2">{clean.rows.length.toLocaleString()} contacts · contacts-clean.vcf</p>
         {contactAction([clean], 'clean address book', true)}
         <p className="mt-3 t-body leading-relaxed text-ink-2">{platformHint(exportPlatform())}</p>
@@ -67,6 +67,7 @@ export default function ExportScreen() {
           <tbody>{files.map((group) => <tr key={group.filename} className="border-b border-rule">
             <td className="py-4 pr-3 align-top">
               <p>{group.description}</p>
+              <p className="mt-1 t-meta text-ink-2">Import this list into a contacts app.</p>
               <p className="mt-1 break-words t-meta text-ink-2 [overflow-wrap:anywhere]">{group.filename}</p>
               <p className="mt-1 tabular t-meta text-ink-2">{group.rows.length.toLocaleString()} contacts</p>
             </td>
@@ -75,6 +76,7 @@ export default function ExportScreen() {
         </table>
         <div className="my-4 space-y-4">
           {contactAction(files, 'all contact files')}
+          <p className="t-body text-ink-2">Open the CSV in a spreadsheet to review every contact and label.</p>
           {textAction('CSV', 'all-contacts.csv', 'text/csv', () => csvText(rows))}
         </div>
       </details>

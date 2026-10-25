@@ -6,6 +6,7 @@ import { db } from '@/db/schema'
 import { backupJson } from '@/export/json'
 import { downloadText } from '@/export/share'
 import RestoreInput from '@/features/export/RestoreInput'
+import RestoreAvailability from './RestoreAvailability'
 import { Button, Frame, InlineNotice, RadioGroup, Sheet, SheetFooterActions, Skeleton, TopBar, formatDate } from '@/ui'
 import { toast } from '@/ui/toast'
 import { getThemePref, setThemePref, hapticsEnabled, setHapticsEnabled, followUpEnabled, setFollowUpEnabled, type ThemePref } from '@/ui/theme'
@@ -79,7 +80,8 @@ export default function SettingsScreen() {
       {backupError && <InlineNotice tone="error">{backupError}</InlineNotice>}
       {!data ? <Skeleton className="h-5 w-48" /> : data.error ? <InlineNotice tone="error">{data.error}<Button variant="ghost" onClick={() => setRetry(value => value + 1)}>Retry</Button></InlineNotice> :
         <p className="t-meta text-ink-2">{lastBackupAt ? 'Last backup: ' + formatDate(lastBackupAt) : 'No backup exported yet.'}</p>}
-      <p className="t-meta text-ink-2">Restore replaces or merges this device's data; you can undo for 10 minutes.</p>
+      <p className="t-meta text-ink-2">Restore replaces or merges this device's data.</p>
+      <RestoreAvailability />
       <RestoreInput />
     </section>
     <section className="border-b border-rule py-5">

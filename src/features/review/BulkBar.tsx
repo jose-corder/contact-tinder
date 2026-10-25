@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { saveDecisions, type ContactWithDecision } from '@/db/repo'
+import { saveDecisions, StaleDecisionError, type ContactWithDecision } from '@/db/repo'
+import { useLiveQuery } from 'dexie-react-hooks'
 import { BUCKET_META, normalizeTag, setBucket, toggleCustomTag } from '@/domain/taxonomy'
 import type { Bucket, Decision } from '@/domain/types'
-import { shareOrDownload } from '@/export/share'
+import { dbRevision } from '@/export/json'
+import { ExportAction } from '@/features/export/ExportAction'
 import { vcfText } from '@/export/vcf'
 import { Button, InlineNotice, RadioGroup, Sheet, SheetFooterActions } from '@/ui'
-import { setToastBottom, toast } from '@/ui/toast'
+import { dismissToast, setToastBottom, toast, type ToastHandle } from '@/ui/toast'
+import { observeVersions, snapshotUnchanged, undoDecisions, type UndoSnapshot } from './undo'
 
 export default function BulkBar({ rows, onClear, onSelectAll, total = rows.length, resultCount = rows.length, tabLabel = 'contacts' }: {
   rows: ContactWithDecision[]; onClear: () => void; onSelectAll: () => void; total?: number; resultCount?: number; tabLabel?: string
@@ -16,8 +19,9 @@ export default function BulkBar({ rows, onClear, onSelectAll, total = rows.lengt
   const [destination, setDestination] = useState<Bucket>('work')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [cancelled, setCancelled] = useState(false)
-  const [previous, setPrevious] = useState<Decision[]>()
+  const [previous, setPrevious] = useState<UndoSnapshot>()
+  const notice = useRef<ToastHandle | undefined>(undefined)
+  const revision = useLiveQuery(dbRevision)
   const locked = useRef(false)
   const bar = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -27,21 +31,37 @@ export default function BulkBar({ rows, onClear, onSelectAll, total = rows.lengt
     if (bar.current) observer?.observe(bar.current)
     return () => { observer?.disconnect(); setToastBottom(null) }
   }, [])
-  async function undo(snapshot: Decision[]) {
+  async function undo(snapshot: UndoSnapshot) {
     if (locked.current) return
     locked.current = true; setBusy(true); setError('')
-    try { await saveDecisions(snapshot); setPrevious(undefined); toast('Changes undone') }
-    catch { setError('Could not undo these changes. Try Undo again.') }
+    try {
+      await undoDecisions(snapshot); setPrevious(undefined)
+      if (notice.current) dismissToast(notice.current.id)
+      toast('Changes undone')
+    } catch (error) {
+      const message = error instanceof StaleDecisionError ? 'Changed since — none undone' : 'Could not undo these changes. Try Undo again.'
+      setError(message)
+      if (error instanceof StaleDecisionError) {
+        setPrevious(undefined)
+        if (notice.current) dismissToast(notice.current.id)
+        toast(message, { priority: 'high' })
+      }
+    }
     finally { locked.current = false; setBusy(false) }
   }
   async function apply(next: Decision[], message: string) {
     if (locked.current) return
-    const snapshot = rows.map(({ decision }) => decision)
+    const before = rows.map(({ decision }) => decision)
+    const after = next.map((decision, index) => ({ ...decision, updatedAt: Math.max(Date.now(), before[index].updatedAt + 1) }))
+    const snapshot = { before, after }
     locked.current = true; setBusy(true); setError('')
     try {
-      await saveDecisions(next)
+      await saveDecisions(after)
+      observeVersions(after)
       setPrevious(snapshot); setOpen(false); setTagOpen(false); setTag('')
-      toast(message + ' ·', { action: { label: 'Undo', onClick: () => { void undo(snapshot) } } })
+      if (notice.current) dismissToast(notice.current.id)
+      notice.current = toast(message + ' ·', { priority: 'high', duration: 10000,
+        validUntil: () => snapshotUnchanged(snapshot), action: { label: 'Undo', onClick: () => { void undo(snapshot) } } })
     } catch { setError('Could not save these changes. Nothing was changed. Please try again.') }
     finally { locked.current = false; setBusy(false) }
   }
@@ -61,19 +81,12 @@ export default function BulkBar({ rows, onClear, onSelectAll, total = rows.lengt
       <div className="grid grid-cols-2 gap-2">
         <Button loading={busy} variant="outline" disabled={!rows.length} onClick={() => { setError(''); setOpen(true) }}>Move to…</Button>
         <Button variant="outline" disabled={!rows.length || busy} onClick={() => { setError(''); setTagOpen(true) }}>Tag…</Button>
-        <Button variant="outline" disabled={!rows.length || busy} onClick={async () => {
-          if (locked.current) return
-          locked.current = true; setBusy(true); setError(''); setCancelled(false)
-          try { await shareOrDownload([new File([vcfText(rows)], 'selected-contacts.vcf', { type: 'text/vcard' })]) }
-          catch (reason) {
-            if (reason instanceof Error && reason.name === 'AbortError') setCancelled(true)
-            else setError('Could not export contacts. Please try again.')
-          } finally { locked.current = false; setBusy(false) }
-        }}>Export contacts</Button>
+        <ExportAction key={JSON.stringify(rows.map(row => row.contact.id))} label="selected contacts" revision={revision}
+          disabled={!rows.length || busy} compact
+          files={async () => [new File([vcfText(rows)], 'selected-contacts.vcf', { type: 'text/vcard' })]} />
         {previous && <Button variant="ghost" disabled={busy} onClick={() => void undo(previous)}>Undo last action</Button>}
       </div>
       {!open && !tagOpen && error && <InlineNotice tone="error">{error}</InlineNotice>}
-      {cancelled && <InlineNotice tone="info">Sharing cancelled.</InlineNotice>}
     </div>
     <Sheet open={open} onClose={() => { if (!busy) setOpen(false) }} title={'Move ' + rows.length + ' contacts to…'}
       footer={<SheetFooterActions secondary={{ label: 'Cancel', disabled: busy, onClick: () => setOpen(false) }}

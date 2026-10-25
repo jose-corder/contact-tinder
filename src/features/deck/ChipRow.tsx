@@ -38,7 +38,7 @@ export function ChipRow({ pass, draft, toggleChip, toggleTag, inputRef, open, se
     </div>
     {completePersonal && draft.relation && <Button disabled={disabled} onClick={completePersonal}>Done</Button>}
     </div>
-    {pass === 'personal' && !sheet && <p className="t-meta text-ink-2">A type counts as Other if no relation fits</p>}
+    {pass === 'personal' && !sheet && <p className="t-meta text-ink-2">A type without a relation is saved as Other</p>}
     {open && <div className="mt-2">
       <input ref={inputRef} aria-label="Custom tag" value={query} maxLength={64} disabled={disabled}
         placeholder="Add a tag" className="h-11 w-full rounded-full border border-rule bg-paper px-3.5 font-sans t-body outline-offset-2"

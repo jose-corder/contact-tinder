@@ -1,3 +1,4 @@
+// Finding #25: multi-file export shares/downloads one ZIP.
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
@@ -22,7 +23,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 describe('Export screen', () => {
   // Findings #25/#34: failed sharing offers an explicit local fallback, without surprise downloads.
-  it('prepares only the selected file and offers Download instead after share failure', async () => {
+  it('prepares only the selected file and offers Download prepared file after share failure', async () => {
     const build = vi.spyOn(vcf, 'vcfText')
     vi.stubGlobal('navigator', { userAgent: 'iPhone', maxTouchPoints: 5, canShare: () => true,
       share: vi.fn().mockRejectedValue(new DOMException('Unavailable', 'NotAllowedError')) })
@@ -31,7 +32,7 @@ describe('Export screen', () => {
     expect(build).not.toHaveBeenCalled()
     fireEvent.click(button)
     expect(button).toHaveAttribute('aria-busy', 'true')
-    const fallback = await screen.findByRole('button', { name: 'Download instead' })
+    const fallback = await screen.findByRole('button', { name: 'Download prepared file' })
     expect(build).toHaveBeenCalledOnce()
     expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled()
     expect(within(fallback.parentElement!).getByRole('status')).toHaveTextContent('Could not share')
@@ -53,9 +54,10 @@ describe('Export screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Share work-current.vcf' }))
     await waitFor(() => expect(share).toHaveBeenCalledOnce())
     expect(share.mock.calls[0][0].files[0].name).toBe('work-current.vcf')
-    fireEvent.click(screen.getByRole('button', { name: 'Share all contact files' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Share contacts-export.zip' }))
     await waitFor(() => expect(share).toHaveBeenCalledTimes(2))
-    expect(share.mock.calls[1][0].files.length).toBeGreaterThan(1)
+    expect(share.mock.calls[1][0].files).toHaveLength(1)
+    expect(share.mock.calls[1][0].files[0].name).toBe('contacts-export.zip')
   })
 
   it('shows Download without sharing support and warns about multiple downloads before starting', async () => {
@@ -63,13 +65,12 @@ describe('Export screen', () => {
     show()
     await screen.findByRole('button', { name: 'Download clean address book' })
     more()
-    // #25: one deliberate, paced multi-file action names the exact download count.
-    const button = screen.getByRole('button', { name: `Download ${vcf.groupFiles(rows).length} files` })
-    expect(within(button.parentElement!).getByText(/files will download/)).toBeVisible()
+    // #25: all selected files are delivered in one archive.
+    const button = screen.getByRole('button', { name: 'Download contacts-export.zip' })
+    expect(within(button.parentElement!).getByText(/All files are included/)).toBeVisible()
     expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled()
     fireEvent.click(button)
-    expect(await screen.findByText(`Downloading 1 of ${vcf.groupFiles(rows).length} files`)).toBeVisible()
-    await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(vcf.groupFiles(rows).length), { timeout: 5000 })
+    await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce())
   })
 
   it('keeps per-file Share when only multi-file sharing is unavailable', async () => {
@@ -78,7 +79,7 @@ describe('Export screen', () => {
     await screen.findByRole('button', { name: 'Share clean address book' })
     more()
     expect(screen.getByRole('button', { name: 'Share work.vcf' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: `Download ${vcf.groupFiles(rows).length} files` })).toBeInTheDocument() // #25
+    expect(screen.getByRole('button', { name: 'Share contacts-export.zip' })).toBeInTheDocument() // #25: share one archive.
   })
 
   it('treats native cancellation calmly and never starts a download', async () => {
@@ -106,12 +107,12 @@ describe('Export screen', () => {
     vi.stubGlobal('navigator', { share: vi.fn(), canShare: ({ files }: ShareData) => files?.every((file) => file.size === 0) })
     const stubs = [new File([], 'a.txt'), new File([], 'b.txt'), new File([], 'c.txt')]
     render(<ExportAction label="three files" stubs={stubs} prepare={async () => stubs.map((file) => new File(['data'], file.name))} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Share three files' }))
-    const download = await screen.findByRole('button', { name: 'Download 3 files' }) // #25
-    expect(screen.getByText('3 files will download, one at a time.')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Share contacts-export.zip' }))
+    const download = await screen.findByRole('button', { name: 'Download prepared file' }) // #25
+    expect(screen.getByText('All files are included in contacts-export.zip.')).toBeVisible()
     expect(HTMLAnchorElement.prototype.click).not.toHaveBeenCalled()
     fireEvent.click(download)
-    await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(3))
+    await waitFor(() => expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledOnce())
   })
 
   it('shows a loading skeleton, then an empty import action', async () => {
@@ -125,7 +126,7 @@ describe('Export screen', () => {
   it('recovers from a database read failure in place', async () => {
     vi.spyOn(repo, 'allWithDecisions').mockRejectedValueOnce(new Error('Read failed'))
     show()
-    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Reload contacts' }))
     expect(await screen.findByRole('heading', { name: 'Clean address book' })).toBeVisible()
   })
 
