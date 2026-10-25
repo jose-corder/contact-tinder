@@ -107,9 +107,10 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
         toggleTag={(tag) => setDraft((d) => toggleCustomTag(d, tag))} inputRef={inputRef} open={tagOpen} setOpen={setTagOpen} disabled={busy} sheet />
       {error && <InlineNotice tone="error">{error}</InlineNotice>}
       <div className="flex items-center gap-2 t-meta text-ink-2">
-        <span>Turn this off in Settings</span>
+        <span>Turn this off in</span>
         <button type="button" className="hit-44 underline" disabled={busy} onClick={() => {
-          if (!saving.current) { onClose(); if (onSettings) onSettings(); else window.location.assign('/settings') }
+          // Respect the deploy base path (GitHub Pages serves from /contact-tinder/).
+          if (!saving.current) { onClose(); if (onSettings) onSettings(); else window.location.assign(`${import.meta.env.BASE_URL.replace(/\/$/, '')}/settings`) }
         }}>Settings</button>
       </div>
     </div>
