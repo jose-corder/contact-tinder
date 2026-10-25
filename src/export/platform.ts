@@ -6,7 +6,7 @@ export function exportPlatform(userAgent = navigator.userAgent, touchPoints = na
 }
 
 export function platformHint(platform: ExportPlatform): string {
-  if (platform === 'iphone') return 'Share → save to Files → open the .vcf to add to Contacts. Or Share → AirDrop to a Mac.'
+  if (platform === 'iphone') return 'Share → Save to Files → open the .vcf → Add All Contacts. Or Share → AirDrop to a Mac.'
   if (platform === 'android') return 'Download → open the file → Contacts imports it.'
   return 'Download, then import at contacts.google.com or icloud.com.'
 }

@@ -3,7 +3,12 @@ import type { ButtonHTMLAttributes, CSSProperties, HTMLAttributes, ReactNode } f
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { IconChevronLeft } from './icons'
-export { Sheet } from './Sheet'
+import { toneColors, type ChipTone } from './tones'
+export { Sheet, type SheetProps } from './Sheet'
+export { SheetFooterActions, type SheetFooterActionsProps } from './SheetFooterActions'
+export { Segmented, type SegmentedOption } from './Segmented'
+export { InlineNotice, LabelDot, CopyButton } from './feedback'
+export type { ChipTone } from './tones'
 export { useMediaQuery } from './useMediaQuery'
 
 export function cx(...parts: Array<string | false | null | undefined>) {
@@ -45,15 +50,15 @@ export function TopBar({ title, right, progress, backTo }: TopBarProps) {
       <div className="flex h-11 items-center justify-between">
         <div className="flex items-center gap-2">
           {backTo && (
-            <Link to={backTo} aria-label="Back" className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full text-ink-2 hover:text-ink">
+            <Link to={backTo} aria-label="Back" className="hit-44 -ml-2 flex h-11 w-11 items-center justify-center rounded-full text-ink-2 hover:text-ink">
               <IconChevronLeft />
             </Link>
           )}
-          <span className="eyebrow">{title}</span>
+          <span className="eyebrow t-eyebrow">{title}</span>
         </div>
-        {right !== undefined && <span className="tabular text-sm text-ink-2">{right}</span>}
+        {right !== undefined && <span className="tabular t-meta text-ink-2">{right}</span>}
       </div>
-      <div className="relative h-px w-full bg-rule">
+      <div className={cx('relative h-px w-full', progress === undefined ? 'bg-rule' : 'bg-progress-track')}>
         {progress !== undefined && (
           <div
             className="absolute -top-px left-0 h-[2px] bg-ink transition-[width] duration-300"
@@ -85,10 +90,10 @@ export function Button({ variant = 'primary', size = 'md', full, loading, disabl
   return (
     <button
       className={cx(
-        'relative inline-flex items-center justify-center gap-2 rounded-full font-sans font-medium transition-colors duration-150 active:scale-[0.98] disabled:opacity-40',
-        size === 'md' ? 'h-11 px-5 text-[15px]' : 'h-13 px-6 text-base',
+        'hit-44 relative inline-flex items-center justify-center gap-2 rounded-full font-sans t-body font-medium transition-colors duration-150 active:scale-[0.98] disabled:opacity-40',
+        size === 'md' ? 'h-11 px-5' : 'h-13 px-6',
         variant === 'primary' && 'bg-ink text-paper hover:opacity-90',
-        variant === 'outline' && 'border border-rule bg-transparent text-ink hover:bg-paper-2',
+        variant === 'outline' && 'border border-control bg-transparent text-ink hover:bg-paper-2',
         variant === 'ghost' && 'bg-transparent text-ink-2 hover:text-ink',
         full && 'w-full',
         className,
@@ -121,7 +126,7 @@ export function IconButton({ label, caption, size = 56, color, className, style,
       aria-label={label}
       title={label}
       className={cx(
-        'inline-flex items-center justify-center rounded-full border border-rule bg-paper-2 transition-transform duration-150 active:scale-[0.98] disabled:opacity-40',
+        'hit-44 inline-flex items-center justify-center rounded-full border border-control bg-paper-2 transition-transform duration-150 active:scale-[0.98] disabled:opacity-40',
         className,
       )}
       style={{ width: size, height: size, color: color ?? 'var(--ink)', ...style } as CSSProperties}
@@ -130,7 +135,7 @@ export function IconButton({ label, caption, size = 56, color, className, style,
       {children}
     </button>
   )
-  return caption ? <span className="inline-flex flex-col items-center gap-1.5">{button}<span className="eyebrow text-[11px]">{caption}</span></span> : button
+  return caption ? <span className="inline-flex flex-col items-center gap-1.5">{button}<span className="eyebrow t-eyebrow">{caption}</span></span> : button
 }
 
 // ----- chips -----
@@ -140,19 +145,22 @@ export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>,
   selected?: boolean
   /** Fill color when selected. Defaults to ink. */
   color?: string
+  /** Semantic selected fill and accessible foreground; takes precedence over color. */
+  tone?: ChipTone
 }
 
-export function Chip({ label, selected, color = 'var(--ink)', className, style, ...rest }: ChipProps) {
+export function Chip({ label, selected, tone, color = 'var(--ink)', className, style, ...rest }: ChipProps) {
+  const fill = tone ? toneColors[tone].fill : color
   return (
     <button
       type="button"
       aria-pressed={selected}
       className={cx(
-        'inline-flex h-9 items-center rounded-full border px-3.5 font-sans text-[13px] leading-none transition-colors duration-150 select-none',
-        selected ? 'border-transparent text-paper' : 'border-rule bg-transparent text-ink hover:bg-paper-2',
+        'chip-hit inline-flex h-9 items-center rounded-full border px-3.5 font-sans t-meta transition-colors duration-150 select-none',
+        selected ? 'border-transparent text-paper' : 'border-control bg-transparent text-ink hover:bg-paper-2',
         className,
       )}
-      style={{ ...(selected ? { background: color, borderColor: color } : {}), ...style } as CSSProperties}
+      style={{ ...(selected ? { background: fill, borderColor: fill, ...(tone ? { color: toneColors[tone].on } : {}) } : {}), ...style } as CSSProperties}
       {...rest}
     >
       {label}
@@ -188,45 +196,11 @@ export function Avatar({ name, photo, size = 72 }: { name: string; photo?: Blob;
       {url ? (
         <img src={url} alt="" className="h-full w-full object-cover" />
       ) : (
-        <span className="font-serif text-ink" style={{ fontSize: size * 0.36, letterSpacing: '0.02em' }}>
+        <span className={cx('font-serif text-ink', size * 0.36 <= 14 ? 'serif-small' : size * 0.36 < 32 && 'serif-text')}
+          style={{ fontSize: size * 0.36, letterSpacing: '0.02em', ...(size * 0.36 >= 32 ? { fontVariationSettings: "'opsz' 144" } : {}) }}>
           {initialsOf(name)}
         </span>
       )}
-    </div>
-  )
-}
-
-// ----- segmented (underlined text tabs) -----
-
-export interface SegmentedOption<T extends string> {
-  value: T
-  label: string
-  count?: number
-}
-
-export function Segmented<T extends string>({
-  options, value, onChange, className,
-}: { options: SegmentedOption<T>[]; value: T; onChange: (v: T) => void; className?: string }) {
-  return (
-    <div role="tablist" className={cx('flex gap-5 border-b border-rule', className)}>
-      {options.map((o) => {
-        const active = o.value === value
-        return (
-          <button
-            key={o.value}
-            role="tab"
-            aria-selected={active}
-            onClick={() => onChange(o.value)}
-            className={cx(
-              '-mb-px flex h-11 items-center gap-1.5 border-b-2 font-sans text-[15px] transition-colors',
-              active ? 'border-ink text-ink' : 'border-transparent text-ink-2 hover:text-ink',
-            )}
-          >
-            {o.label}
-            {o.count !== undefined && <span className="tabular text-xs text-ink-2">{o.count}</span>}
-          </button>
-        )
-      })}
     </div>
   )
 }
@@ -244,8 +218,8 @@ export function Skeleton({ className, ...props }: HTMLAttributes<HTMLDivElement>
 export function Empty({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center py-16 text-center">
-      <h2 className="font-serif text-3xl text-ink">{title}</h2>
-      {children && <div className="mt-3 max-w-[280px] text-ink-2">{children}</div>}
+      <h2 className="font-serif serif-text t-title text-ink">{title}</h2>
+      {children && <div className="mt-3 max-w-[280px] t-body text-ink-2">{children}</div>}
     </div>
   )
 }

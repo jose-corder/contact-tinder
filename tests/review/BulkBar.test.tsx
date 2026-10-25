@@ -44,7 +44,8 @@ it.each(['move', 'tag', 'reset'] as const)('bulk_mutation_rolls_back_on_row_501:
     await waitFor(() => expect(save).toHaveBeenCalledOnce())
     // Await the real batch instead of repeatedly scanning 60 rendered rows during 501 IDB writes.
     await act(async () => { await (save.mock.results[0].value as Promise<void>).catch(() => {}) })
-    await screen.findByText('Nothing was changed')
+    // audit #34: the message is shown inline and as a toast, so more than one match is expected
+    expect((await screen.findAllByText(/Nothing was changed/)).length).toBeGreaterThan(0)
     expect(writes).toBe(501)
     expect(await allDecisions()).toEqual(before)
     expect(await db.tags.toArray()).toEqual(tags)

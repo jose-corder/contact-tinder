@@ -10,6 +10,7 @@ import { db } from '@/db/schema'
 import { mergeContactsChunked, type PossibleDuplicate } from './dedupe'
 import { parseCsvChunks, parseVcfChunks } from './parseChunks'
 import { yieldToBrowser, type OnProgress } from './progress'
+import type { MergePair } from './mergeSummary'
 
 export type { ImportProgress, OnProgress } from './progress'
 
@@ -24,6 +25,8 @@ export interface ImportResult {
 }
 
 export interface ImportPreview extends ImportResult {
+  mergePairs: MergePair[]
+  keptApartPairs: MergePair[]
   contacts: Contact[]
   photos: number
   skipped: number
@@ -60,6 +63,7 @@ export async function previewContacts(contacts: Contact[], onProgress?: OnProgre
   const result = await mergeContactsChunked(contacts, existing, onProgress, defaultCountry)
   const byId = new Map(existing.map((contact) => [contact.id, comparable(contact)]))
   return {
+    mergePairs: result.mergePairs, keptApartPairs: result.keptApartPairs,
     contacts, total: contacts.length, added: result.added, merged: result.merged,
     possibleDuplicates: result.possibleDuplicates, decisionsMigrated: 0,
     photos: contacts.filter((contact) => contact.photo).length, errors: [], skipped: 0,
@@ -76,7 +80,7 @@ export async function previewFiles(files: File[], onProgress?: OnProgress, defau
   for (const file of files) {
     onProgress?.({ parsed: contacts.length, phase: 'reading' })
     await yieldToBrowser()
-    const unreadable = `Nothing we could read in \`${file.name}\`. Try the vCard export instead.`
+    const unreadable = `Nothing we could read in \`${file.name}\`. Try exporting a contact file (.vcf) instead.`
     try {
       const text = await readText(file)
       const extension = file.name.split('.').pop()?.toLowerCase()

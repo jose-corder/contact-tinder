@@ -12,7 +12,7 @@ vi.mock('@/import/contactPicker', () => ({ isContactPickerSupported: vi.fn(), pi
 vi.mock('@/ui/toast', () => ({ toast: vi.fn() }))
 
 const result: ImportResult = { added: 2, merged: 1, total: 3, errors: [], possibleDuplicates: [], decisionsMigrated: 0 }
-const preview: ImportPreview = { ...result, photos: 0, skipped: 0, allAlreadyImported: false,
+const preview: ImportPreview = { ...result, mergePairs: [], keptApartPairs: [], photos: 0, skipped: 0, allAlreadyImported: false,
   contacts: ['Ada', 'Grace', 'Lin'].map((displayName) => makeContact({ displayName, org: 'Studio', phones: [], emails: [] }, 'vcf')!) }
 
 function show() {
@@ -35,26 +35,49 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('Import screen', () => {
+  // Findings #9/#35: each step replaces the last, while merge details stay inspectable.
+  it('replaces choose with inspectable preview and result, then resets for another import', async () => {
+    vi.mocked(previewFiles).mockResolvedValue({ ...preview,
+      mergePairs: [{ names: ['Maria Gomez', 'María Gómez'], reason: 'same phone' }],
+      keptApartPairs: [{ names: ['Alice Smith', 'Bob Smith'], reason: 'shared phone, different names' }],
+      possibleDuplicates: [{ ids: ['alice', 'bob'], reason: 'Different names' }],
+    })
+    show()
+    choose()
+    await screen.findByRole('region', { name: 'Import preview' })
+    expect(screen.queryByText('How to export your contacts')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Choose contact files')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveClass('text-[24px]')
+    fireEvent.click(screen.getByText('See what merges'))
+    expect(screen.getByText('Maria Gomez ↔ María Gómez · same phone')).toBeVisible()
+    expect(screen.getByText('Alice Smith · Bob Smith · shared phone, different names')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Import 3' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Import another' }))
+    expect(screen.getByLabelText('Choose contact files')).toBeVisible()
+    expect(screen.getByText('How to export your contacts')).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Start triage' })).not.toBeInTheDocument()
+  })
+
   it('import_announces_completion_once', async () => {
     vi.mocked(importDemo).mockResolvedValue({ ...result, possibleDuplicates: [{ ids: ['a', 'b'], reason: 'Names differ' }],
       storageNote: 'Device storage is getting full.' })
     const { container } = show()
     expect(container.querySelectorAll('[aria-live="polite"]')).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Try with 40 demo contacts' }))
-    await screen.findByText('2 imported · 1 merged')
+    fireEvent.click(screen.getByRole('button', { name: 'Try 40 sample contacts' }))
+    await screen.findByText('2 contacts added · 1 duplicate entries merged')
     const announcer = screen.getByRole('status')
-    expect(announcer).toHaveTextContent('2 imported · 1 merged')
+    expect(announcer).toHaveTextContent('2 contacts added · 1 duplicate entries merged')
     expect(announcer.querySelector('button')).toBeNull()
     expect(container.querySelectorAll('[aria-live="polite"]')).toHaveLength(1)
     expect(toast).not.toHaveBeenCalled()
-    expect(screen.getByText('1 possible duplicates kept apart · review later')).toBeInTheDocument()
+    expect(screen.getByText('1 possible duplicates kept apart')).toBeInTheDocument()
     expect(screen.getByText('Device storage is getting full.')).toBeInTheDocument()
   })
 
   it('keeps the headline, privacy, formats, and tabbed instructions', () => {
     show()
     expect(screen.getByRole('heading', { name: 'Bring your contacts.' })).toBeInTheDocument()
-    expect(screen.getByText('Nothing leaves this device.')).toBeInTheDocument()
+    expect(screen.getByText('Your contacts are processed here. Nothing is uploaded.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pick from phone' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Choose contact files')).toHaveAttribute('accept', '.vcf,.vcard,.csv,text/vcard,text/x-vcard,text/csv')
     expect(screen.getByLabelText('Choose contact files')).toHaveAttribute('multiple')
@@ -73,14 +96,14 @@ describe('Import screen', () => {
     const files = [new File(['card'], 'contacts.vcf'), new File(['csv'], 'contacts.csv')]
     choose(files)
     expect(previewFiles).toHaveBeenCalledWith(files, expect.any(Function))
-    expect(await screen.findByText('3 contacts found · 1 duplicates will merge · 0 with photos')).toBeInTheDocument()
+    expect(await screen.findByText('3 contacts found · 1 duplicates will merge')).toBeInTheDocument()
     const block = screen.getByRole('region', { name: 'Import preview' })
     expect(within(block).getAllByRole('listitem')).toHaveLength(3)
     expect(within(block).getByText('Ada')).toBeInTheDocument()
     expect(commitPreview).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Import 3' }))
     expect(commitPreview).toHaveBeenCalledWith(preview, expect.any(Function))
-    await screen.findByText('2 imported · 1 merged')
+    await screen.findByText('2 contacts added · 1 duplicate entries merged')
     fireEvent.click(screen.getByRole('button', { name: 'Start triage' }))
     expect(screen.getByText('Triage deck')).toBeInTheDocument()
   })
@@ -102,7 +125,8 @@ describe('Import screen', () => {
     await screen.findByRole('button', { name: 'Import 3' })
     fireEvent.drop(zone, { dataTransfer: { files: [file] } })
     expect(previewFiles).toHaveBeenCalledTimes(1)
-    expect(screen.getByLabelText('Choose contact files')).toBeDisabled()
+    // Finding #9: obsolete choose controls unmount in later phases.
+    expect(screen.queryByLabelText('Choose contact files')).not.toBeInTheDocument()
   })
 
   it('shows all-already-imported and Done without another write', async () => {
@@ -128,8 +152,9 @@ describe('Import screen', () => {
     expect(screen.getByText('parsing')).toHaveClass('eyebrow')
     expect(screen.getByRole('progressbar')).toHaveClass('h-[2px]')
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1240')
-    expect(screen.getByLabelText('Choose contact files')).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Try with 40 demo contacts' })).toBeDisabled()
+    // Finding #9: obsolete choose controls unmount in later phases.
+    expect(screen.queryByLabelText('Choose contact files')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Try 40 sample contacts' })).not.toBeInTheDocument()
     await act(async () => finish(preview))
     // Finding #30: keep one stable announcer mounted.
     expect(screen.getByRole('status')).toBeEmptyDOMElement()
@@ -137,8 +162,8 @@ describe('Import screen', () => {
 
   it('keeps demo import one tap', async () => {
     show()
-    fireEvent.click(screen.getByRole('button', { name: 'Try with 40 demo contacts' }))
-    await screen.findByText('2 imported · 1 merged')
+    fireEvent.click(screen.getByRole('button', { name: 'Try 40 sample contacts' }))
+    await screen.findByText('2 contacts added · 1 duplicate entries merged')
     expect(previewFiles).not.toHaveBeenCalled()
     expect(screen.queryByRole('region', { name: 'Import preview' })).not.toBeInTheDocument()
   })
@@ -149,7 +174,8 @@ describe('Import screen', () => {
     show()
     choose()
     expect(await screen.findByRole('alert')).toHaveTextContent(error)
-    expect(screen.getByRole('alert')).toHaveClass('text-stamp-delete')
+    // Findings #24/#34: calm recovery text with a local retry.
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Import preview' })).not.toBeInTheDocument()
   })
 
@@ -165,14 +191,15 @@ describe('Import screen', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('2 unreadable cards skipped')
   })
 
-  it('retains the preview after a failed save for retry', async () => {
+  it('retains the selected contacts in a dedicated error phase for retry', async () => {
     vi.mocked(commitPreview).mockRejectedValueOnce(new Error('Storage full'))
     show()
     choose()
     fireEvent.click(await screen.findByRole('button', { name: 'Import 3' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Storage full')
-    fireEvent.click(screen.getByRole('button', { name: 'Import 3' }))
-    await screen.findByText('2 imported · 1 merged')
+    // Finding #9: recovery is the only current phase, with a dedicated Retry action.
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await screen.findByText('2 contacts added · 1 duplicate entries merged')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 

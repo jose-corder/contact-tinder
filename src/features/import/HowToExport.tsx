@@ -49,12 +49,12 @@ export default function HowToExport() {
             <p className="text-sm leading-relaxed">{step}</p>
           </li>)}
         </ol>
-        <a className="inline-block pb-4 text-xs text-ink-2 underline underline-offset-4" href={sources[active].link} target="_blank" rel="noreferrer">Official instructions</a>
+        <a className="inline-flex min-h-11 items-center text-xs text-ink-2 underline underline-offset-4" href={sources[active].link} target="_blank" rel="noreferrer">Official instructions</a>
       </div>
       <p className="border-t border-rule py-4 text-xs leading-relaxed text-ink-2">On iPhone, look in the Files app under Browse → Downloads or iCloud Drive. Save the file there before choosing it here.</p>
     </section>
     <details className="mt-4 text-xs text-ink-2">
-      <summary className="cursor-pointer py-2">Why a file?</summary>
+      <summary className="min-h-11 cursor-pointer py-3">Why a file?</summary>
       <p className="pb-3 leading-relaxed">Browsers cannot read your address book directly. Some Android browsers offer a Contact Picker, but iPhone Safari does not. A file lets you choose what to bring in; everything is processed on this device.</p>
     </details>
   </>

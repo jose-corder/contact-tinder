@@ -24,9 +24,17 @@ export default function ImportPreview({ preview, busy, onConfirm, onCancel }: {
       <h2 className="font-serif text-2xl">All {preview.total.toLocaleString()} already imported</h2>
       <Button full className="mt-4" onClick={onCancel}>Done</Button>
     </> : <>
-      <h2 className="font-serif text-2xl">Ready when you are.</h2>
-      <p className="tabular mt-2 text-sm text-ink-2">{preview.total.toLocaleString()} contacts found · {preview.merged.toLocaleString()} duplicates will merge · {preview.photos.toLocaleString()} with photos</p>
-      {preview.possibleDuplicates.length > 0 && <p className="mt-2 text-sm text-ink-2">{preview.possibleDuplicates.length} possible duplicates kept apart · review later</p>}
+      <h2 className="font-serif text-2xl">{preview.added.toLocaleString()} contacts will be added</h2>
+      <p className="tabular mt-2 text-sm text-ink-2">{preview.total.toLocaleString()} contacts found · {preview.merged.toLocaleString()} duplicates will merge{preview.photos > 0 ? ` · ${preview.photos.toLocaleString()} with photos` : ''}</p>
+      {(preview.merged > 0 || preview.possibleDuplicates.length > 0) && <details className="mt-2 text-sm">
+        <summary className="min-h-11 cursor-pointer py-3">See what merges</summary>
+        <p className="text-xs text-ink-2">Showing up to 20 pairs in each group.</p>
+        <ul className="divide-y divide-rule">{preview.mergePairs.map((pair, index) => <li key={index} className="py-2 break-words">{pair.names.join(' ↔ ')} · {pair.reason}</li>)}</ul>
+        {preview.possibleDuplicates.length > 0 && <>
+          <p className="mt-3 font-medium">{preview.possibleDuplicates.length} possible duplicates kept apart</p>
+          <ul className="divide-y divide-rule">{preview.keptApartPairs.map((pair, index) => <li key={index} className="py-2 break-words">{pair.names.join(' · ')} · {pair.reason}</li>)}</ul>
+        </>}
+      </details>}
       <ul className="my-4 divide-y divide-rule">
         {preview.contacts.slice(0, 3).map((contact, index) => <li key={`${contact.id}-${index}`} className="flex min-h-16 items-center gap-3 py-2">
           <Avatar name={contact.displayName} photo={contact.photo} size={32} />

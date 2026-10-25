@@ -10,15 +10,24 @@
   --ink: #141311;
   --ink-2: #5b5750;
   --rule: #d8d1c3;
+  --control-border: #b9b1a1;
+  --progress-track: #b9b1a1;
+  --on-delete: #f4efe6;
+  --on-work: #f4efe6;
+  --on-personal: #f4efe6;
+  --on-skip: #f4efe6;
+  --on-status-old: #f4efe6;
+  --on-status-current: #f4efe6;
+  --on-status-potential: #f4efe6;
 
   --stamp-delete: #8e2b2b;
   --stamp-work: #1f3a5f;
   --stamp-personal: #2f5d3a;
-  --stamp-skip: #7a766e;
+  --stamp-skip: #6f6b63;
 
-  --status-old: #7a766e;
+  --status-old: #6f6b63;
   --status-current: #1f3a5f;
-  --status-potential: #9a6b1f;
+  --status-potential: #8c601a;
 
   --shadow-card: 0 20px 60px -30px rgba(20, 19, 17, 0.35);
   color-scheme: light;
@@ -27,12 +36,21 @@
 :root[data-theme='dark'],
 :root:not([data-theme='light']):where(.dark-auto) {
   --paper: #121110;
-  --paper-2: #1b1917;
+  --paper-2: #1e1c19;
   --ink: #f1ece2;
   --ink-2: #a39d92;
   --rule: #2c2a26;
+  --control-border: #3e3b35;
+  --progress-track: #3e3b35;
+  --on-delete: #121110;
+  --on-work: #121110;
+  --on-personal: #121110;
+  --on-skip: #121110;
+  --on-status-old: #121110;
+  --on-status-current: #121110;
+  --on-status-potential: #121110;
 
-  --stamp-delete: #c2504f;
+  --stamp-delete: #d36662;
   --stamp-work: #6f93c4;
   --stamp-personal: #6fa57d;
   --stamp-skip: #9a958c;
@@ -48,12 +66,21 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --paper: #121110;
-    --paper-2: #1b1917;
+    --paper-2: #1e1c19;
     --ink: #f1ece2;
     --ink-2: #a39d92;
     --rule: #2c2a26;
+    --control-border: #3e3b35;
+    --progress-track: #3e3b35;
+    --on-delete: #121110;
+    --on-work: #121110;
+    --on-personal: #121110;
+    --on-skip: #121110;
+    --on-status-old: #121110;
+    --on-status-current: #121110;
+    --on-status-potential: #121110;
 
-    --stamp-delete: #c2504f;
+    --stamp-delete: #d36662;
     --stamp-work: #6f93c4;
     --stamp-personal: #6fa57d;
     --stamp-skip: #9a958c;
@@ -74,6 +101,16 @@
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-rule: var(--rule);
+  --color-control: var(--control-border);
+  --color-control-border: var(--control-border);
+  --color-progress-track: var(--progress-track);
+  --color-on-delete: var(--on-delete);
+  --color-on-work: var(--on-work);
+  --color-on-personal: var(--on-personal);
+  --color-on-skip: var(--on-skip);
+  --color-on-status-old: var(--on-status-old);
+  --color-on-status-current: var(--on-status-current);
+  --color-on-status-potential: var(--on-status-potential);
   --color-stamp-delete: var(--stamp-delete);
   --color-stamp-work: var(--stamp-work);
   --color-stamp-personal: var(--stamp-personal);
@@ -98,7 +135,7 @@ body,
   min-height: 100dvh;
 }
 
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-bottom: 120px; }
 
 :focus-visible {
   outline: 2px solid var(--ink);
@@ -123,9 +160,9 @@ body {
   .h-dvh { height: 100vh; }
 }
 
-.sheet-panel { max-height: 85vh; }
+.sheet-panel { --sheet-max-height: 85vh; }
 @supports (height: 100dvh) {
-  .sheet-panel { max-height: 85dvh; }
+  .sheet-panel { --sheet-max-height: 85dvh; }
 }
 
 .scrollbar-none { scrollbar-width: none; }
@@ -167,8 +204,13 @@ body {
 }
 
 .font-serif {
-  font-variation-settings: 'opsz' 144, 'SOFT' 0, 'WONK' 0;
+  font-optical-sizing: auto;
+  font-variation-settings: 'SOFT' 0, 'WONK' 0;
 }
+/* Display optical size is reserved for >=32px; ordinary serif text sizes itself. */
+.font-serif:where(.t-display, .text-4xl, .text-5xl, .text-6xl) { font-variation-settings: 'opsz' 144; }
+.serif-text { font-family: var(--font-serif); font-variation-settings: 'opsz' 24; }
+.serif-small { font-family: var(--font-serif); font-variation-settings: 'opsz' 9; }
 
 /* Deck title style: 11px, tracked small caps */
 .eyebrow {
@@ -217,13 +259,32 @@ body {
 }
 
 button,
-input {
+input, textarea, select {
   font: inherit;
   color: inherit;
 }
 
-::selection {
-  background: var(--ink);
-  color: var(--paper);
+::selection { background: var(--ink); color: var(--paper); }
 }
+
+/* Six-step scale: screens should use these instead of ad-hoc text-[Npx]. */
+@layer utilities {
+  .t-display { font-size: 34px; line-height: 38px; }
+  .t-title { font-size: 24px; line-height: 28px; }
+  .t-heading { font-size: 17px; line-height: 22px; }
+  .t-body { font-size: 15px; line-height: 22px; }
+  .t-meta { font-size: 13px; line-height: 18px; }
+  .t-eyebrow { font-size: 11px; line-height: 16px; letter-spacing: 0.18em; text-transform: uppercase; }
+  .hit-44 { min-width: 44px; min-height: 44px; }
+}
+
+/* Unlayered rules also cover legacy screen utilities during migration. */
+summary { min-height: 44px; min-width: 44px; align-content: center; }
+input, textarea, select { border-color: var(--control-border); }
+@media (pointer: coarse) { input, textarea, select { font-size: 16px; } }
+.sheet-body :where(.overflow-y-auto, .overflow-y-scroll) { overflow-y: visible; max-height: none; }
+.chip-hit { position: relative; min-width: 44px; margin-block: 4px; overflow: visible; }
+.chip-hit::after { content: ''; position: absolute; inset: -4px 0; }
+@media (prefers-reduced-motion: reduce) {
+  button:active { transform: none; scale: none; }
 }

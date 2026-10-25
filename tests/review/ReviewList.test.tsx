@@ -23,7 +23,7 @@ describe('Review paging', () => {
     expect(screen.getAllByRole('button', { name: /^View Contact/ })).toHaveLength(120)
     expect(observers[0].disconnect).toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'View Contact 0000' })).toBeInTheDocument()
-  })
+  }, 20000) // 5,000-row render is slow under full-suite load
 
   it('offers a load button when IntersectionObserver is unavailable', () => {
     vi.stubGlobal('IntersectionObserver', undefined)

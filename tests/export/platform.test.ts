@@ -15,7 +15,8 @@ describe('phone export guidance', () => {
   ] as const)('detects %s', (ua, touch, expected) => expect(exportPlatform(ua, touch)).toBe(expected))
 
   it('gives an actionable hint for each platform', () => {
-    expect(platformHint('iphone')).toContain('Share → save to Files → open the .vcf to add to Contacts')
+    // Findings #8/#26: place exact iPhone next steps alongside clean export.
+    expect(platformHint('iphone')).toContain('Share → Save to Files → open the .vcf → Add All Contacts')
     expect(platformHint('iphone')).toContain('AirDrop to a Mac')
     expect(platformHint('android')).toBe('Download → open the file → Contacts imports it.')
     expect(platformHint('desktop')).toBe('Download, then import at contacts.google.com or icloud.com.')

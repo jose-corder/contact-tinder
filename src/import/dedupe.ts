@@ -4,6 +4,7 @@ import { CHUNK_SIZE, yieldToBrowser, type OnProgress } from './progress'
 import { defaultCountry as regionCountry } from './region'
 import { identityName, metadata, rawCards, type ImportedContact } from './metadata'
 import { hash } from './hash'
+import { describeMergePair, type MergePair } from './mergeSummary'
 
 export function phoneKey(value: string, defaultCountry: string = regionCountry()): string | undefined {
   const number = parsePhoneNumberFromString(value.trim(), defaultCountry as CountryCode)
@@ -84,6 +85,8 @@ export interface MergeResult {
   toUpsert: Contact[]; merged: number; added: number; superseded: string[]
   migrations: Array<{ from: string; to: string }>
   possibleDuplicates: PossibleDuplicate[]
+  mergePairs: MergePair[]
+  keptApartPairs: MergePair[]
 }
 
 function compatible(a: Group, b: Group): boolean {
@@ -97,6 +100,7 @@ const bareMatch = (a: Contact, b: Contact) => nameOnly(a) && (!b.org || orgKey(a
 function* mergeSteps(incoming: Contact[], existing: Contact[], defaultCountry: string): Generator<number, MergeResult> {
   const groups: Group[] = []
   const rejected: Array<[number, number]> = []
+  const mergePairs: MergePair[] = []
   const parents: number[] = []
   const owners = new Map<string, Set<number>>()
   const root = (index: number): number => {
@@ -135,6 +139,7 @@ function* mergeSteps(incoming: Contact[], existing: Contact[], defaultCountry: s
         continue
       }
       const keep = Math.min(a, b)
+      if ((!isExisting || first.touched || next.touched) && mergePairs.length < 20) mergePairs.push(describeMergePair(x, y))
       const remove = Math.max(a, b)
       const earlier = groups[keep]
       const later = groups[remove]
@@ -171,6 +176,12 @@ function* mergeSteps(incoming: Contact[], existing: Contact[], defaultCountry: s
   const touched = groups.filter((group, index) => root(index) === index && group.touched)
   const added = touched.filter((group) => !group.existing.size).length
   return {
+    mergePairs,
+    keptApartPairs: [...new Map(rejected.flatMap(([a, b]) => {
+      const left = groups[root(a)], right = groups[root(b)]
+      if (root(a) === root(b) || (!left.touched && !right.touched)) return []
+      return [[[left.contact.id, right.contact.id].sort().join('|'), describeMergePair(left.contact, right.contact, true)] as const]
+    })).values()].slice(0, 20),
     possibleDuplicates: [...new Map(rejected.map(([a, b]) => {
       const left = groups[root(a)], right = groups[root(b)]
       if (root(a) === root(b) || (!left.touched && !right.touched)) return undefined

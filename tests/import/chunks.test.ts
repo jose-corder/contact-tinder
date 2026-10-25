@@ -69,9 +69,10 @@ describe('chunked import and preview', () => {
   })
 
   it.each(['', 'unreadable bytes', 'Name,Notes\nBad,"unclosed'])('returns a calm error for an unreadable CSV', async (content) => {
+    // Finding #41: recovery uses plain contact-file terminology.
     const preview = await previewFiles([new File([content], 'export.csv')])
     expect(preview.total).toBe(0)
-    expect(preview.errors).toEqual(['Nothing we could read in `export.csv`. Try the vCard export instead.'])
+    expect(preview.errors).toEqual(['Nothing we could read in `export.csv`. Try exporting a contact file (.vcf) instead.'])
   })
 
   it('rolls back earlier batches when a later batch fails', async () => {

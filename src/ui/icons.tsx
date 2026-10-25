@@ -3,6 +3,10 @@ import type { SVGProps } from 'react'
 
 type IconProps = SVGProps<SVGSVGElement> & { size?: number }
 
+export const IconCopy = (p: IconProps) => (
+  <Svg {...p}><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V4H4v12h4" /></Svg>
+)
+
 function Svg({ size = 20, children, ...rest }: IconProps) {
   return (
     <svg

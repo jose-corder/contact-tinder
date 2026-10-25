@@ -1,105 +1,89 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { allWithDecisions } from '@/db/repo'
-import { Button, Empty, Frame, TopBar } from '@/ui'
-import { IconDownload, IconShare } from '@/ui/icons'
-import { toast } from '@/ui/toast'
+import { Button, Empty, Frame, Skeleton, TopBar } from '@/ui'
 import { cleanFile, groupFiles, type ExportFile } from '@/export/vcf'
 import { prepareVcards, fileStub } from '@/export/prepare'
 import { csvText } from '@/export/csv'
 import { deleteListText } from '@/export/deleteList'
 import { backupJson } from '@/export/json'
-import { downloadText, fileAction, shareOrDownload } from '@/export/share'
 import { exportPlatform, platformHint } from '@/export/platform'
 import RestoreInput from './RestoreInput'
+import ExportAction from './ExportAction'
 
 export default function ExportScreen() {
-  const rows = useLiveQuery(() => allWithDecisions(), [])
-  const [message, setMessage] = useState('')
-  const [busy, setBusy] = useState(false)
-  const locked = useRef(false)
-  // Memoize only memberships/counts, never contact text or photo payloads.
-  const prepared = useMemo(() => {
-    const groups = groupFiles(rows ?? [])
-    const clean = cleanFile(rows ?? [])
-    return { clean, files: groups }
-  }, [rows])
-  const { clean, files } = prepared
-  const allFiles = files.map(fileStub)
-  const allAction = fileAction(allFiles)
-  const cleanAction = fileAction([fileStub(clean)])
+  const [attempt, setAttempt] = useState(0)
+  const data = useLiveQuery(async () => {
+    try { return { rows: await allWithDecisions(), error: false } }
+    catch { return { rows: [], error: true } }
+  }, [attempt])
+  const rows = data?.rows
+  const { clean, files } = useMemo(() => ({ clean: cleanFile(rows ?? []), files: groupFiles(rows ?? []) }), [rows])
+  const contactAction = (groups: ExportFile[], label: string, primary = false, compact = false) =>
+    <ExportAction label={label} primary={primary} compact={compact} disabled={!groups.some((group) => group.rows.length)}
+      stubs={groups.map(fileStub)} prepare={() => prepareVcards(groups, (rows?.length ?? 0) > 1000)} />
+  const textAction = (label: string, name: string, mime: string, text: () => string | Promise<string>) =>
+    <ExportAction label={label} downloadOnly stubs={[new File([], name, { type: mime })]}
+      prepare={async () => [new File([await text()], name, { type: mime })]} />
 
-  async function run(action: () => void | Promise<unknown>) {
-    if (locked.current) return
-    locked.current = true
-    setBusy(true)
-    setMessage('')
-    try { await action() } catch (error) {
-      const cancelled = typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError'
-      setMessage(cancelled ? 'Sharing cancelled. Your files are still here.' : 'Could not export. Please try again.')
-    } finally { locked.current = false; setBusy(false) }
-  }
-  async function send(groups: ExportFile[]) {
-    setMessage('Preparing vCards…')
-    const files = await prepareVcards(groups, (rows?.length ?? 0) > 1000)
-    setMessage('')
-    const result = await shareOrDownload(files)
-    toast(result === 'fallback' ? 'Sharing failed, downloaded instead' : result === 'shared' ? 'vCards shared.' : 'vCard downloads started.')
-  }
-  return (
-    <Frame>
-      <TopBar title="Export" backTo="/" />
-      <h1 className="my-6 text-center font-serif text-[40px] leading-tight">Take it with you.</h1>
-      {!rows ? <p role="status">Loading contacts…</p> : rows.length === 0 ? <Empty title="No contacts yet.">
-        <Link to="/import" className="underline underline-offset-4">Import contacts</Link>
-      </Empty> : <>
-        <section className="mb-6 border-y border-rule py-5">
-          <p className="eyebrow mb-2 text-ink-2">One file, ready to keep</p>
-          <h2 className="font-serif text-2xl">Clean address book</h2>
-          <p className="mt-2 text-sm text-ink-2">{clean.description}</p>
-          <p className="tabular my-3 text-xs text-ink-2">contacts-clean.vcf · {clean.rows.length.toLocaleString()} contacts</p>
-          <Button full disabled={busy || !clean.rows.length} onClick={() => void run(() => send([clean]))}>
-            {cleanAction === 'Share' ? <IconShare /> : <IconDownload />}{cleanAction} clean address book
-          </Button>
-        </section>
-        <table className="w-full table-fixed border-collapse font-sans text-[13px] tabular">
-          <caption className="pb-3 text-left eyebrow text-ink-2">Individual lists</caption>
-          <thead className="sr-only"><tr><th>File</th><th>Contacts</th><th>Share or download</th></tr></thead>
-          <colgroup><col /><col className="w-12" /><col className="w-[84px]" /></colgroup>
-          <tbody>{files.map((group) => {
-            const action = fileAction([fileStub(group)])
-            return <tr key={group.filename} className="border-b border-rule">
-              <td className="py-3 pr-1">
-                <p className="break-words [overflow-wrap:anywhere]">{group.filename}</p>
-                <div className="mt-1 flex items-start gap-1.5 text-xs text-ink-2">
-                  {!!group.colors.length && <span className="mt-1 flex shrink-0 gap-1" aria-hidden="true">
-                    {group.colors.map((color, index) => <span key={index} className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />)}
-                  </span>}
-                  <span className="break-words">{group.description}</span>
-                </div>
-              </td>
-              <td className="px-1 text-right text-ink-2">{group.rows.length.toLocaleString()}</td>
-              <td className="py-2 text-right"><button aria-label={`${action} ${group.filename}`} disabled={busy}
-                className="inline-flex min-h-11 items-center gap-1 pl-2 text-xs disabled:opacity-40"
-                onClick={() => void run(() => send([group]))}>
-                {action === 'Share' ? <IconShare size={16} /> : <IconDownload size={16} />}{action}
-              </button></td>
-            </tr>
-          })}</tbody>
+  return <Frame>
+    <TopBar title="Export" backTo="/" />
+    <p className="text-sm leading-relaxed text-ink-2">Delete marks a list. Your phone's contacts are unchanged until you act on it.</p>
+    <h1 className="my-6 text-center font-serif text-[40px] leading-tight">Take it with you.</h1>
+    {!data ? <section aria-label="Loading exports" aria-busy="true" className="space-y-4 border-y border-rule py-5">
+      <p role="status" className="text-sm text-ink-2">Loading contacts…</p>
+      <Skeleton className="h-8 w-2/3" /><Skeleton className="h-24 w-full" />
+      <div aria-label="Loading export table" className="space-y-3"><Skeleton className="h-12" /><Skeleton className="h-12" /><Skeleton className="h-12" /></div>
+    </section> : data.error ? <section className="rounded-[20px] border border-rule p-5">
+      <h2 className="font-serif text-2xl">Contacts could not be loaded</h2>
+      <p role="alert" className="my-3 text-sm text-ink-2">Try reading this app’s saved contacts again.</p>
+      <Button onClick={() => setAttempt((value) => value + 1)}>Retry</Button>
+    </section> : !rows?.length ? <Empty title="No contacts yet.">
+      <p>Import a contact file to create your lists.</p>
+      <Link to="/import" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Import contacts</Link>
+    </Empty> : <>
+      <section className="mb-6 border-y border-rule py-5">
+        <h2 className="font-serif text-2xl">Clean address book</h2>
+        <p className="mt-2 text-sm text-ink-2">{clean.description}</p>
+        <p className="tabular my-3 text-sm text-ink-2">{clean.rows.length.toLocaleString()} contacts · contacts-clean.vcf</p>
+        {contactAction([clean], 'clean address book', true)}
+        <p className="mt-3 text-sm leading-relaxed text-ink-2">{platformHint(exportPlatform())}</p>
+        <p className="mt-2 text-sm leading-relaxed text-ink-2">Importing adds entries and can duplicate existing ones. Keep a backup, then clear the originals first or use Google Contacts’ merge. This file does not remove originals.</p>
+        {!clean.rows.length && <p className="mt-2 text-sm text-ink-2">All contacts are on the Delete list. Move contacts to Work or Personal in Review to include them here.</p>}
+      </section>
+      <section className="mb-6 rounded-[20px] border border-rule p-5">
+        <h2 className="font-serif text-2xl">Delete list</h2>
+        <p className="my-3 text-sm text-ink-2">A checklist of {rows.filter((r) => r.decision.bucket === 'delete').length} contacts marked Delete. Review these names in your phone’s Contacts app and remove only the entries you intend to delete.</p>
+        {textAction('delete list', 'delete-list.txt', 'text/plain', () => deleteListText(rows))}
+      </section>
+      <details className="border-y border-rule py-2">
+        <summary className="min-h-11 cursor-pointer py-3 font-serif text-xl">More exports</summary>
+        <p className="mb-4 text-sm text-ink-2">Lists overlap. Import the clean address book once, or choose individual lists. Everything includes contacts marked Delete.</p>
+        <table className="w-full table-fixed border-collapse text-sm">
+          <caption className="pb-3 text-left font-medium">Individual lists</caption>
+          <thead className="sr-only"><tr><th>List and contacts</th><th>Export</th></tr></thead>
+          <colgroup><col /><col className="w-[46%]" /></colgroup>
+          <tbody>{files.map((group) => <tr key={group.filename} className="border-b border-rule">
+            <td className="py-4 pr-3 align-top">
+              <p>{group.description}</p>
+              <p className="mt-1 break-words text-xs text-ink-2 [overflow-wrap:anywhere]">{group.filename}</p>
+              <p className="mt-1 tabular text-xs text-ink-2">{group.rows.length.toLocaleString()} contacts</p>
+            </td>
+            <td className="py-3 align-top">{contactAction([group], group.filename, false, true)}</td>
+          </tr>)}</tbody>
         </table>
-        <p className="mt-3 text-xs leading-relaxed text-ink-2">{platformHint(exportPlatform())}</p>
-        <p className="mt-2 mb-6 text-xs text-ink-2">Lists overlap. Import the clean address book once, or choose individual lists.</p>
-        <div className="space-y-3">
-          <Button full variant="outline" disabled={busy} onClick={() => void run(() => send(files))}>{allAction} all vCards</Button>
-          <Button full variant="outline" disabled={busy} onClick={() => void run(() => downloadText('all-contacts.csv', csvText(rows), 'text/csv'))}>Everything as CSV</Button>
-          <Button full variant="outline" disabled={busy} onClick={() => void run(() => downloadText('delete-list.txt', deleteListText(rows), 'text/plain'))}>Delete list (.txt)</Button>
-          <Button full variant="outline" disabled={busy} onClick={() => void run(async () => downloadText('contacts-backup.json', await backupJson(), 'application/json'))}>Backup (.json)</Button>
+        <div className="my-4 space-y-4">
+          {contactAction(files, 'all contact files')}
+          {textAction('everything as CSV', 'all-contacts.csv', 'text/csv', () => csvText(rows))}
+          {textAction('app backup', 'contacts-backup.json', 'application/json', backupJson)}
+          <p className="text-sm text-ink-2">The JSON backup saves your contacts and sorting decisions for this app.</p>
         </div>
-      </>}
-      <div className="mt-3"><RestoreInput /></div>
-      {message && <p role="status" className="mt-3 text-sm text-stamp-delete">{message}</p>}
-      <p className="my-6 text-sm text-ink-2">Browsers cannot edit your phone’s address book. Exporting does not remove anyone from Contacts. Review your Delete list there before making changes.</p>
-    </Frame>
-  )
+      </details>
+    </>}
+    <details className="mt-4 border-b border-rule pb-4">
+      <summary className="min-h-11 cursor-pointer py-3 font-serif text-xl">Restore a backup</summary>
+      <RestoreInput />
+    </details>
+  </Frame>
 }
