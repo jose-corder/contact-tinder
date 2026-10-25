@@ -1,6 +1,7 @@
+// Audit #42: exercise the shared copy affordance used by ContactDetails.
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
-import ContactValue from '@/features/review/ContactValue'
+import { CopyButton } from '@/ui'
 import { dismissToast, Toaster } from '@/ui/toast'
 
 afterEach(() => { cleanup(); dismissToast(); vi.unstubAllGlobals() })
@@ -10,7 +11,7 @@ it('copies the exact value and confirms it with the shared toast', async () => {
   const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
   try {
-    render(<><dl><ContactValue label="Email" value="maria@example.com" href="mailto:maria@example.com" /></dl><Toaster /></>)
+    render(<><CopyButton label="maria@example.com" value="maria@example.com" /><Toaster /></>)
     fireEvent.click(screen.getByRole('button', { name: 'Copy maria@example.com' }))
     expect(writeText).toHaveBeenCalledWith('maria@example.com')
     expect(await screen.findByText('Copied')).toBeInTheDocument()

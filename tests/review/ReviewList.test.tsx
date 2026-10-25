@@ -1,3 +1,4 @@
+// Audit #30: row names now include organization and classification.
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import ReviewList from '@/features/review/ReviewList'
@@ -22,7 +23,7 @@ describe('Review paging', () => {
     act(() => observers[0].callback([{ isIntersecting: true }] as IntersectionObserverEntry[], {} as IntersectionObserver))
     expect(screen.getAllByRole('button', { name: /^View Contact/ })).toHaveLength(120)
     expect(observers[0].disconnect).toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'View Contact 0000' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^View Contact 0000(?:,|$)/ })).toBeInTheDocument()
   }, 20000) // 5,000-row render is slow under full-suite load
 
   it('offers a load button when IntersectionObserver is unavailable', () => {

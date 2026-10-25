@@ -2,9 +2,10 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { animate, motion, useMotionValue, useReducedMotion } from 'framer-motion'
 import { saveDecision, type ContactWithDecision } from '@/db/repo'
 import { BUCKET_META, WORK_STATUS_META, PERSONAL_RELATION_META, setBucket } from '@/domain/taxonomy'
-import type { Bucket } from '@/domain/types'
-import { Avatar, IconButton } from '@/ui'
-import { IconTrash } from '@/ui/icons'
+import { decisionLabels } from '@/domain/taxonomy'
+import QuickActions, { RevealedActions, destinationsFor, destinationLabel, type Destination } from './QuickActions'
+import { Avatar, IconButton, InlineNotice, LabelDot } from '@/ui'
+import { IconMore } from '@/ui/icons'
 import { haptic } from '@/ui/theme'
 import { toast } from '@/ui/toast'
 
@@ -17,20 +18,14 @@ interface Props {
   onLongPress: (id: string) => void
 }
 
-function BucketGlyph({ bucket }: { bucket: Bucket }) {
-  if (bucket === 'delete') return <IconTrash size={18} />
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-    {bucket === 'work' ? <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V4h8v3M3 12h18m-9-2v5" /></> :
-      <><circle cx="12" cy="7" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>}
-  </svg>
-}
-
 export default memo(function ReviewRow({ row: { contact, decision }, selecting, selected, onOpen, onToggle, onLongPress }: Props) {
   const timer = useRef<number | undefined>(undefined)
   const pressed = useRef(false)
   const dragged = useRef(false)
   const origin = useRef({ x: 0, y: 0 })
   const [revealed, setRevealed] = useState(false)
+  const [menu, setMenu] = useState(false)
+  const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const x = useMotionValue(0)
   const reduced = useReducedMotion()
@@ -41,34 +36,31 @@ export default memo(function ReviewRow({ row: { contact, decision }, selecting, 
   }, [selecting, x])
   const reveal = (open: boolean) => {
     setRevealed(open)
-    animate(x, open ? -80 : 0, { duration: reduced ? 0 : 0.18 })
+    animate(x, open ? -destinationsFor(decision.bucket).length * 72 : 0, { duration: reduced ? 0.12 : 0.18 })
   }
   const bucket = decision.bucket && BUCKET_META[decision.bucket]
   const status = decision.bucket === 'work' && decision.workStatus ? WORK_STATUS_META[decision.workStatus] : undefined
   const relation = decision.bucket === 'personal' && decision.relation ? PERSONAL_RELATION_META[decision.relation] : undefined
-  const labels = [bucket, status, relation].filter((meta) => !!meta)
-  const destinations = (Object.keys(BUCKET_META) as Bucket[]).filter((value) => value !== decision.bucket)
-  async function move(destination: Bucket) {
+  const classification = [bucket?.label ?? 'Unsorted', status?.label, relation?.label].filter(Boolean).join(' · ')
+  const accessible = [contact.displayName, contact.org, ...(decision.bucket ? decisionLabels(decision) : ['Unsorted', ...decision.customTags])].filter(Boolean).join(', ')
+  async function move(destination: Destination) {
     if (busy) return
-    setBusy(true)
+    setBusy(true); setError('')
     try {
-      await saveDecision(setBucket(decision, destination))
-      reveal(false)
-      toast(`${contact.displayName} → ${BUCKET_META[destination].label}`, { tone: destination, action: {
+      await saveDecision(setBucket(decision, destination === 'unsorted' ? undefined : destination))
+      reveal(false); setMenu(false)
+      toast(`${contact.displayName} → ${destinationLabel(destination)}`, { tone: destination === 'unsorted' ? 'default' : destination, action: {
         label: 'Undo', onClick: () => { void saveDecision(decision).catch(() => toast('Could not undo. Please try again.')) },
       } })
-    } catch { toast('Could not move contact. Please try again.') }
+    } catch { setError('Could not move contact. Please try again.') }
     finally { setBusy(false) }
   }
-  return <li className="relative h-16 border-b border-rule">
-    {!selecting && <div className="absolute -right-2 inset-y-0 flex items-center" style={{ visibility: revealed ? 'visible' : 'hidden' }}>
-      {destinations.slice(0, 2).map((value) => <IconButton key={value} size={44} color={BUCKET_META[value].color}
-        label={`Move ${contact.displayName} to ${BUCKET_META[value].label}`} disabled={busy} onClick={() => void move(value)}>
-        <BucketGlyph bucket={value} />
-      </IconButton>)}
+  return <li className="relative min-h-16 border-b border-rule">
+    {!selecting && <div className="absolute right-0 top-0 flex h-20 items-center" style={{ visibility: revealed ? 'visible' : 'hidden' }}>
+      <RevealedActions name={contact.displayName} bucket={decision.bucket} busy={busy} onMove={value => void move(value)} />
     </div>}
-    <div className="h-full overflow-hidden">
-      <motion.div drag={selecting ? false : 'x'} dragConstraints={{ left: -80, right: 0 }} dragElastic={0} dragMomentum={false}
+    <div className="h-20 overflow-hidden">
+      <motion.div drag={selecting ? false : 'x'} dragConstraints={{ left: -destinationsFor(decision.bucket).length * 72, right: 0 }} dragElastic={0} dragMomentum={false}
         style={{ x, touchAction: 'pan-y' }} className="relative flex h-full items-center gap-3 bg-paper"
         onDragStart={() => { cancel(); dragged.current = true; setRevealed(true) }}
         onDragEnd={(_, info) => reveal(x.get() < -35 || info.velocity.x < -300)}>
@@ -77,7 +69,7 @@ export default memo(function ReviewRow({ row: { contact, decision }, selecting, 
             className="h-5 w-5 accent-ink" />
         </label>}
         <button type="button" className="flex h-full min-w-0 flex-1 touch-pan-y items-center gap-3 text-left"
-          aria-label={`${selecting ? 'Select' : 'View'} ${contact.displayName}`} aria-description="Swipe left or press Left Arrow for quick actions."
+          aria-label={`${selecting ? 'Select' : 'View'} ${accessible}`} aria-description="Swipe left or press Left Arrow for quick actions."
           onKeyDown={(event) => {
             if (!selecting && ['ArrowLeft', 'ArrowRight', 'Escape'].includes(event.key)) {
               event.preventDefault(); reveal(event.key === 'ArrowLeft')
@@ -102,15 +94,17 @@ export default memo(function ReviewRow({ row: { contact, decision }, selecting, 
           }}>
           <Avatar name={contact.displayName} photo={contact.photo} size={40} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-serif text-[17px]">{contact.displayName}</span>
+            <span className="block truncate font-serif serif-text text-[17px]">{contact.displayName}</span>
             <span className="block truncate text-[13px] text-ink-2">{contact.org || contact.phones[0]?.value}</span>
+            <LabelDot tone={decision.bucket ?? 'skip'} label={classification} size={8} />
           </span>
-          <span className="flex max-w-[95px] shrink-0 flex-col items-end gap-1">
-            <span aria-hidden="true" className="flex gap-1">{labels.map((meta) => <span key={meta.label} className="h-1.5 w-1.5 rounded-full" style={{ background: meta.color }} />)}</span>
-            <span className="text-xs text-ink-2">{status?.label ?? relation?.label}</span>
-          </span>
+
         </button>
+        {!selecting && <IconButton size={44} label={'More actions for ' + contact.displayName} onClick={() => { setError(''); setMenu(true) }}><IconMore /></IconButton>}
       </motion.div>
     </div>
+    {!menu && error && <InlineNotice tone="error">{error}</InlineNotice>}
+    <QuickActions name={contact.displayName} bucket={decision.bucket} busy={busy} open={menu} error={error}
+      onMove={value => void move(value)} onClose={() => { if (!busy) setMenu(false) }} />
   </li>
 })

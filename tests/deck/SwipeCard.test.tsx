@@ -14,9 +14,9 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.resto
 it('flips to all fields and back, with source and date metadata', () => {
   render(<SwipeCard contact={contact} />)
   expect(screen.queryByText('333')).not.toBeInTheDocument()
-  expect(screen.getByText('iCloud')).toBeInTheDocument()
-  expect(screen.getByText('added 2024')).toBeInTheDocument()
-  expect(screen.getByText('edited 2025')).toBeInTheDocument()
+  // Audit #15/#19: truthful provenance and localized dates.
+  expect(screen.getByText(/vCard file.*Added/)).toBeInTheDocument()
+  expect(screen.queryByText(/iCloud/)).not.toBeInTheDocument()
   fireEvent.click(screen.getByRole('article'))
   expect(screen.getByText('333')).toBeInTheDocument()
   expect(screen.getByText('Director')).toBeInTheDocument()

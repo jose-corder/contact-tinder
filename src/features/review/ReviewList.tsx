@@ -13,9 +13,10 @@ interface Props {
   onLongPress: (id: string) => void
   tab?: ReviewTab
   filtered?: boolean
+  onClear?: () => void
 }
 
-export default function ReviewList({ rows, selecting, selected, onOpen, onToggle, onLongPress, tab = 'unsorted', filtered = false }: Props) {
+export default function ReviewList({ rows, selecting, selected, onOpen, onToggle, onLongPress, tab = 'unsorted', filtered = false, onClear }: Props) {
   const [limit, setLimit] = useState(60)
   const sentinel = useRef<HTMLButtonElement>(null)
   const more = limit < rows.length
@@ -30,7 +31,7 @@ export default function ReviewList({ rows, selecting, selected, onOpen, onToggle
     observer.observe(sentinel.current)
     return () => observer.disconnect()
   }, [more, limit, rows.length])
-  if (!rows.length) return <ReviewEmpty tab={tab} filtered={filtered} />
+  if (!rows.length) return <ReviewEmpty tab={tab} filtered={filtered} onClear={onClear} />
   const letter = (name: string) => name.trim().charAt(0).toLocaleUpperCase() || '#'
   return <>
     <ul aria-label="Contacts" className="pb-2">{rows.slice(0, limit).map((row, index) => <Fragment key={row.contact.id}>

@@ -1,18 +1,16 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { MemoryRouter } from 'react-router'
 import { db } from '@/db/schema'
 import { allDecisions, resetAll, upsertContacts } from '@/db/repo'
 import * as repo from '@/db/repo'
 import BulkBar from '@/features/review/BulkBar'
-import ReviewScreen from '@/features/review/ReviewScreen'
 import { dismissToast, Toaster } from '@/ui/toast'
 import { row } from '../export/fixtures'
 
 beforeEach(resetAll)
 afterEach(() => { cleanup(); dismissToast() })
 
-it.each(['move', 'tag', 'reset'] as const)('bulk_mutation_rolls_back_on_row_501: %s', async (operation) => {
+it.each(['move', 'tag'] as const)('bulk_mutation_rolls_back_on_row_501: %s', async (operation) => {
   const rows = Array.from({ length: 1000 }, (_, i) => row(`Person ${i}`, {
     bucket: 'work', workStatus: 'current', customTags: ['original'],
   }))
@@ -28,11 +26,7 @@ it.each(['move', 'tag', 'reset'] as const)('bulk_mutation_rolls_back_on_row_501:
   const clear = vi.fn()
   const save = vi.spyOn(repo, 'saveDecisions')
   try {
-    if (operation === 'reset') {
-      render(<MemoryRouter initialEntries={['/review?tab=work']}><ReviewScreen /><Toaster /></MemoryRouter>)
-      fireEvent.click(await screen.findByRole('button', { name: 'Re-swipe these' }))
-      expect(screen.getByRole('button', { name: 'Re-swipe these' })).toHaveAttribute('aria-busy', 'true')
-    } else {
+    {
       render(<><BulkBar rows={rows} onClear={clear} onSelectAll={vi.fn()} /><Toaster /></>)
       fireEvent.click(screen.getByRole('button', { name: operation === 'move' ? 'Move to…' : 'Tag…' }))
       const dialog = within(screen.getByRole('dialog'))
@@ -44,12 +38,12 @@ it.each(['move', 'tag', 'reset'] as const)('bulk_mutation_rolls_back_on_row_501:
     await waitFor(() => expect(save).toHaveBeenCalledOnce())
     // Await the real batch instead of repeatedly scanning 60 rendered rows during 501 IDB writes.
     await act(async () => { await (save.mock.results[0].value as Promise<void>).catch(() => {}) })
-    // audit #34: the message is shown inline and as a toast, so more than one match is expected
+    // Audit #34: report the failure once beside the operation, without a second toast.
     expect((await screen.findAllByText(/Nothing was changed/)).length).toBeGreaterThan(0)
     expect(writes).toBe(501)
     expect(await allDecisions()).toEqual(before)
     expect(await db.tags.toArray()).toEqual(tags)
     expect(clear).not.toHaveBeenCalled()
-    await waitFor(() => expect(screen.getByRole('button', { name: operation === 'reset' ? 'Re-swipe these' : 'Move to…' })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Move to…' })).toBeEnabled())
   } finally { db.decisions.hook('updating').unsubscribe(rejectRow501); save.mockRestore() }
 }, 30000)

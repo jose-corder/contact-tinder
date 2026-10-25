@@ -1,4 +1,5 @@
 import type { Direction } from '@/domain/types'
+import { DECK_MOTION } from './motion'
 
 export type Axis = 'x' | 'y'
 export const DRAG_SLOP = 6
@@ -32,7 +33,7 @@ export function stampOpacity(dx: number, dy: number, cardWidth: number, axis?: A
   const result = { left: 0, right: 0, up: 0, down: 0 }
   const direction = dominant(dx, dy, axis)
   const distance = direction === 'left' || direction === 'right' ? Math.abs(dx) : Math.abs(dy)
-  result[direction] = Math.min(1, distance / Math.max(1, cardWidth * 0.35))
+  result[direction] = Math.min(1, distance / Math.max(1, cardWidth * 0.35 * DECK_MOTION.stampThreshold))
   return result
 }
 
@@ -46,7 +47,7 @@ export function flingTarget(direction: Direction, dx: number, dy: number, viewpo
   const primary = horizontal ? dx : dy
   const secondary = horizontal ? dy : dx
   // Travel at least 1200 px/s over 320 ms, even from an already distant drag.
-  const distance = Math.max(Math.abs(primary) + 1200 * 0.32, (horizontal ? viewportW : viewportH) * 1.5)
+  const distance = Math.max(Math.abs(primary) + 1200 * DECK_MOTION.fling.duration, (horizontal ? viewportW : viewportH) + 32)
   const cross = Math.abs(primary) > 1 ? secondary / Math.abs(primary) * distance : 0
   return horizontal ? { x: sign * distance, y: cross } : { x: cross, y: sign * distance }
 }

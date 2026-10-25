@@ -1,3 +1,4 @@
+// Audit #3: persistent Undo now belongs to the top bar.
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -66,7 +67,7 @@ it('followup_pending_save_blocks_global_undo_and_keyboard_until_retry_succeeds',
   expect(screen.getByRole('button', { name: 'Current' })).toHaveAttribute('aria-pressed', 'true')
   await click('Done')
   await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-  await click('undo')
+  await click('Undo')
   await waitFor(() => expect(screen.getByRole('article', { name: 'Ana contact card' })).toBeInTheDocument())
   expect((await repo.getDecision('Ana')).bucket).toBeUndefined()
   expect((await repo.getDecision('Ana')).workStatus).toBeUndefined()
@@ -80,16 +81,15 @@ it('deck_hit_areas_are_at_least_44px_without_growing_chip_visuals', async () => 
   const chip = screen.getByRole('button', { name: 'Client' })
   expect(chip).toHaveClass('h-9') // 36px visual + 4px hit extension on each edge.
   expect(chip.closest('.deck-chips')).not.toBeNull()
-  const css = readFileSync('src/features/deck/deck.css', 'utf8')
-  expect(css).toContain('min-width: 44px; margin-block: 4px;')
-  expect(css).toContain(".deck-chip::after, .deck-chips button::after { content: ''; position: absolute; inset: -4px 0; }")
-  expect(css).toContain("a[aria-label='Back']::after { content: ''; position: absolute; inset: -2px; }")
-  expect(css).toContain("[role='status'] button { min-height: 44px; min-width: 44px; }")
+  // Audit #3/#13: use platform hit targets rather than deck-only overrides.
+  const css = readFileSync('src/index.css', 'utf8')
+  expect(css).toContain('.chip-hit')
+  expect(screen.getByRole('link', { name: 'Back' })).toHaveClass('hit-44')
   await click('View all fields')
   expect(screen.getByRole('button', { name: 'Back' })).toHaveClass('min-h-11', 'min-w-11')
   expect(screen.getByRole('link', { name: '111' })).toHaveClass('min-h-11', 'min-w-11')
   await click('Current')
-  await waitFor(() => expect(screen.getByRole('button', { name: 'undo' })).toHaveClass('h-11', 'min-w-11'))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Undo' })).toHaveClass('h-11', 'min-w-11'))
   // jsdom does not lay out pixels or pseudo-elements; assert CSS/class contracts.
 })
 
@@ -105,7 +105,7 @@ it('first_run_coach_and_next_card_peek_survive_swipe_and_undo', async () => {
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
   await click('Work')
   expect(await screen.findByRole('article', { name: 'Bo contact card' })).toBeInTheDocument()
-  await click('undo')
+  await click('Undo')
   expect(await screen.findByRole('article', { name: 'Ana contact card' })).toBeInTheDocument()
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
   expect(screen.getByText('Bo').closest('[aria-hidden="true"]')).not.toBeNull()

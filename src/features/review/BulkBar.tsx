@@ -1,75 +1,95 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { saveDecisions, type ContactWithDecision } from '@/db/repo'
 import { BUCKET_META, normalizeTag, setBucket, toggleCustomTag } from '@/domain/taxonomy'
-import type { Bucket } from '@/domain/types'
+import type { Bucket, Decision } from '@/domain/types'
 import { shareOrDownload } from '@/export/share'
 import { vcfText } from '@/export/vcf'
-import { Button, Sheet } from '@/ui'
-import { toast } from '@/ui/toast'
+import { Button, InlineNotice, LabelDot, Sheet } from '@/ui'
+import { setToastBottom, toast } from '@/ui/toast'
 
-export default function BulkBar({ rows, onClear, onSelectAll }: { rows: ContactWithDecision[]; onClear: () => void; onSelectAll: () => void }) {
+export default function BulkBar({ rows, onClear, onSelectAll, total = rows.length, resultCount = rows.length, tabLabel = 'contacts' }: {
+  rows: ContactWithDecision[]; onClear: () => void; onSelectAll: () => void; total?: number; resultCount?: number; tabLabel?: string
+}) {
   const [open, setOpen] = useState(false)
   const [tagOpen, setTagOpen] = useState(false)
   const [tag, setTag] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const loading = busy && rows.length > 500
-  function failed(message: string) {
-    setError(`${message} Nothing was changed. Please try again.`)
-    toast('Nothing was changed')
+  const [cancelled, setCancelled] = useState(false)
+  const [previous, setPrevious] = useState<Decision[]>()
+  const locked = useRef(false)
+  const bar = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const measure = () => setToastBottom((bar.current?.getBoundingClientRect().height ?? 160) + 12)
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
+    if (bar.current) observer?.observe(bar.current)
+    return () => { observer?.disconnect(); setToastBottom(null) }
+  }, [])
+  async function undo(snapshot: Decision[]) {
+    if (locked.current) return
+    locked.current = true; setBusy(true); setError('')
+    try { await saveDecisions(snapshot); setPrevious(undefined); toast('Changes undone') }
+    catch { setError('Could not undo these changes. Try Undo again.') }
+    finally { locked.current = false; setBusy(false) }
   }
-  async function move(bucket: Bucket) {
-    setBusy(true); setError('')
+  async function apply(next: Decision[], message: string) {
+    if (locked.current) return
+    const snapshot = rows.map(({ decision }) => decision)
+    locked.current = true; setBusy(true); setError('')
     try {
-      await saveDecisions(rows.map(({ decision }) => setBucket(decision, bucket)))
-      setOpen(false); onClear()
-    } catch { failed('Could not move contacts.') }
-    finally { setBusy(false) }
+      await saveDecisions(next)
+      setPrevious(snapshot); setOpen(false); setTagOpen(false); setTag('')
+      toast(message + ' ·', { action: { label: 'Undo', onClick: () => { void undo(snapshot) } } })
+    } catch { setError('Could not save these changes. Nothing was changed. Please try again.') }
+    finally { locked.current = false; setBusy(false) }
   }
   return <>
-    <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-[440px] border-t border-rule bg-paper-2 px-5 pt-3"
-      style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="font-serif text-xl tabular">{rows.length} selected</p>
-        <button className="min-h-11 text-xs underline underline-offset-4" disabled={busy} onClick={onSelectAll}>Select all in view</button>
+    <div ref={bar} aria-label="Bulk selection" className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-[440px] border-t border-rule bg-paper-2 pt-3"
+      style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))', paddingLeft: 'max(20px, env(safe-area-inset-left))', paddingRight: 'max(20px, env(safe-area-inset-right))' }}>
+      <p className="t-body tabular">{rows.length} of {total} selected in {tabLabel}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button className="hit-44 t-meta underline" disabled={busy} onClick={onSelectAll}>Select all {resultCount} results</button>
+        <button className="hit-44 t-meta underline" disabled={busy} onClick={onClear}>Cancel selection</button>
       </div>
-      <div className="flex items-center justify-between gap-2">
-        <Button loading={loading} variant="outline" className="px-3! text-[13px]! whitespace-nowrap" disabled={!rows.length || busy} onClick={() => setOpen(true)}>Move to…</Button>
-        <Button loading={loading} variant="outline" className="px-3! text-[13px]! whitespace-nowrap" disabled={!rows.length || busy} onClick={() => setTagOpen(true)}>Tag…</Button>
-        <Button loading={loading} variant="outline" className="px-3! text-[13px]! whitespace-nowrap" disabled={!rows.length || busy} onClick={async () => {
-          setBusy(true); setError('')
+      <div className="grid grid-cols-2 gap-2">
+        <Button loading={busy} variant="outline" disabled={!rows.length} onClick={() => { setError(''); setOpen(true) }}>Move to…</Button>
+        <Button variant="outline" disabled={!rows.length || busy} onClick={() => { setError(''); setTagOpen(true) }}>Tag…</Button>
+        <Button variant="outline" disabled={!rows.length || busy} onClick={async () => {
+          if (locked.current) return
+          locked.current = true; setBusy(true); setError(''); setCancelled(false)
           try { await shareOrDownload([new File([vcfText(rows)], 'selected-contacts.vcf', { type: 'text/vcard' })]) }
-          catch (reason) { setError(reason instanceof Error && reason.name === 'AbortError' ? 'Sharing cancelled.' : 'Could not export contacts.') }
-          finally { setBusy(false) }
-        }}>Export .vcf</Button>
-        <Button loading={loading} variant="ghost" className="px-2! text-[13px]!" disabled={busy} onClick={onClear}>Clear</Button>
+          catch (reason) {
+            if (reason instanceof Error && reason.name === 'AbortError') setCancelled(true)
+            else setError('Could not export contacts. Please try again.')
+          } finally { locked.current = false; setBusy(false) }
+        }}>Export contacts</Button>
+        {previous && <Button variant="ghost" disabled={busy} onClick={() => void undo(previous)}>Undo last action</Button>}
       </div>
-      {!open && !tagOpen && error && <p role="alert" className="mt-2 text-sm">{error}</p>}
+      {!open && !tagOpen && error && <InlineNotice tone="error">{error}</InlineNotice>}
+      {cancelled && <InlineNotice tone="info">Sharing cancelled.</InlineNotice>}
     </div>
-    <Sheet open={open} onClose={() => { if (!busy) setOpen(false) }} title={`Move ${rows.length} contacts to…`}>
-      <div className="space-y-3">{(Object.keys(BUCKET_META) as Bucket[]).map((bucket) =>
-        <Button loading={loading} full variant="outline" key={bucket} disabled={busy} onClick={() => void move(bucket)}>{BUCKET_META[bucket].label}</Button>)}</div>
-      {error && <p role="alert" className="mt-3">{error}</p>}
-      <Button loading={loading} full variant="ghost" disabled={busy} onClick={() => setOpen(false)}>Cancel</Button>
+    <Sheet open={open} onClose={() => { if (!busy) setOpen(false) }} title={'Move ' + rows.length + ' contacts to…'}>
+      <div className="space-y-3">{(Object.keys(BUCKET_META) as Bucket[]).map(bucket =>
+        <Button full variant="outline" key={bucket} disabled={busy}
+          onClick={() => void apply(rows.map(({ decision }) => setBucket(decision, bucket)), rows.length + ' moved to ' + BUCKET_META[bucket].label)}>
+          <LabelDot tone={bucket} label={BUCKET_META[bucket].label} size={8} />
+        </Button>)}</div>
+      {error && <InlineNotice tone="error">{error}</InlineNotice>}
+      <Button full variant="ghost" disabled={busy} onClick={() => setOpen(false)}>Cancel</Button>
     </Sheet>
-    <Sheet open={tagOpen} onClose={() => { if (!busy) setTagOpen(false) }} title={`Tag ${rows.length} contacts`}>
-      <form onSubmit={async (event) => {
+    <Sheet open={tagOpen} onClose={() => { if (!busy) setTagOpen(false) }} title={'Tag ' + rows.length + ' contacts'}>
+      <form onSubmit={event => {
         event.preventDefault()
         const value = normalizeTag(tag)
         if (!value || busy) return
-        setBusy(true); setError('')
-        try {
-          await saveDecisions(rows.filter(({ decision }) => !decision.customTags.includes(value)).map(({ decision }) => toggleCustomTag(decision, value)))
-          toast(`Added “${value}” to ${rows.length} contacts`)
-          setTag(''); setTagOpen(false)
-        } catch { failed('Could not tag contacts.') }
-        finally { setBusy(false) }
+        void apply(rows.map(({ decision }) => decision.customTags.includes(value) ? decision : toggleCustomTag(decision, value)), 'Tagged ' + rows.length + ' contacts')
       }}>
-        <input aria-label="Tag selected contacts" autoFocus maxLength={32} value={tag} onChange={(event) => setTag(event.target.value)}
-          className="mb-4 min-h-11 w-full border-b border-rule bg-transparent" placeholder="Add a tag" />
-        <Button loading={loading} type="submit" full disabled={busy || !tag.trim()}>Add tag</Button>
-        {error && <p role="alert" className="mt-3 text-sm">{error}</p>}
-        <Button loading={loading} type="button" full variant="ghost" disabled={busy} onClick={() => setTagOpen(false)}>Cancel</Button>
+        <input aria-label="Tag selected contacts" autoFocus maxLength={32} value={tag} onChange={event => setTag(event.target.value)}
+          className="mb-4 min-h-11 w-full border-b border-rule bg-transparent text-base" placeholder="Add a tag" />
+        <Button loading={busy} type="submit" full disabled={!tag.trim()}>Add tag</Button>
+        {error && <InlineNotice tone="error">{error}</InlineNotice>}
+        <Button type="button" full variant="ghost" disabled={busy} onClick={() => setTagOpen(false)}>Cancel</Button>
       </form>
     </Sheet>
   </>

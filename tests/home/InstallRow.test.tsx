@@ -41,11 +41,12 @@ describe('Install app row', () => {
     act(() => { window.dispatchEvent(new Event('appinstalled')) })
     expect(screen.queryByRole('region', { name: 'Install app' })).not.toBeInTheDocument()
   })
-  it('shows the Safari instruction on iOS and honors its standalone flag', () => {
+  // Audit #37: iOS guidance applies to Safari, Chrome, Firefox, and Edge.
+  it.each(['Version/18.0', 'CriOS/131', 'FxiOS/131', 'EdgiOS/131'])('shows iOS instructions for %s and honors standalone', browser => {
     media()
-    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('iPhone Version/18.0 Mobile Safari/604.1')
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('iPhone ' + browser + ' Mobile Safari/604.1')
     const { unmount } = render(<InstallRow />)
-    expect(screen.getByText('Share → Add to Home Screen')).toBeInTheDocument()
+    expect(screen.getByText('On iPhone: Share → Add to Home Screen')).toBeInTheDocument()
     unmount()
     Object.defineProperty(navigator, 'standalone', { configurable: true, value: true })
     render(<InstallRow />)

@@ -1,3 +1,5 @@
+// Audit #6/#21/#22/#23: scoped search, non-destructive navigation, persistent selection, collapsed details.
+// Audit #30: row names now include organization and classification.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
@@ -33,12 +35,12 @@ describe('Review screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Client' }))
     fireEvent.click(screen.getByRole('button', { name: 'vip' }))
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'absent' } })
-    expect(screen.getByText('0 contacts')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(screen.getByText('0 of 1 match')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
     expect(screen.getByRole('searchbox')).toHaveValue('')
     expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('button', { name: 'Client' })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByText('1 contact')).toBeInTheDocument()
+    expect(screen.getByText('1 of 1 match')).toBeInTheDocument()
     expect(screen.getByText('Bo')).toBeInTheDocument()
   })
   it('selects all filtered contacts and adds a normalized tag without removing an existing one', async () => {
@@ -47,8 +49,8 @@ describe('Review screen', () => {
     open('/review?tab=work')
     await screen.findByText('Bo')
     fireEvent.click(screen.getByRole('button', { name: 'Select' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Select all in view' }))
-    expect(screen.getByText('2 selected')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Select all 2 results' }))
+    expect(screen.getByText('2 of 2 selected in Work')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Tag…' }))
     fireEvent.change(screen.getByRole('textbox', { name: 'Tag selected contacts' }), { target: { value: ' VIP ' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add tag' }))
@@ -62,13 +64,14 @@ describe('Review screen', () => {
     await upsertContacts([row('bea').contact])
     await saveDecisions([row('bea', { bucket: 'work', workStatus: 'old' }).decision])
     open('/review?tab=work')
-    fireEvent.click(await screen.findByRole('button', { name: 'View Bo' }))
+    fireEvent.click(await screen.findByRole('button', { name: /^View Bo(?:,|$)/ }))
+    fireEvent.click(screen.getByText('Details'))
     // Finding #27: dial separators are normalized and email addresses encoded.
     expect(screen.getByRole('link', { name: '555-0001' })).toHaveAttribute('href', 'tel:5550001')
     expect(screen.getByRole('link', { name: 'bo@example.com' })).toHaveAttribute('href', 'mailto:bo%40example.com')
     fireEvent.click(screen.getByRole('button', { name: 'Jump to deck' }))
     await screen.findByText('Deck destination')
-    expect((await getDecision('bo')).workStatus).toBeUndefined()
+    expect((await getDecision('bo')).workStatus).toBe('current')
     expect((await getDecision('bea')).workStatus).toBe('old')
   })
   it('switches bucket tabs and filters names, company, phone and email', async () => {
@@ -84,7 +87,7 @@ describe('Review screen', () => {
     }
     fireEvent.change(search, { target: { value: 'absent' } })
     expect(screen.queryByText('Bo')).not.toBeInTheDocument()
-    expect(screen.getByText('Nothing here yet.')).toBeInTheDocument()
+    expect(screen.getByText('No matching contacts.')).toBeInTheDocument()
     fireEvent.change(search, { target: { value: '' } })
     fireEvent.click(screen.getByRole('tab', { name: /^Personal/ }))
     expect(screen.getByText('Cy')).toBeInTheDocument()
@@ -106,7 +109,7 @@ describe('Review screen', () => {
   })
   it('saves row edits immediately and confirms removal inline', async () => {
     open()
-    fireEvent.click(await screen.findByRole('button', { name: 'View Ana' }))
+    fireEvent.click(await screen.findByRole('button', { name: /^View Ana(?:,|$)/ }))
     const dialog = within(screen.getByRole('dialog'))
     fireEvent.click(dialog.getByRole('button', { name: 'Work' }))
     await waitFor(async () => expect((await getDecision('ana')).bucket).toBe('work'))
@@ -121,7 +124,7 @@ describe('Review screen', () => {
     fireEvent.click(dialog.getByRole('button', { name: 'Cancel removal' }))
     expect(dialog.queryByRole('button', { name: 'Confirm removal' })).not.toBeInTheDocument()
   })
-  it('bulk moves selected contacts and clears selection', async () => {
+  it('bulk moves selected contacts and keeps the selection bar until Cancel', async () => {
     open()
     await screen.findByText('Ana')
     expect(screen.getByRole('button', { name: 'Select' })).toHaveClass('min-h-11', 'min-w-11')
@@ -131,11 +134,14 @@ describe('Review screen', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Move to…' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Personal' }))
     await waitFor(async () => expect((await getDecision('ana')).bucket).toBe('personal'))
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Clear' })).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('0 of 0 selected in Delete')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Undo last action' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel selection' }))
+    expect(screen.queryByRole('button', { name: 'Move to…' })).not.toBeInTheDocument()
   })
   it('review_longpress_uses_fake_time', async () => {
     open()
-    const button = await screen.findByRole('button', { name: 'View Ana' })
+    const button = await screen.findByRole('button', { name: /^View Ana(?:,|$)/ })
     vi.useFakeTimers()
     // Finding #31: release before the threshold must cancel selection.
     // jsdom does not implement PointerEvent on every supported version.
@@ -158,9 +164,9 @@ describe('Review screen', () => {
     open()
     await screen.findByText('Ana')
     fireEvent.click(screen.getByRole('tab', { name: /^Work/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Re-swipe these' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sort again' }))
     expect(await screen.findByText('Deck destination')).toBeInTheDocument()
-    expect((await getDecision('bo')).workStatus).toBeUndefined()
+    expect((await getDecision('bo')).workStatus).toBe('current')
     expect((await getDecision('bo')).skips.work).toBe(0)
     expect((await getDecision('ana')).bucket).toBe('delete')
   })

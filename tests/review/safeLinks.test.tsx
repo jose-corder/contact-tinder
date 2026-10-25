@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
 import RowSheet from '@/features/review/RowSheet'
@@ -15,6 +15,8 @@ it('mailto_reserved_characters_cannot_add_headers', () => {
   contact.contact.emails = emails.map((value) => ({ value }))
   contact.contact.phones = phones.map((value) => ({ value }))
   render(<MemoryRouter><RowSheet row={contact} onClose={vi.fn()} /></MemoryRouter>)
+  // Audit #23: values are inside collapsed Details.
+  fireEvent.click(screen.getByText('Details'))
   expect(screen.queryByRole('link')).not.toBeInTheDocument()
   for (const value of [...emails, ...phones]) {
     expect(screen.getByRole('button', { name: `Copy ${value}`.replace(/\s+/g, ' ').trim() })).toBeInTheDocument()

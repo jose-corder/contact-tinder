@@ -1,4 +1,4 @@
-import { act, cleanup, render, renderHook, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import * as repo from '@/db/repo'
@@ -74,4 +74,35 @@ it('scope_for_another_pass_is_ignored', async () => {
   await waitFor(() => expect(result.current.loading).toBe(false))
   expect(result.current.top?.contact.id).toBe('Personal')
   expect(result.current.scopeLabel).toBeUndefined()
+})
+
+it('reclassification includes completed contacts without clearing the saved decision', async () => {
+  // Audit #13: coordinate the review agent's nondestructive queue handoff.
+  const before = await repo.getDecision('Complete')
+  await repo.setMeta('deckScope', { pass: 'work', ids: ['Complete'], mode: 'reclassify', createdAt: Date.now() })
+  const { result } = renderHook(() => useDeck('work'))
+  await waitFor(() => expect(result.current.loading).toBe(false))
+  expect(result.current.top?.contact.id).toBe('Complete')
+  expect(await repo.getDecision('Complete')).toEqual(before)
+  await act(async () => { await result.current.swipe('down') })
+  expect(result.current.remaining).toBe(1)
+  expect((await repo.getDecision('Complete')).workStatus).toBe('current')
+  await act(async () => { await result.current.swipe('left') })
+  expect((await repo.getDecision('Complete')).workStatus).toBe('old')
+  await act(async () => { await result.current.undo() })
+  expect((await repo.getDecision('Complete')).workStatus).toBe('current')
+})
+
+it('does not requeue finished reclassification cards when returning from another tab', async () => {
+  await repo.setMeta('deckScope', { pass: 'work', ids: ['Aaron', 'Complete'], mode: 'reclassify', createdAt: Date.now() })
+  const { result } = renderHook(() => useDeck('work'))
+  await waitFor(() => expect(result.current.loading).toBe(false))
+  await act(async () => { await result.current.swipe('right') })
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
+  const loaded = vi.spyOn(session, 'loadDeck')
+  await act(async () => { fireEvent(document, new Event('visibilitychange')) })
+  await waitFor(() => expect(loaded).toHaveBeenCalled())
+  await waitFor(() => expect(result.current.canUndo).toBe(false))
+  expect(result.current.remaining).toBe(1)
+  expect(result.current.top?.contact.id).toBe('Complete')
 })

@@ -7,8 +7,6 @@ import { emptyDecision, type Contact } from '@/domain/types'
 import { FollowUpSheet } from '@/features/deck/FollowUpSheet'
 import { followUpEnabled, setFollowUpEnabled } from '@/ui/theme'
 import * as feedback from '@/ui/toast'
-import { readFileSync } from 'node:fs'
-const css = readFileSync('src/features/deck/deck.css', 'utf8')
 
 const sheet = vi.hoisted(() => ({ dismiss: () => {} }))
 vi.mock('@/ui', async (original) => {
@@ -33,7 +31,9 @@ it.each([
   const view = render(<FollowUpSheet target={{ contact, decision }} onClose={onClose} />)
   expect(screen.getByRole('button', { name: prompt })).toBeDisabled()
   fireEvent.click(screen.getByRole('button', { name: type }))
-  expect(screen.getByRole('button', { name: prompt })).toBeDisabled()
+  // Audit #7: a Personal type supplies the Other relation.
+  if (pass === 'personal') expect(screen.getByRole('button', { name: 'Done' })).toBeEnabled()
+  else expect(screen.getByRole('button', { name: prompt })).toBeDisabled()
   expect(screen.getByRole('button', { name: 'Later' })).toBeEnabled()
   fireEvent.click(screen.getByRole('button', { name: 'Later' }))
   expect(onClose).toHaveBeenCalledExactlyOnceWith()
@@ -64,7 +64,7 @@ it('followup_pending_save_blocks_every_dismissal_and_preserves_the_failed_draft'
   fireEvent.keyDown(document, { key: 'Escape' })
   fireEvent.keyDown(window, { key: 'Escape' })
   act(() => sheet.dismiss()) // Drag's onClose callback is also ignored while pending.
-  fireEvent.click(screen.getByRole('button', { name: /Don't ask/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
   fireEvent.click(screen.getByRole('button', { name: 'Later' }))
   expect(onClose).not.toHaveBeenCalled()
   expect(followUpEnabled()).toBe(true)
@@ -98,12 +98,14 @@ it('followup_actions_remain_scroll_reachable_on_small_screen: shrinking scroll v
   const decision = { ...applySwipe(emptyDecision('a'), 'triage', 'right'), customTags: Array.from({ length: 40 }, (_, i) => `tag ${i}`) }
   render(<FollowUpSheet target={{ contact, decision }} onClose={() => {}} />)
   const body = document.querySelector('.deck-followup-body')!
-  expect(body).toHaveClass('min-h-0', 'overflow-y-auto')
-  expect(body.parentElement).toHaveClass('min-h-0', 'overflow-y-auto')
-  expect(body).toContainElement(screen.getByRole('button', { name: 'Later' }))
-  expect(body).toContainElement(screen.getByRole('button', { name: 'Choose a status' }))
-  expect(css).toContain('min-height: 0; flex-shrink: 1; overflow-y: auto;')
-  expect(css).not.toContain(':not(.deck-followup-body)')
+  // Audit #4: one shared body scroller, footer outside it.
+  expect(body).not.toHaveClass('overflow-y-auto')
+  expect(body.parentElement).toHaveClass('sheet-body', 'overflow-y-auto')
+  expect(body).not.toContainElement(screen.getByRole('button', { name: 'Later' }))
+  const footer = document.querySelector('.sheet-footer')!
+  expect(footer).toHaveClass('shrink-0')
+  expect(footer).toContainElement(screen.getByRole('button', { name: 'Later' }))
+  expect(footer).toContainElement(screen.getByRole('button', { name: 'Choose a status' }))
   // jsdom has no layout/virtual keyboard: this verifies the scroll structure and
   // CSS contract; it cannot measure actual 390×568 scrolling or focus visibility.
 })

@@ -9,9 +9,9 @@ export default function FirstRun() {
       <rect x="14" y="19" width="76" height="48" rx="4" /><path d="m15 23 37 25 37-25M15 64l25-24m49 24L64 40M34 13V6h36v7" />
     </svg>
     <h2 className="text-center font-serif text-3xl">Room for the right people.</h2>
-    <p className="mt-3 mb-7 text-center text-sm text-ink-2">Bring your address book. Find a place for everyone.</p>
+    <p className="mt-3 mb-7 text-center text-sm text-ink-2">Import a contact file, sort it, then export your lists.</p>
     <Button full size="lg" onClick={() => navigate('/import')}>Import contacts</Button>
-    <p className="mt-3 text-center text-xs text-ink-2">Nothing leaves this device.</p>
+    <p className="mt-3 text-center text-xs text-ink-2">Your contacts are processed here. Nothing is uploaded.</p>
     <ol className="mt-8 border-t border-rule text-sm">
       {[
         { Icon: IconUpload, text: 'Import your address book.' },

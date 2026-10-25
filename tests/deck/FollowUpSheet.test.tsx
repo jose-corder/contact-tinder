@@ -4,7 +4,7 @@ import * as repo from '@/db/repo'
 import { applySwipe } from '@/domain/taxonomy'
 import { emptyDecision, type Contact } from '@/domain/types'
 import { FollowUpSheet } from '@/features/deck/FollowUpSheet'
-import { followUpEnabled, setFollowUpEnabled } from '@/ui/theme'
+import { setFollowUpEnabled } from '@/ui/theme'
 
 const contact: Contact = {
   id: 'a', displayName: 'Ana Ruiz', org: 'Acme', title: 'CFO', phones: [], emails: [], raw: '', source: 'demo', importedAt: 1, phoneKeys: [], emailKeys: [],
@@ -50,12 +50,14 @@ describe('FollowUpSheet', () => {
     expect((await repo.deckContacts('personal')).length).toBe(1)
   })
 
-  it('can turn itself off for future swipes', () => {
+  it('opens Settings without silently changing the preference', () => {
     const decision = applySwipe(emptyDecision('a'), 'triage', 'right')
     const onClose = vi.fn()
-    render(<FollowUpSheet target={{ contact, decision }} onClose={onClose} />)
-    fireEvent.click(screen.getByRole('button', { name: /Don't ask after swipes/ }))
-    expect(followUpEnabled()).toBe(false)
+    // Audit #4: the small Settings action replaces the opt-out sentence.
+    const settings = vi.fn()
+    render(<FollowUpSheet target={{ contact, decision }} onClose={onClose} onSettings={settings} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+    expect(settings).toHaveBeenCalledOnce()
     expect(onClose).toHaveBeenCalled()
   })
 })

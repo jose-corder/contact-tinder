@@ -1,3 +1,5 @@
+// Audit #6: opening a deck writes only its scope and preserves decisions.
+// Audit #30: row names now include organization and classification.
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
@@ -30,12 +32,13 @@ it('review_reswipe_scopes_real_decks_and_orders_mixed_passes: route and persiste
   await upsertContacts(rows.map(({ contact }) => contact))
   await saveDecisions(rows.map(({ decision }) => decision))
   open('/review?tab=unsorted')
-  fireEvent.click(await screen.findByRole('button', { name: 'Re-swipe these' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Sort again' }))
+  expect(await allDecisions()).toEqual(expect.arrayContaining(rows.map(({ decision }) => decision)))
   const ids = ['A personal', 'B work', 'Z triage']
   expect(JSON.parse((await screen.findByLabelText('Deck request')).textContent!)).toEqual({
     path: '/deck/triage', state: { only: ids },
   })
-  expect(await getMeta('deckScope', null)).toEqual({ pass: 'triage', ids, createdAt: expect.any(Number) })
+  expect(await getMeta('deckScope', null)).toEqual({ pass: 'triage', ids, createdAt: expect.any(Number), mode: 'reclassify' })
 })
 
 it('persists a one-contact scope for Jump to deck', async () => {
@@ -43,13 +46,14 @@ it('persists a one-contact scope for Jump to deck', async () => {
   await upsertContacts(rows.map(({ contact }) => contact))
   await saveDecisions(rows.map(({ decision }) => decision))
   open('/review?tab=work')
-  fireEvent.click(await screen.findByRole('button', { name: 'View A' }))
+  fireEvent.click(await screen.findByRole('button', { name: /^View A(?:,|$)/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Jump to deck' }))
   expect(JSON.parse((await screen.findByLabelText('Deck request')).textContent!)).toEqual({ path: '/deck/work', state: { only: ['A'] } })
-  expect(await getMeta('deckScope', null)).toEqual({ pass: 'work', ids: ['A'], createdAt: expect.any(Number) })
+  expect(await allDecisions()).toEqual(expect.arrayContaining(rows.map(({ decision }) => decision)))
+  expect(await getMeta('deckScope', null)).toEqual({ pass: 'work', ids: ['A'], createdAt: expect.any(Number), mode: 'reclassify' })
 })
 
-it('rolls back the reset if persisting the scope fails', async () => {
+it('leaves decisions and previous scope intact if the scope write fails', async () => {
   const rows = [row('A', { bucket: 'work', workStatus: 'old' })]
   await upsertContacts(rows.map(({ contact }) => contact))
   await saveDecisions(rows.map(({ decision }) => decision))

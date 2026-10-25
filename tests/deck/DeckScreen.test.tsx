@@ -1,3 +1,4 @@
+// Audit #3: persistent Undo now belongs to the top bar.
 import { StrictMode } from 'react'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
@@ -40,7 +41,7 @@ describe('DeckScreen', () => {
     await action('Work')
     await waitFor(async () => expect((await repo.getDecision('a')).bucket).toBe('work'))
     expect(screen.getByText('1 / 3')).toBeInTheDocument()
-    await action('undo')
+    await action('Undo')
     await waitFor(() => expect(screen.getByText('0 / 3')).toBeInTheDocument())
     expect((await repo.getDecision('a')).bucket).toBeUndefined()
     expect(screen.getByRole('article', { name: 'Ana contact card' })).toBeInTheDocument()
@@ -59,11 +60,12 @@ describe('DeckScreen', () => {
     expect(await screen.findByText('Triage done.')).toBeInTheDocument()
     expect((await repo.getDecision('a')).skips.triage).toBe(2)
     expect(await screen.findByText('1 skipped twice · find them under Review → Unsorted')).toBeInTheDocument()
-    expect(screen.getByText('2 of 3 sorted in this pass')).toBeInTheDocument()
-    await action('undo')
+    // Audit #27: session completion includes the exhausted skip.
+    expect(screen.getByText('This session: 3 of 3')).toBeInTheDocument()
+    await action('Undo')
     expect(await screen.findByText('2 / 3')).toBeInTheDocument()
     expect((await repo.getDecision('a')).skips.triage).toBe(1)
-    await action('undo')
+    await action('Undo')
     expect(await screen.findByText('1 / 3')).toBeInTheDocument()
   })
 
@@ -71,7 +73,7 @@ describe('DeckScreen', () => {
     await seed()
     show()
     await action('Skip')
-    await action('undo')
+    await action('Undo')
     await waitFor(() => expect(screen.getByRole('article', { name: 'Ana contact card' })).toBeInTheDocument())
     expect(screen.getByText('0 / 3')).toBeInTheDocument()
     expect((await repo.getDecision('a')).skips.triage).toBe(0)
@@ -154,17 +156,17 @@ describe('DeckScreen', () => {
     await seed()
     show('work')
     expect(await screen.findByText('Work sorted.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Sort personal contacts' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Sort triage contacts' })).toBeInTheDocument()
   })
 
   it('reloads the local queue when the pass changes', async () => {
     await seed()
     const view = show()
     await action('Work')
-    await screen.findByRole('button', { name: 'undo' })
+    await screen.findByRole('button', { name: 'Undo' })
     view.rerender(<MemoryRouter><DeckScreen pass="work" /></MemoryRouter>)
     expect(await screen.findByText('0 / 1')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'undo' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Undo' })).not.toBeInTheDocument()
     await act(async () => {})
   })
 })
@@ -180,7 +182,8 @@ it.each([['Delete', 'delete'], ['Work', 'work'], ['Personal', 'personal'], ['Ski
   expect(screen.getAllByRole('status')).toHaveLength(1)
   expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
   expect(screen.getByRole('status')).toHaveTextContent('Ana → ' + label)
-  await action('Undo')
+  // Audit #3/#5: header Undo coexists with the toast action.
+  await act(async () => { fireEvent.click(screen.getByRole('status').querySelector('button')!) })
   expect(await screen.findByRole('article', { name: 'Ana contact card' })).toBeInTheDocument()
   expect((await repo.getDecision('a')).bucket).toBeUndefined()
   expect((await repo.getDecision('a')).skips.triage).toBe(0)
@@ -216,7 +219,8 @@ it('shows a new pass coach and consumes its dismissal tap without flipping', asy
   window.localStorage.removeItem('ct.coach.triage')
   show()
   expect(await screen.findByRole('complementary', { name: 'Swipe guide' })).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('button', { name: 'View all fields' }))
+  // Audit #17: explicit coach dismissal leaves card controls usable.
+  fireEvent.click(screen.getByRole('button', { name: 'Got it' }))
   expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument()
   expect(window.localStorage.getItem('ct.coach.triage')).toBe('seen')

@@ -1,3 +1,4 @@
+// Audit #30: row names now include organization and classification.
 import type { ReactNode } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,7 +32,7 @@ describe('Review row actions', () => {
     expect(swipe).toHaveAttribute('data-drag', 'x')
     fireEvent.pointerMove(swipe)
     fireEvent.pointerUp(swipe)
-    fireEvent.click(screen.getByRole('button', { name: 'View Maria' }))
+    fireEvent.click(screen.getByRole('button', { name: /^View Maria(?:,|$)/ }))
     expect(onOpen).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Move Maria to Personal' }))
     await waitFor(async () => expect((await getDecision('Maria')).bucket).toBe('personal'))
@@ -43,9 +44,9 @@ describe('Review row actions', () => {
   it('supports keyboard reveal and hides quick actions during multi-select', () => {
     const props = { row: row('Bo', { bucket: 'work' }), selecting: false, selected: false, onOpen: vi.fn(), onToggle: vi.fn(), onLongPress: vi.fn() }
     const { rerender } = render(<ul><ReviewRow {...props} /></ul>)
-    fireEvent.keyDown(screen.getByRole('button', { name: 'View Bo' }), { key: 'ArrowLeft' })
+    fireEvent.keyDown(screen.getByRole('button', { name: /^View Bo(?:,|$)/ }), { key: 'ArrowLeft' })
     expect(screen.getByRole('button', { name: 'Move Bo to Delete' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Move Bo to Delete' })).toHaveStyle({ width: '44px', height: '44px' })
+    expect(screen.getByRole('button', { name: 'Move Bo to Delete' })).toHaveStyle({ width: '72px', height: '44px' })
     rerender(<ul><ReviewRow {...props} selecting /></ul>)
     expect(screen.queryByRole('button', { name: 'Move Bo to Delete' })).not.toBeInTheDocument()
     const label = screen.getByRole('checkbox', { name: 'Select Bo' }).closest('label')!

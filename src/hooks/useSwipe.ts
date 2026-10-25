@@ -3,12 +3,14 @@ import { useEffect, useRef, useState } from 'react'
 import type { Direction } from '@/domain/types'
 import { haptic, prefersReducedMotion } from '@/ui/theme'
 import { flingTarget, isDrag, lockAxis, resistDown, resolveDirection, rotationFor, stampOpacity, type Axis } from '@/features/deck/swipeMath'
+import { DECK_MOTION, useDeckReducedMotion } from '@/features/deck/motion'
 
-export function useSwipe({ onCommit, onDragStart, disabled, returnDirection }: {
+export function useSwipe({ onCommit, onDragStart, disabled, returnDirection, cardKey }: {
   onCommit: (direction: Direction) => void
   onDragStart?: () => void
   disabled?: boolean
   returnDirection?: Direction
+  cardKey?: string
 }) {
   const cardRef = useRef<HTMLDivElement>(null)
   const x = useMotionValue(0)
@@ -17,7 +19,8 @@ export function useSwipe({ onCommit, onDragStart, disabled, returnDirection }: {
   const width = useMotionValue(350)
   const axis = useMotionValue<Axis | null>(null)
   const dragged = useRef(false)
-  const reduced = prefersReducedMotion()
+  const mediaReduced = useDeckReducedMotion()
+  const reduced = mediaReduced || prefersReducedMotion()
   const rotate = useTransform(x, (value) => reduced ? 0 : rotationFor(value))
   const stamp = (direction: Direction) => () => stampOpacity(x.get(), y.get(), width.get(), axis.get())[direction]
   const left = useTransform(stamp('left'))
@@ -44,14 +47,14 @@ export function useSwipe({ onCommit, onDragStart, disabled, returnDirection }: {
     if (!returnDirection) return
     if (reduced) {
       opacity.set(0)
-      controls.current = [animate(opacity, 1, { duration: 0.12 })]
+      controls.current = [animate(opacity, 1, DECK_MOTION.fade)]
     } else {
       const start = flingTarget(returnDirection, 0, 0, window.innerWidth, window.innerHeight)
       x.set(start.x)
       y.set(start.y)
-      controls.current = [animate(x, 0, { duration: 0.26, ease: 'easeOut' }), animate(y, 0, { duration: 0.26, ease: 'easeOut' })]
+      controls.current = [animate(x, 0, DECK_MOTION.undo), animate(y, 0, DECK_MOTION.undo)]
     }
-  }, [returnDirection, reduced, x, y, opacity])
+  }, [returnDirection, cardKey, reduced, x, y, opacity])
 
   const triggerSwipe = async (direction: Direction) => {
     if (disabled || locked.current) return
@@ -59,10 +62,10 @@ export function useSwipe({ onCommit, onDragStart, disabled, returnDirection }: {
     stop()
     setCommitting(direction)
     haptic(10)
-    if (reduced) controls.current = [animate(opacity, 0, { duration: 0.12, ease: 'easeOut' })]
+    if (reduced) controls.current = [animate(opacity, 0, DECK_MOTION.fade)]
     else {
       const target = flingTarget(direction, x.get(), y.get(), window.innerWidth, window.innerHeight)
-      controls.current = [animate(x, target.x, { duration: 0.32, ease: 'easeOut' }), animate(y, target.y, { duration: 0.32, ease: 'easeOut' })]
+      controls.current = [animate(x, target.x, DECK_MOTION.fling), animate(y, target.y, DECK_MOTION.fling)]
     }
     await Promise.all(controls.current)
     if (!mounted.current) return
@@ -74,7 +77,7 @@ export function useSwipe({ onCommit, onDragStart, disabled, returnDirection }: {
   const cancel = () => {
     if (locked.current) return
     stop()
-    const transition = reduced ? { duration: 0.12 } : { type: 'spring' as const, stiffness: 500, damping: 35 }
+    const transition = reduced ? DECK_MOTION.fade : DECK_MOTION.cancel
     if (reduced) { x.set(0); y.set(0); opacity.set(0); controls.current = [animate(opacity, 1, transition)] }
     else controls.current = [animate(x, 0, transition), animate(y, 0, transition)]
     dragged.current = false

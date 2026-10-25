@@ -1,3 +1,24 @@
+import { PASS_ORDER, toggleChip } from './taxonomy'
+import type { Counts, Decision, Pass, PersonalType, WorkType } from './types'
+
+/** Type-only Personal completion has an explicit, exportable relation (#7). */
+export function toggleDeckType(decision: Decision, pass: Pass, key: WorkType | PersonalType): Decision {
+  const next = toggleChip(decision, pass, key)
+  return pass === 'personal' && next.personalTypes.length && !next.relation
+    ? { ...next, relation: 'other' } : next
+}
+
+export function nextUnfinishedPass(pass: Pass, counts: Counts): Pass | undefined {
+  const remaining: Record<Pass, number> = {
+    triage: counts.undecided - counts.unsorted.triage,
+    work: counts.bucket.work - Object.values(counts.workStatus).reduce((a, b) => a + b, 0) - counts.unsorted.work,
+    personal: counts.bucket.personal - Object.values(counts.relation).reduce((a, b) => a + b, 0) - counts.unsorted.personal,
+  }
+  // Continue forward first, then include unfinished earlier or scoped passes.
+  const start = PASS_ORDER.indexOf(pass) + 1
+  return [...PASS_ORDER.slice(start), ...PASS_ORDER.slice(0, start)].find((p) => remaining[p] > 0)
+}
+
 /** Queue helpers are immutable and preserve the identity of every item. */
 export function enqueueSkipped<T>(queue: readonly T[], item: T): T[] {
   return [...queue, item]

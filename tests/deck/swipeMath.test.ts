@@ -1,3 +1,4 @@
+// Audit #32: the stamp reaches full opacity at 70% of the threshold.
 import { describe, expect, it } from 'vitest'
 import { flingTarget, isDrag, lockAxis, resistDown, resolveDirection, rotationFor, stampOpacity } from '@/features/deck/swipeMath'
 
@@ -12,7 +13,7 @@ describe('swipe math', () => {
     expect(resolveDirection(dx as number, dy as number, vx as number, vy as number, 400)).toBe(expected)
   })
   it('uses only the dominant stamp and clamps its opacity', () => {
-    expect(stampOpacity(70, 30, 400)).toEqual({ left: 0, right: 0.5, up: 0, down: 0 })
+    expect(stampOpacity(49, 30, 400)).toEqual({ left: 0, right: 0.5, up: 0, down: 0 })
     expect(stampOpacity(20, -280, 400)).toEqual({ left: 0, right: 0, up: 1, down: 0 })
     expect(stampOpacity(0, 0, 0)).toEqual({ left: 0, right: 0, up: 0, down: 0 })
   })
@@ -39,7 +40,7 @@ it('ignores sub-six-pixel movement and locks the dominant axis at twelve pixels'
   expect(lockAxis(12, 0, null)).toBe('x')
   expect(lockAxis(0, -12, null)).toBe('y')
   expect(lockAxis(20, 200, 'x')).toBe('x')
-  expect(stampOpacity(70, 120, 400, 'x')).toEqual({ left: 0, right: 0.5, up: 0, down: 0 })
+  expect(stampOpacity(49, 120, 400, 'x')).toEqual({ left: 0, right: 0.5, up: 0, down: 0 })
   expect(resolveDirection(20, 200, 0, 800, 400, 'x')).toBeNull()
 })
 

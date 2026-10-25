@@ -1,25 +1,21 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import type { Contact } from '@/domain/types'
-import { Avatar } from '@/ui'
+import { sourceLabel } from '@/import/sourceLabel'
 import { toast } from '@/ui/toast'
-import { prefersReducedMotion } from '@/ui/theme'
+import { DECK_MOTION, useDeckReducedMotion } from './motion'
+import { CardFront, formatContactDate } from './CardFront'
 import { isDrag } from './swipeMath'
 import { CardFields } from './CardFields'
 import './deck.css'
 export { friendlyType } from './CardFields'
 
-const sources = { vcf: 'iCloud', csv: 'Google', picker: 'Phone', demo: 'Demo' }
-function year(value: string | number) {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? undefined : date.getFullYear()
-}
-const faceClass = 'deck-face absolute inset-0 flex min-h-0 flex-col overflow-hidden rounded-[20px] border border-rule bg-paper-2 p-5'
+const faceClass = 'deck-face absolute inset-0 flex min-h-0 flex-col rounded-[20px] border border-rule bg-paper-2'
 
-export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onFlip }: { contact: Contact; preview?: boolean; onFlip?: (flipped: boolean) => void }) {
+export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onFlip, stageHeight = 640 }: { contact: Contact; preview?: boolean; onFlip?: (flipped: boolean) => void; stageHeight?: number }) {
   const [flipped, setFlipped] = useState(false)
   const [opened, setOpened] = useState(false)
-  const reduced = prefersReducedMotion()
+  const reduced = useDeckReducedMotion()
   const origin = useRef({ x: 0, y: 0 })
   const moved = useRef(false)
   const copied = useRef(false)
@@ -49,10 +45,9 @@ export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onF
     onFlip?.(next)
     requestAnimationFrame(() => { if (alive.current) (next ? backRef : toggleRef).current?.focus({ preventScroll: true }) })
   }
-  const edited = contact.rev ? year(contact.rev) : undefined
   return <article
     aria-label={preview ? undefined : contact.displayName + ' contact card'}
-    className="deck-card relative h-full min-h-0 text-ink select-none"
+    data-layout={stageHeight < 680 ? 'compact' : 'tall'} className="deck-card relative h-full min-h-0 text-ink select-none"
     onPointerDownCapture={(event) => { origin.current = { x: event.clientX, y: event.clientY }; moved.current = false; copied.current = false }}
     onPointerMove={(event) => { if (isDrag(event.clientX - origin.current.x, event.clientY - origin.current.y)) { moved.current = true; cancel() } }}
     onDragStart={(event) => event.preventDefault()}
@@ -64,33 +59,21 @@ export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onF
     }}
     onClick={() => { if (!flipped) flip(true) }}
   >
-    <motion.div className="relative h-full" style={{ transformStyle: 'preserve-3d' }}
-      animate={{ rotateY: reduced ? 0 : flipped ? 180 : 0 }} transition={{ duration: reduced ? 0.12 : 0.32, ease: 'easeOut' }}>
-      <motion.div initial={false} className={faceClass} aria-hidden={flipped || preview} inert={flipped || preview}
-        animate={{ opacity: reduced && flipped ? 0 : 1 }} transition={{ duration: 0.12 }}>
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
-          <Avatar name={contact.displayName} photo={contact.photo} size={72} />
-          <h2 className="line-clamp-2 shrink-0 break-words font-serif text-[34px] leading-[38px] tracking-tight">{contact.displayName}</h2>
-          <p className="truncate text-[15px] text-ink-2">{[contact.title, contact.org].filter(Boolean).join(' · ') || ' '}</p>
-          <div className="hairline shrink-0" />
-          <CardFields contact={contact} hold={hold} />
-        </div>
-        <div className="hairline mt-3 shrink-0 pt-3">
-          <div className="flex flex-wrap gap-x-3 text-[12px] tracking-wide text-ink-2 uppercase">
-            <span>{sources[contact.source]}</span><span>added {year(contact.importedAt)}</span>{edited && <span>edited {edited}</span>}
-          </div>
-          {!preview && <button ref={toggleRef} type="button" className="mt-2 min-h-11 min-w-11 text-xs text-ink-2" onClick={(event) => { event.stopPropagation(); flip(true) }}>View all fields</button>}
-        </div>
+    <motion.div key={reduced ? 'fade' : 'flip'} className="relative h-full" style={{ transformStyle: 'preserve-3d' }}
+      animate={{ rotateY: reduced ? 0 : flipped ? 180 : 0 }} transition={reduced ? DECK_MOTION.fade : DECK_MOTION.fling}>
+      <motion.div initial={false} className={faceClass + (stageHeight < 680 ? ' p-4' : ' p-5')} aria-hidden={flipped || preview} inert={flipped || preview}
+        animate={{ opacity: reduced && flipped ? 0 : 1 }} transition={DECK_MOTION.fade}>
+        <CardFront contact={contact} stageHeight={stageHeight} preview={preview} hold={hold} toggleRef={toggleRef} flip={() => flip(true)} />
       </motion.div>
-      {!preview && <motion.div data-deck-details initial={false} className={faceClass} aria-hidden={!flipped} inert={!flipped}
+      {!preview && <motion.div data-deck-details initial={false} className={faceClass + (stageHeight < 680 ? ' p-4' : ' p-5')} aria-hidden={!flipped} inert={!flipped}
         style={{ rotateY: reduced ? 0 : 180, pointerEvents: flipped ? 'auto' : 'none' }}
-        animate={{ opacity: reduced ? (flipped ? 1 : 0) : 1 }} transition={{ duration: 0.12 }}>
+        animate={{ opacity: reduced ? (flipped ? 1 : 0) : 1 }} transition={DECK_MOTION.fade}>
         {opened && <>
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain" style={{ touchAction: 'pan-y' }} tabIndex={0} aria-label="All contact fields">
-            <h2 className="break-words font-serif text-[28px] leading-tight">{contact.displayName}</h2>
+            <h2 className="break-words font-serif t-title">{contact.displayName}</h2>
             <div className="hairline shrink-0" />
             <CardFields contact={contact} full hold={hold} />
-            <p className="text-xs text-ink-2">{sources[contact.source]} · added {new Date(contact.importedAt).toLocaleDateString()}{contact.rev && ' · last edited ' + contact.rev}</p>
+            <p className="t-meta text-ink-2">{sourceLabel(contact)} · Added {formatContactDate(contact.importedAt)}{formatContactDate(contact.rev) && ' · Updated ' + formatContactDate(contact.rev)}</p>
           </div>
           <button ref={backRef} type="button" className="hairline mt-3 min-h-11 min-w-11 shrink-0 pt-2 text-left text-xs text-ink-2" onClick={(event) => { event.stopPropagation(); flip(false) }}>Back</button>
         </>}
