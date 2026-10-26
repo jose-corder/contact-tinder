@@ -6,8 +6,11 @@ import App from './App'
 import './ui/useLastInputModality' // installs input-modality tracking before first render
 import { initTheme } from './ui/theme'
 import { toast } from './ui/toast'
+import { removeSampleContacts } from './import'
 
 initTheme()
+// The app no longer ships sample data; clear any sample contacts left from earlier versions.
+void removeSampleContacts().catch(() => {})
 let offlineReadyShown = false
 const updateSW = registerSW({
   immediate: true,

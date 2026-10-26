@@ -13,6 +13,8 @@ const SIZES = [[320, 568], [360, 740], [390, 844], [430, 932], [844, 390], [1024
 const ROUTES = process.argv[3] ? JSON.parse(process.argv[3]) : [
   { name: 'home', route: '/' },
   { name: 'import', route: '/import' },
+  { name: 'import-iphone', route: '/import', ua: 'iphone' },
+  { name: 'import-phone', route: '/import', picker: true },
   { name: 'deck', route: '/deck/triage' },
   { name: 'deck-sheet', route: '/deck/triage', act: 'work' },
   { name: 'deck-flipped', route: '/deck/triage', act: 'view all fields' },
@@ -56,9 +58,27 @@ const goto = async (url) => { await send('Page.navigate', { url }); await sleep(
 // Seed once (idempotent import through the app UI) and dismiss the coach.
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
 await goto(`${BASE}/import`)
+// Seed with the test-only fixture through the real file input (the app ships no sample data).
+const FIXTURE = resolve(process.env.PROBE_FIXTURE ?? 'tests/import/fixtures/sample-40.vcf')
 for (let attempt = 0; attempt < 3; attempt++) {
-  try { console.log("seed:", await evaluate(`(async () => { for (let i = 0; i < 40; i++) { const b = [...document.querySelectorAll('button')].find((b) => /sample contacts/i.test(b.textContent)); if (b) { b.click(); break } await new Promise((r) => setTimeout(r, 250)) } for (let i = 0; i < 80; i++) { if (/Start triage|Import another file/i.test(document.body.textContent)) { await new Promise((r) => setTimeout(r, 1500)); return 'seeded' }; await new Promise((r) => setTimeout(r, 250)) } return 'timeout' })()`)); break }
-  catch (e) { console.log("seed attempt failed:", e.message.slice(0, 80)); await sleep(1500); await goto(`${BASE}/import`) }
+  try {
+    const { root } = await send('DOM.getDocument', { depth: -1 })
+    const { nodeId } = await send('DOM.querySelector', { nodeId: root.nodeId, selector: 'input[type=file]' })
+    if (!nodeId) throw new Error('no file input on /import')
+    await send('DOM.setFileInputFiles', { nodeId, files: [FIXTURE] })
+    console.log('seed:', await evaluate(`(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+      for (let i = 0; i < 80; i++) {
+        const confirm = [...document.querySelectorAll('button')].find((b) => /^Import \\d+/.test(b.textContent.trim()))
+        if (confirm) { confirm.click(); break }
+        if (/already imported/i.test(document.body.textContent)) return 'already imported'
+        await wait(250)
+      }
+      for (let i = 0; i < 80; i++) { if (/Import another file|already imported/i.test(document.body.textContent)) { await wait(1000); return 'seeded' } await wait(250) }
+      return 'timeout'
+    })()`))
+    break
+  } catch (e) { console.log('seed attempt failed:', e.message.slice(0, 80)); await sleep(1500); await goto(`${BASE}/import`) }
 }
 try { await evaluate(`(() => { for (const p of ['triage','work','personal']) localStorage.setItem('ct.coach.' + p, 'seen'); return 1 })()`) } catch (e) { console.log('coach:', e.message.slice(0, 60)) }
 
@@ -128,7 +148,12 @@ const PROBE = String.raw`(() => {
 })()`
 
 const results = []
-for (const { name, route, act } of ROUTES) {
+const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+const FAKE_PICKER = 'Object.defineProperty(navigator, "contacts", { configurable: true, value: { select: async () => [], getProperties: async () => ["name","tel","email","icon"] } })'
+const DEFAULT_UA = (await send('Browser.getVersion')).userAgent.replace('HeadlessChrome', 'Chrome')
+for (const { name, route, act, ua, picker } of ROUTES) {
+  await send('Emulation.setUserAgentOverride', { userAgent: ua === 'iphone' ? IPHONE_UA : DEFAULT_UA })
+  const injected = picker ? await send('Page.addScriptToEvaluateOnNewDocument', { source: FAKE_PICKER }) : null
   for (const [width, height] of SIZES) {
     const mobile = width < 900
     await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile })
@@ -158,6 +183,7 @@ for (const { name, route, act } of ROUTES) {
       console.log(`${name} ${width}x${height}: ${probe.findings.length}`)
     } catch (e) { console.log(`${name} ${width}x${height}: ERROR ${e.message.slice(0, 80)}`); results.push({ name, size: `${width}x${height}`, error: e.message, findings: [] }) }
   }
+  if (injected) await send('Page.removeScriptToEvaluateOnNewDocument', { identifier: injected.identifier })
 }
 writeFileSync(resolve(OUT, 'probe.json'), JSON.stringify(results, null, 2))
 ws.close(); chrome.kill()

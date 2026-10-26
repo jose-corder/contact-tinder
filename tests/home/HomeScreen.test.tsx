@@ -64,7 +64,7 @@ describe('Home dashboard', () => {
   })
   it('offers import and a three-step introduction for an empty address book', async () => {
     open()
-    expect(await screen.findByRole('button', { name: 'Import contacts' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Import phone contacts' })).toBeInTheDocument()
     expect(screen.getByText('Room for the right people.')).toBeInTheDocument()
     expect(screen.getByText('Swipe into Work, Personal, or Delete.')).toBeInTheDocument()
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()

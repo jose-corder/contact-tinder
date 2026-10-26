@@ -1,0 +1,226 @@
+[
+  {
+    "name": "import",
+    "size": "320x568",
+    "url": "/import",
+    "vw": 320,
+    "vh": 568,
+    "findings": []
+  },
+  {
+    "name": "import",
+    "size": "360x740",
+    "url": "/import",
+    "vw": 360,
+    "vh": 740,
+    "findings": []
+  },
+  {
+    "name": "import",
+    "size": "390x844",
+    "url": "/import",
+    "vw": 390,
+    "vh": 844,
+    "findings": []
+  },
+  {
+    "name": "import",
+    "size": "430x932",
+    "url": "/import",
+    "vw": 430,
+    "vh": 932,
+    "findings": []
+  },
+  {
+    "name": "import",
+    "size": "844x390",
+    "url": "/import",
+    "vw": 844,
+    "vh": 390,
+    "findings": []
+  },
+  {
+    "name": "import",
+    "size": "1024x768",
+    "url": "/import",
+    "vw": 1024,
+    "vh": 768,
+    "findings": []
+  },
+  {
+    "name": "import",
+    "size": "1280x800",
+    "url": "/import",
+    "vw": 1280,
+    "vh": 800,
+    "findings": []
+  },
+  {
+    "name": "import-iphone",
+    "size": "320x568",
+    "url": "/import",
+    "vw": 320,
+    "vh": 568,
+    "findings": []
+  },
+  {
+    "name": "import-iphone",
+    "size": "360x740",
+    "url": "/import",
+    "vw": 360,
+    "vh": 740,
+    "findings": []
+  },
+  {
+    "name": "import-iphone",
+    "size": "390x844",
+    "url": "/import",
+    "vw": 390,
+    "vh": 844,
+    "findings": []
+  },
+  {
+    "name": "import-iphone",
+    "size": "430x932",
+    "url": "/import",
+    "vw": 430,
+    "vh": 932,
+    "findings": []
+  },
+  {
+    "name": "import-iphone",
+    "size": "844x390",
+    "url": "/import",
+    "vw": 844,
+    "vh": 390,
+    "findings": []
+  },
+  {
+    "name": "import-iphone",
+    "size": "1024x768",
+    "url": "/import",
+    "vw": 1024,
+    "vh": 768,
+    "findings": []
+  },
+  {
+    "name": "import-iphone",
+    "size": "1280x800",
+    "url": "/import",
+    "vw": 1280,
+    "vh": 800,
+    "findings": []
+  },
+  {
+    "name": "import-phone",
+    "size": "320x568",
+    "url": "/import",
+    "vw": 320,
+    "vh": 568,
+    "findings": []
+  },
+  {
+    "name": "import-phone",
+    "size": "360x740",
+    "url": "/import",
+    "vw": 360,
+    "vh": 740,
+    "findings": []
+  },
+  {
+    "name": "import-phone",
+    "size": "390x844",
+    "url": "/import",
+    "vw": 390,
+    "vh": 844,
+    "findings": []
+  },
+  {
+    "name": "import-phone",
+    "size": "430x932",
+    "url": "/import",
+    "vw": 430,
+    "vh": 932,
+    "findings": []
+  },
+  {
+    "name": "import-phone",
+    "size": "844x390",
+    "url": "/import",
+    "vw": 844,
+    "vh": 390,
+    "findings": []
+  },
+  {
+    "name": "import-phone",
+    "size": "1024x768",
+    "url": "/import",
+    "vw": 1024,
+    "vh": 768,
+    "findings": []
+  },
+  {
+    "name": "import-phone",
+    "size": "1280x800",
+    "url": "/import",
+    "vw": 1280,
+    "vh": 800,
+    "findings": []
+  },
+  {
+    "name": "home",
+    "size": "320x568",
+    "url": "/",
+    "vw": 320,
+    "vh": 568,
+    "findings": []
+  },
+  {
+    "name": "home",
+    "size": "360x740",
+    "url": "/",
+    "vw": 360,
+    "vh": 740,
+    "findings": []
+  },
+  {
+    "name": "home",
+    "size": "390x844",
+    "url": "/",
+    "vw": 390,
+    "vh": 844,
+    "findings": []
+  },
+  {
+    "name": "home",
+    "size": "430x932",
+    "url": "/",
+    "vw": 430,
+    "vh": 932,
+    "findings": []
+  },
+  {
+    "name": "home",
+    "size": "844x390",
+    "url": "/",
+    "vw": 844,
+    "vh": 390,
+    "findings": []
+  },
+  {
+    "name": "home",
+    "size": "1024x768",
+    "url": "/",
+    "vw": 1024,
+    "vh": 768,
+    "findings": []
+  },
+  {
+    "name": "home",
+    "size": "1280x800",
+    "url": "/",
+    "vw": 1280,
+    "vh": 800,
+    "findings": []
+  }
+]

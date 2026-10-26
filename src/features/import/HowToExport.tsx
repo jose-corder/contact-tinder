@@ -50,7 +50,7 @@ export default function HowToExport() {
     </section>
     <details className="mt-4 t-meta text-ink-2">
       <summary className="min-h-11 cursor-pointer py-3">Why a file?</summary>
-      <p className="pb-3 leading-relaxed">Browsers cannot read your address book directly. Some Android browsers offer a Contact Picker, but iPhone Safari does not. A file lets you choose what to bring in; everything is processed on this device.</p>
+      <p className="pb-3 leading-relaxed">Websites cannot read your address book on their own. Your phone can open its contact list for this page: Chrome on Android does this directly, and on iPhone it works once Contact Picker API is turned on in Safari’s Feature Flags. A file is the alternative when that is off. Either way, everything is processed on this device.</p>
     </details>
   </>
 }

@@ -9,12 +9,12 @@ export default function FirstRun() {
       <rect x="14" y="19" width="76" height="48" rx="4" /><path d="m15 23 37 25 37-25M15 64l25-24m49 24L64 40M34 13V6h36v7" />
     </svg>
     <h2 className="text-center font-serif t-title">Room for the right people.</h2>
-    <p className="mt-3 mb-7 text-center t-meta text-ink-2">Import a contact file, sort it, then export your lists.</p>
-    <Button full size="lg" onClick={() => navigate('/import')}>Import contacts</Button>
+    <p className="mt-3 mb-7 text-center t-meta text-ink-2">Bring in your phone's contacts, sort them, then export your lists.</p>
+    <Button full size="lg" onClick={() => navigate('/import')}>Import phone contacts</Button>
     <p className="mt-3 text-center t-meta text-ink-2">Your contacts are processed here. Nothing is uploaded.</p>
     <ol className="mt-8 border-t border-rule t-meta">
       {[
-        { Icon: IconUpload, text: 'Import your address book.' },
+        { Icon: IconUpload, text: 'Import the contacts on your phone.' },
         { Icon: IconArrowRight, text: 'Swipe into Work, Personal, or Delete.' },
         { Icon: IconShare, text: 'Export your freshly sorted contacts.' },
       ].map(({ Icon, text }) => <li key={text} className="flex items-center gap-3 border-b border-rule py-4"><Icon size={18} />{text}</li>)}

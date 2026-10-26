@@ -1,18 +1,18 @@
 // Findings #41/#54: literal actions and live cross-list duplicate count.
 // Findings #9/#34/#39/#41: phase headings, throttled speech, type roles and literal actions.
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { resetAll, setMeta, upsertContacts } from '@/db/repo'
 import { candidatePairs } from '@/import/duplicates'
 import { toast } from '@/ui/toast'
 import ImportScreen from '@/features/import/ImportScreen'
-import { importContacts, importDemo, previewFiles, commitPreview, type ImportResult, type ImportPreview } from '@/import'
-import { isContactPickerSupported, pickContacts } from '@/import/contactPicker'
+import { importContacts, previewFiles, commitPreview, type ImportResult, type ImportPreview } from '@/import'
+import { phoneContactsAccess, pickContacts } from '@/import/contactPicker'
 import { makeContact } from '@/import/contact'
 
-vi.mock('@/import', () => ({ importContacts: vi.fn(), importDemo: vi.fn(), previewFiles: vi.fn(), commitPreview: vi.fn() }))
-vi.mock('@/import/contactPicker', () => ({ isContactPickerSupported: vi.fn(), pickContacts: vi.fn() }))
+vi.mock('@/import', () => ({ importContacts: vi.fn(), previewFiles: vi.fn(), commitPreview: vi.fn() }))
+vi.mock('@/import/contactPicker', () => ({ phoneContactsAccess: vi.fn(), pickContacts: vi.fn() }))
 vi.mock('@/ui/toast', () => ({ toast: vi.fn() }))
 
 const result: ImportResult = { added: 2, merged: 1, total: 3, errors: [], possibleDuplicates: [], decisionsMigrated: 0 }
@@ -31,11 +31,11 @@ const choose = (files = [new File(['card'], 'contacts.vcf')]) =>
 beforeEach(async () => {
   await resetAll()
   vi.resetAllMocks()
-  vi.mocked(importDemo).mockResolvedValue(result)
   vi.mocked(previewFiles).mockResolvedValue(preview)
   vi.mocked(commitPreview).mockResolvedValue(result)
   vi.mocked(importContacts).mockResolvedValue(result)
-  vi.mocked(isContactPickerSupported).mockReturnValue(false)
+  vi.mocked(phoneContactsAccess).mockReturnValue('unavailable')
+  vi.mocked(pickContacts).mockResolvedValue(preview.contacts.map(c => ({ ...c, source: 'picker' })))
 })
 afterEach(cleanup)
 
@@ -55,7 +55,7 @@ describe('Import screen', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveClass('t-title')
     // #9: confirmation precedes optional samples and merge details in DOM/focus order.
     const confirm = screen.getByRole('button', { name: 'Import 3 contacts' })
-    expect(confirm.compareDocumentPosition(screen.getByText('Preview sample contacts')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(confirm.compareDocumentPosition(screen.getByText('Preview the first contacts')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(confirm.compareDocumentPosition(screen.getByText('See what merges')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Review your import' })).toHaveFocus()
     fireEvent.click(screen.getByText('See what merges'))
@@ -69,7 +69,7 @@ describe('Import screen', () => {
   })
 
   it('import_announces_completion_once', async () => {
-    vi.mocked(importDemo).mockResolvedValue({ ...result, possibleDuplicates: [{ ids: ['a', 'b'], reason: 'shared phone' }],
+    vi.mocked(commitPreview).mockResolvedValue({ ...result, possibleDuplicates: [{ ids: ['a', 'b'], reason: 'shared phone' }],
       storageNote: 'Device storage is getting full.' })
     // #54: the link reads live persisted pairs, not the result of the last import.
     const pairContacts = preview.contacts.slice(0, 2)
@@ -78,7 +78,8 @@ describe('Import screen', () => {
     const { container } = show()
     // #34: InlineNotice owns the implicit polite status region; do not nest live regions.
     expect(container.querySelectorAll('[role="status"]')).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: 'Try 40 sample contacts' }))
+    choose()
+    fireEvent.click(await screen.findByRole('button', { name: 'Import 3 contacts' }))
     await screen.findByText('2 contacts added · 1 duplicate entries merged')
     const announcer = screen.getByRole('status')
     expect(announcer).toHaveTextContent('2 contacts added · 1 duplicate entries merged')
@@ -90,11 +91,15 @@ describe('Import screen', () => {
     expect(screen.getByText('Device storage is getting full.')).toBeInTheDocument()
   })
 
-  it('keeps the headline, privacy, formats, and tabbed instructions', () => {
+  it('shows the file zone and export instructions without phone sections when unavailable', () => {
     show()
     expect(screen.getByRole('heading', { name: 'Bring your contacts.' })).toBeInTheDocument()
     expect(screen.getByText('Your contacts are processed here. Nothing is uploaded.')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Pick phone contacts' })).not.toBeInTheDocument()
+    expect(screen.getByText('Import your phone contacts')).toBeVisible()
+    expect(screen.getByText('Choose your contacts file')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'How to export your contacts' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Import from phone contacts' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: /Phone contacts/ })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Choose contact files')).toHaveAttribute('accept', '.vcf,.vcard,.csv,text/vcard,text/x-vcard,text/csv')
     expect(screen.getByLabelText('Choose contact files')).toHaveAttribute('multiple')
     for (const name of ['iPhone', 'iCloud.com', 'Google', 'Outlook']) {
@@ -103,7 +108,7 @@ describe('Import screen', () => {
       expect(within(screen.getByRole('tabpanel')).getAllByRole('listitem').length).toBeGreaterThanOrEqual(3)
     }
     fireEvent.click(screen.getByText('Why a file?'))
-    expect(screen.getByText(/iPhone Safari does not/)).toBeVisible()
+    expect(screen.getByText(/Contact Picker API is turned on in Safari/)).toBeVisible()
     expect(screen.getByText(/Files app under Browse/)).toBeVisible()
   })
 
@@ -114,7 +119,7 @@ describe('Import screen', () => {
     expect(previewFiles).toHaveBeenCalledWith(files, expect.any(Function))
     expect(await screen.findByText('3 contacts found · 1 duplicates will merge')).toBeInTheDocument()
     const block = screen.getByRole('region', { name: 'Import preview' })
-    fireEvent.click(within(block).getByText('Preview sample contacts'))
+    fireEvent.click(within(block).getByText('Preview the first contacts'))
     expect(within(block).getAllByRole('listitem')).toHaveLength(3)
     expect(within(block).getByText('Ada')).toBeInTheDocument()
     expect(commitPreview).not.toHaveBeenCalled()
@@ -171,18 +176,58 @@ describe('Import screen', () => {
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '1240')
     // Finding #9: obsolete choose controls unmount in later phases.
     expect(screen.queryByLabelText('Choose contact files')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Try 40 sample contacts' })).not.toBeInTheDocument()
     await act(async () => finish(preview))
     // Finding #30: keep one stable announcer mounted.
     expect(screen.getByRole('status')).toBeEmptyDOMElement()
   })
 
-  it('keeps demo import one tap', async () => {
+  it('imports selected phone contacts from the primary action and reaches done', async () => {
+    vi.mocked(phoneContactsAccess).mockReturnValue('available')
     show()
-    fireEvent.click(screen.getByRole('button', { name: 'Try 40 sample contacts' }))
+    expect(screen.getByText('Import from your phone contacts')).toBeVisible()
+    const phone = screen.getByRole('region', { name: 'Phone contacts' })
+    expect(within(phone).getByText(/Tap Select all to sort everyone/)).toBeVisible()
+    fireEvent.click(within(phone).getByRole('button', { name: 'Import from phone contacts' }))
+    expect(await screen.findByRole('heading', { name: 'Import complete' })).toHaveFocus()
     await screen.findByText('2 contacts added · 1 duplicate entries merged')
+    expect(pickContacts).toHaveBeenCalledTimes(1)
+    expect(importContacts).toHaveBeenCalledWith(preview.contacts.map(c => ({ ...c, source: 'picker' })), expect.any(Function))
     expect(previewFiles).not.toHaveBeenCalled()
     expect(screen.queryByRole('region', { name: 'Import preview' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sort contacts' })).toBeVisible()
+  })
+
+  it('imports a file from the available-mode disclosure through preview and confirmation', async () => {
+    vi.mocked(phoneContactsAccess).mockReturnValue('available')
+    show()
+    const disclosure = screen.getByText('Import a contacts file instead')
+    expect(disclosure.closest('details')).not.toHaveAttribute('open')
+    expect(screen.getByLabelText('Choose contact files')).not.toBeVisible()
+    fireEvent.click(disclosure)
+    expect(screen.getByLabelText('Choose contact files')).toBeVisible()
+    choose()
+    fireEvent.click(await screen.findByRole('button', { name: 'Import 3 contacts' }))
+    await screen.findByRole('heading', { name: 'Import complete' })
+    expect(previewFiles).toHaveBeenCalledTimes(1)
+    expect(commitPreview).toHaveBeenCalledWith(preview, expect.any(Function))
+    expect(pickContacts).not.toHaveBeenCalled()
+  })
+
+  it('shows Safari feature-flag steps and the file fallback when ios-flag-off', () => {
+    vi.mocked(phoneContactsAccess).mockReturnValue('ios-flag-off')
+    show()
+    const phone = screen.getByRole('region', { name: 'Phone contacts on iPhone' })
+    expect(within(phone).getByRole('heading', { name: 'Allow this page to open your contacts' })).toBeVisible()
+    expect(within(phone).getAllByRole('listitem').map(step => step.textContent)).toEqual([
+      'Open Settings › Apps › Safari › Advanced › Feature Flags.',
+      'Turn on Contact Picker API.',
+      'Come back here and reload. An Import from phone contacts button appears.',
+    ])
+    expect(screen.getByText('Import your phone contacts')).toBeVisible()
+    expect(screen.getByText('Choose your contacts file')).toBeVisible()
+    expect(screen.getByLabelText('Choose contact files')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'How to export your contacts' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Import from phone contacts' })).not.toBeInTheDocument()
   })
 
   it('shows calm empty-file errors without an import confirmation', async () => {
@@ -220,13 +265,19 @@ describe('Import screen', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('handles phone picker cancellation without an error', async () => {
-    vi.mocked(isContactPickerSupported).mockReturnValue(true)
-    vi.mocked(pickContacts).mockRejectedValueOnce(new DOMException('Cancelled', 'AbortError'))
+  it.each(['cancel', 'empty selection'])('returns to choose with a notice after phone picker %s', async outcome => {
+    vi.mocked(phoneContactsAccess).mockReturnValue('available')
+    if (outcome === 'cancel') vi.mocked(pickContacts).mockRejectedValueOnce(new DOMException('Cancelled', 'AbortError'))
+    else vi.mocked(pickContacts).mockResolvedValueOnce([])
     show()
-    fireEvent.click(screen.getByRole('button', { name: 'Pick phone contacts' }))
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Pick phone contacts' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: 'Import from phone contacts' }))
+    expect(await screen.findByText('No contacts were imported. Choose the people to sort, or tap Select all.')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Bring your contacts.' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Import from phone contacts' })).toBeEnabled()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(importContacts).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Import from phone contacts' }))
+    await screen.findByRole('heading', { name: 'Import complete' })
+    expect(screen.queryByText(/No contacts were imported/)).not.toBeInTheDocument()
   })
 })

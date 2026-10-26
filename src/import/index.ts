@@ -117,10 +117,12 @@ export async function importFiles(files: File[], onProgress?: OnProgress, defaul
   return commitPreview(await previewFiles(files, onProgress, defaultCountry), onProgress, defaultCountry)
 }
 
-export async function importDemo(onProgress?: OnProgress, defaultCountry: string = regionCountry()): Promise<ImportResult> {
-  const response = await fetch(`${import.meta.env.BASE_URL}demo.vcf`)
-  if (!response.ok) throw new Error('The demo could not be loaded. Please try again.')
-  const { contacts } = await parseVcfChunks(await response.text(), onProgress, 'demo', defaultCountry)
-  if (!contacts.length) throw new Error('No demo contacts were found.')
-  return importContacts(contacts, onProgress, defaultCountry)
+/**
+ * Removes contacts created by the former built-in sample set (source 'demo'), their decisions and
+ * tags. Runs once at startup so only the user's own phone contacts remain. Returns how many went.
+ */
+export async function removeSampleContacts(): Promise<number> {
+  const ids = (await repo.allContacts()).filter((contact) => contact.source === 'demo').map((contact) => contact.id)
+  if (ids.length) await repo.deleteContacts(ids)
+  return ids.length
 }

@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '@/db/schema'
 import * as repo from '@/db/repo'
-import { importContacts, importDemo, importFiles } from '@/import'
+import { importContacts, importFiles, previewFiles, commitPreview } from '@/import'
 import { parseVcf } from '@/import/vcard'
 import { makeContact } from '@/import/contact'
 
@@ -55,19 +55,32 @@ describe('import persistence', () => {
     expect((await repo.allContacts())[0].source).toBe('csv')
   })
 
-  it('imports the actual 40-card demo with its two intentional duplicates', async () => {
-    const demo = readFileSync(resolve('public/demo.vcf'), 'utf8')
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, text: async () => demo })
-    vi.stubGlobal('fetch', fetchMock)
-    expect(await importDemo()).toEqual({ added: 38, merged: 2, total: 40, errors: [], possibleDuplicates: [], decisionsMigrated: 0 })
-    expect(fetchMock).toHaveBeenCalledWith(`${import.meta.env.BASE_URL}demo.vcf`)
-    expect((await repo.allContacts()).every((c) => c.source === 'demo')).toBe(true)
-    expect(await importDemo()).toMatchObject({ added: 0, merged: 40 })
+  it('previews and imports the 40-card fixture with its two intentional duplicates', async () => {
+    const text = readFileSync(resolve('tests/import/fixtures/sample-40.vcf'), 'utf8')
+    const file = new File([text], 'sample-40.vcf', { type: 'text/vcard' })
+    const preview = await previewFiles([file])
+    expect(preview).toMatchObject({ added: 38, merged: 2, total: 40, errors: [] })
+    expect(preview.contacts).toHaveLength(40)
+    expect(await repo.allContacts()).toHaveLength(0)
+    expect(await commitPreview(preview)).toEqual({ added: 38, merged: 2, total: 40, errors: [], possibleDuplicates: [], decisionsMigrated: 0 })
+    const stored = await repo.allContacts()
+    expect(stored).toHaveLength(38)
+    expect(stored.every((c) => c.source === 'vcf')).toBe(true)
+    const repeated = await previewFiles([file])
+    expect(repeated).toMatchObject({ added: 0, merged: 40, allAlreadyImported: true })
+    expect(await commitPreview(repeated)).toMatchObject({ added: 0, merged: 40, total: 40 })
+    expect(await repo.allContacts()).toHaveLength(38)
   })
 
-  it('reports failed demo fetches', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false }))
-    await expect(importDemo()).rejects.toThrow('demo could not be loaded')
+  it('reports unreadable contact files without saving contacts', async () => {
+    const file = new File([], 'unreadable.vcf')
+    Object.defineProperty(file, 'arrayBuffer', { value: vi.fn().mockRejectedValue(new Error('Read failed')) })
+    const preview = await previewFiles([file])
+    expect(preview).toMatchObject({ total: 0, contacts: [], errors: [
+      'Nothing we could read in `unreadable.vcf`. Try exporting a contact file (.vcf) instead.',
+    ] })
+    expect(await commitPreview(preview)).toMatchObject({ added: 0, total: 0, errors: preview.errors })
+    expect(await repo.allContacts()).toHaveLength(0)
   })
 
   it('serializes concurrent imports', async () => {

@@ -4,7 +4,7 @@ import { makeContact } from '@/import/contact'
 import type { ContactSource } from '@/domain/types'
 const contact = makeContact({ displayName: 'Test', phones: [], emails: [] }, 'vcf')!
 describe('honest source labels (#15)', () => {
-  it.each([['vcf', 'vCard file'], ['csv', 'CSV file'], ['picker', 'Phone picker'], ['demo', 'Demo']] as const)('labels %s', (source: ContactSource, label) => {
+  it.each([['vcf', 'vCard file'], ['csv', 'CSV file'], ['picker', 'Phone contacts'], ['demo', 'Demo']] as const)('labels %s', (source: ContactSource, label) => {
     expect(sourceLabel({ ...contact, source })).toBe(label)
   })
   it.each([['-//Apple Inc.//iOS 17.5//EN', 'Apple Contacts'], ['-//Google Inc.//Google Contacts//', 'Google Contacts'], ['Microsoft Outlook 16', 'Outlook'], ['Unknown', 'vCard file']])('reads PRODID %s', (prodId, expected) => {

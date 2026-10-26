@@ -62,5 +62,5 @@ it('#24: shows a designed loader and a retryable database failure', async () => 
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not load your contacts')
   read.mockRestore()
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-  expect(await screen.findByRole('button', { name: 'Import contacts' })).toBeInTheDocument()
+  expect(await screen.findByRole('button', { name: 'Import phone contacts' })).toBeInTheDocument()
 })

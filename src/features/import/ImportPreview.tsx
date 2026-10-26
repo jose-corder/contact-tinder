@@ -40,7 +40,7 @@ export default function ImportPreview({ preview, busy, onConfirm, onCancel }: {
         </>}
       </details>}
       <details className="mt-2">
-      <summary className="min-h-11 cursor-pointer py-3 t-body">Preview sample contacts</summary>
+      <summary className="min-h-11 cursor-pointer py-3 t-body">Preview the first contacts</summary>
       <ul className="my-4 divide-y divide-rule">
         {preview.contacts.slice(0, 3).map((contact, index) => <li key={`${contact.id}-${index}`} className="flex min-h-16 items-center gap-3 py-2">
           <Avatar name={contact.displayName} photo={contact.photo} size={32} />
