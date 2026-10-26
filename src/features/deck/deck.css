@@ -9,16 +9,13 @@
 .deck-subtitle { overflow-wrap: anywhere; }
 .deck-screen > header { margin-bottom: 4px; flex-shrink: 0; }
 .deck-screen > header .eyebrow { letter-spacing: .06em; }
-.deck-keyboard-help { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); }
-.deck-keyboard-help:focus-visible { clip-path: none; width: auto; height: 44px; margin: 0; right: 0; bottom: 100%; overflow: visible; background: var(--paper-2); z-index: 30; }
+.deck-keyboard-help { display: block; min-width: max-content; width: auto; height: 44px; margin-inline: auto; white-space: nowrap; }
 .deck-tick::before { content: attr(data-count); }
 .deck-sorted.stamp { padding: 2px 6px; border-width: 1px; }
 @media (max-width: 359px) {
   .deck-action-circle { width: 48px !important; height: 48px !important; }
 }
-@media (min-height: 800px) and (hover: hover) and (pointer: fine) {
-  .deck-keyboard-help { position: static; width: 100%; height: 44px; margin: 0; clip-path: none; }
-}
+@media (max-width: 359px), (pointer: coarse) { .deck-keyboard-help { display: none; } }
 @media (prefers-reduced-motion: reduce) {
   .deck-card { perspective: none; }
   .deck-screen button { transform: none !important; }
@@ -44,7 +41,9 @@
 
 /* #14/#38/#57: reserve actual feedback height and let the column scroll. */
 .deck-column { min-width: 0; }
-.deck-stage { min-height: 320px; flex-shrink: 0; }
+.deck-stage { display: grid; place-items: center; min-height: 0; margin-bottom: 12px; }
+.deck-card-stack { width: 100%; height: 100%; max-height: 560px; min-height: 0; }
+.deck-controls { margin-top: auto; min-width: 0; }
 .deck-toolbar { background: var(--paper); padding-bottom: max(4px, env(safe-area-inset-bottom)); }
 .deck-action-caption { min-height: 44px; display: flex; align-items: center; }
 .deck-field-row:has(.deck-copy-feedback [role='status']:not(:empty)) { height: auto; min-height: 28px; }
@@ -54,6 +53,7 @@
 .deck-column[data-constrained='true'] .deck-toolbar { position: sticky; bottom: var(--deck-keyboard-inset, 0px); z-index: 30; }
 /* #39: the active face contributes its full height; the deck owns constrained scrolling. */
 .deck-column[data-constrained='true'] .deck-current-card { position: relative; }
+.deck-column[data-constrained='true'] .deck-card-stack { height: auto; max-height: none; }
 .deck-card[data-constrained='true'],
 .deck-card[data-constrained='true'] > div { height: auto; min-height: 0; }
 .deck-card[data-constrained='true'] .deck-face { position: relative; min-height: 240px; overflow: visible; }
@@ -62,6 +62,15 @@
 .deck-card[data-constrained='true'] [aria-label='All contact fields'] { flex: none; overflow: visible; }
 .deck-column[data-constrained='true'] .deck-chip-rail { flex-wrap: wrap; overflow: visible; }
 .deck-desktop-context { display: none; }
+.deck-active[data-landscape='true'] { flex-direction: row; gap: 16px; }
+.deck-active[data-landscape='true'] .deck-stage { min-width: 0; margin-bottom: 10px; }
+.deck-active[data-landscape='true'] .deck-controls { display: flex; flex-direction: column; width: 200px; height: 100%; margin-top: 0; overflow-y: auto; }
+.deck-active[data-landscape='true'] .deck-chip-region { min-height: 44px; flex: 1 1 auto; overflow-y: auto; }
+.deck-active[data-landscape='true'] .deck-chips-stage { display: block; }
+.deck-active[data-landscape='true'] [aria-label='Relation'] { flex-wrap: wrap; justify-content: flex-start; }
+.deck-active[data-landscape='true'] .deck-actions { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.deck-active[data-landscape='true'] .deck-actions > div { justify-content: start; gap: 12px; }
+.deck-active[data-landscape='true'] .deck-chip-rail { flex-wrap: wrap; overflow: visible; }
 @media (min-width: 1024px) and (pointer: fine) {
   .deck-workspace { display: grid; grid-template-columns: 440px 240px; gap: 40px; justify-content: center; align-items: start; }
   .deck-desktop-context { display: flex; flex-direction: column; gap: 24px; padding-block: 32px; padding-right: 20px; }

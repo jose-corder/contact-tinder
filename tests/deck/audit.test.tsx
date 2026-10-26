@@ -33,7 +33,7 @@ const contact: Contact = {
 beforeEach(async () => { await repo.resetAll(); dismissDeckCoaches(); setFollowUpEnabled(false) })
 afterEach(() => { cleanup(); dismissToast(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
-it('#2 observes the stage and selects compact below 680, retaining complete essential rows', async () => {
+it('#2 observes the capped card area, retaining essential rows and adding optional rows when space permits', async () => {
   vi.stubGlobal('innerWidth', 390)
   vi.stubGlobal('innerHeight', 844)
   let resize!: (height: number) => void
@@ -41,7 +41,7 @@ it('#2 observes the stage and selects compact below 680, retaining complete esse
     callback: ResizeObserverCallback
     constructor(callback: ResizeObserverCallback) { this.callback = callback }
     observe(node: HTMLElement) {
-      if (node.hasAttribute('data-deck-stage')) {
+      if (node.classList.contains('deck-card-stack')) {
         resize = (height) => this.callback([{ contentRect: { width: 280, height } } as ResizeObserverEntry], this as unknown as ResizeObserver)
         resize(250)
       }
@@ -57,10 +57,10 @@ it('#2 observes the stage and selects compact below 680, retaining complete esse
   expect(screen.getByText('Director · Acme Corp')).toBeVisible()
   expect(screen.getByText('+3 more')).toBeInTheDocument()
   expect(screen.queryByText('222')).not.toBeInTheDocument()
-  act(() => resize(680))
-  expect(card).toHaveAttribute('data-layout', 'tall')
+  act(() => resize(560))
+  expect(card).toHaveAttribute('data-layout', 'compact')
   expect(screen.getByText('222')).toBeVisible()
-  expect(card.querySelector('.deck-front-scroll')).toHaveClass('justify-center')
+  expect(card.closest('.deck-card-stack')?.parentElement).toHaveClass('deck-stage')
 })
 
 it('#3 has four equal columns and complete 12px captions with 48px circles at 320', () => {

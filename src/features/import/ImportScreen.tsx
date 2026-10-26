@@ -75,7 +75,7 @@ export default function ImportScreen() {
         </> : ''}</InlineNotice>
       </div>
       {phase === 'choose' && <>
-        <label className={cx('relative flex min-h-48 flex-col items-center justify-center gap-3 rounded-[20px] border border-dashed border-rule px-5 py-8 text-center focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-ink cursor-pointer hover:bg-paper-2', dragging ? 'bg-paper-2' : 'bg-paper')}
+        <label className={cx('relative flex min-h-40 flex-col items-center justify-center gap-3 rounded-[20px] border border-dashed border-rule p-6 text-center focus-within:outline-2 focus-within:outline-offset-4 focus-within:outline-ink cursor-pointer hover:bg-paper-2', dragging ? 'bg-paper-2' : 'bg-paper')}
           onDragOver={(event) => { event.preventDefault(); setDragging(true) }}
           onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false) }}
           onDrop={(event) => { event.preventDefault(); setDragging(false); loadFiles(Array.from(event.dataTransfer.files)) }}>
@@ -83,7 +83,7 @@ export default function ImportScreen() {
             className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
             onChange={(event) => { loadFiles(Array.from(event.currentTarget.files ?? [])); event.currentTarget.value = '' }} />
           <IconUpload size={28} />
-          <span className="font-serif t-title">Choose a contact file</span>
+          <span className="text-balance font-serif t-title">Choose a contact file</span>
           <span className="t-body text-ink-2">Contact file (vCard (.vcf)) or CSV (.csv)<span className="hidden [@media(pointer:fine)]:inline"> · or drop files here</span></span>
         </label>
         <div className="mt-4 flex flex-col items-center gap-2">

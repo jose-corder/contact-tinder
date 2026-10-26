@@ -1,0 +1,11 @@
+.review-filters {
+  padding-inline: 4px 20px;
+  scroll-padding-inline: 4px 20px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.review-filters[data-more='true'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+}
+.review-filters button { scroll-snap-align: start; }
+.review-filters [role='radiogroup'] { flex-wrap: nowrap; }

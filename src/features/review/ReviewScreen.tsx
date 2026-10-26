@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { allWithDecisions } from '@/db/repo'
 import { readPossibleDuplicates } from '@/import/duplicates'
-import { Button, Chip, Empty, Frame, InlineNotice, ScrollFallback, RecoveryBar, Skeleton, TopBar, useMediaQuery } from '@/ui'
+import { Button, Chip, Frame, InlineNotice, ScrollFallback, RecoveryBar, Skeleton, TopBar, useMediaQuery } from '@/ui'
 import PairReview from './PairReview'
 import { IconSearch } from '@/ui/icons'
 import Filters from './Filters'
@@ -69,8 +69,8 @@ export default function ReviewScreen() {
     recovery={recovery} error={data?.error} onRetry={() => setRetry(value => value + 1)} />
   return <ScrollFallback><Frame className="lg:max-w-[960px]">
     <h1 className="sr-only">Review contacts</h1>
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
-      <div className="min-w-0">
+    <div className="grid gap-x-8 lg:grid-cols-[minmax(0,440px)_minmax(0,480px)]">
+      <div className="min-w-0 lg:col-start-1">
         <TopBar title="Review" backTo="/" right={<span className="flex items-center gap-3">
           <span>{rows?.length ?? '…'}</span>
           <button className="hit-44 min-h-11 min-w-11 px-2 underline underline-offset-4" disabled={!rows}
@@ -81,12 +81,13 @@ export default function ReviewScreen() {
             label: value.charAt(0).toUpperCase() + value.slice(1), count: (rows ?? []).filter(row => inTab(row, value)).length,
           }))} />
         {recovery}
-        <label className="sticky top-0 z-10 flex min-h-12 items-center gap-2 border-b border-rule bg-paper">
+      </div>
+        <label className="sticky top-0 z-10 flex min-h-12 items-center gap-2 border-b border-rule bg-paper lg:col-start-1 lg:row-start-2">
           <IconSearch size={18} />
           <input type="search" aria-label={'Search in ' + tabLabel} placeholder={'Search in ' + tabLabel + ' (' + baseRows.length + ')'}
             value={search} onChange={event => { clearSelection(); setSearch(event.target.value) }} className="min-w-0 flex-1 bg-transparent py-3 t-body outline-offset-2" />
         </label>
-        <div role="tabpanel" id={'review-' + tab} aria-labelledby={'review-' + tab + '-tab'}>
+      <div className="min-w-0 lg:col-start-1 lg:row-start-3">
           {(duplicatesOnly || !!data?.duplicates?.length) && <div className="space-y-2 py-2">
             <Chip id="review-duplicates" label="Possible duplicates" selected={duplicatesOnly} onClick={() => {
               clearSelection(); setParams(previous => { previous.set('dupes', '1'); return previous }, { preventScrollReset: true })
@@ -111,17 +112,21 @@ export default function ReviewScreen() {
             {filtered.length > 0 && <p className="t-meta text-right text-ink-2">Nothing changes until you swipe.</p>}
             {error && <InlineNotice tone="error">{error}</InlineNotice>}
           </div>
+      </div>
+      <div className="min-w-0 lg:col-start-1 lg:row-start-4" role="tabpanel" id={'review-' + tab} aria-labelledby={'review-' + tab + '-tab'}>
           {data?.error ? <InlineNotice tone="error">{data.error}<Button variant="ghost" onClick={() => setRetry(value => value + 1)}>Retry</Button></InlineNotice> :
             !rows ? <div role="status" aria-label="Loading contacts" className="space-y-3 py-6">{[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-20" />)}</div> :
               <ReviewList key={scope} limit={limit} onLimit={setLimit} rows={filtered} tab={tab} filtered={activeFilters} selecting={selecting} selected={selected}
                 onOpen={id => { setSelectedId(id); setOpenId(id) }}
                 onToggle={toggleSelection} onLongPress={longPress} onClear={clearFilters} />}
           {selecting && <div aria-hidden="true" className="h-64 shrink-0" />}
-        </div>
       </div>
-      {desktop && <aside aria-label="Selected contact" className="min-w-0">
+      {desktop && <aside aria-label="Selected contact" className="min-w-0 w-full max-w-[480px] self-start lg:col-start-2 lg:row-start-4">
         {openRow ? <RowSheet key={openRow.contact.id} row={openRow} pane onClose={() => setOpenId(undefined)} /> :
-          <Empty title="Choose a contact."><p>{openId ? 'This contact is no longer in the app.' : 'Select a row to review its classification and details.'}</p></Empty>}
+          <div className={filtered.length > 30 ? 'pt-[41px]' : 'pt-2'}>
+            <h2 className="font-serif serif-text t-heading">Choose a contact.</h2>
+            <p className="mt-2 max-w-[280px] t-body text-ink-2">{openId ? 'This contact is no longer in the app.' : 'Select a row to review its classification and details.'}</p>
+          </div>}
       </aside>}
     </div>
     {!desktop && openRow && <RowSheet key={openRow.contact.id} row={openRow} onClose={() => setOpenId(undefined)} />}

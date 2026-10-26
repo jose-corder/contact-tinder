@@ -7,7 +7,7 @@ import { toast } from '@/ui/toast'
 import { normalizeDecision, PERSONAL_RELATION_META, WORK_STATUS_META, toggleCustomTag } from '@/domain/taxonomy'
 import { toggleDeckType } from '@/domain/decks'
 import type { Contact, Decision, PersonalRelation, WorkStatus } from '@/domain/types'
-import { Avatar, Button, Chip, InlineNotice, Sheet, SheetConfirm, SheetFooterActions, motionProps, type ChipTone } from '@/ui'
+import { Avatar, Button, Chip, InlineNotice, Sheet, SheetConfirm, SheetFooterActions, SheetSection, motionProps, type ChipTone } from '@/ui'
 import { ChipRow } from './ChipRow'
 import { DECK_MOTION, useDeckReducedMotion } from './motion'
 
@@ -56,9 +56,7 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
   }, [bucket, confirmLater])
   useEffect(() => {
     alive.current = true
-    let active = true
-    queueMicrotask(() => { if (active) primaryRef.current?.querySelector('button')?.focus({ preventScroll: true }) })
-    return () => { active = false; alive.current = false }
+    return () => { alive.current = false }
   }, [])
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -91,7 +89,7 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
       else onBusyChange?.(false)
     }
   }
-  return <Sheet open onClose={dismiss} title={`${bucket} contact`} footer={
+  return <Sheet open onClose={dismiss} title={`${bucket} contact`} initialFocus={primaryRef} footer={
     <div ref={footerRef}>
       <SheetFooterActions
       secondary={{ label: 'Later', onClick: dismiss, disabled: busy, ref: laterRef }}
@@ -109,15 +107,17 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
       <motion.div className="mb-2 flex items-center gap-1 t-meta text-ink-2" {...motionProps(reduced, { transition: DECK_MOTION.fade })}>
         Moved to {title}{onUndo && <> · <button type="button" className="hit-44 underline" disabled={busy} onClick={() => { if (!saving.current) onUndo() }}>Undo</button></>}
       </motion.div>
-      <div className="t-eyebrow mb-2 text-ink-2">{bucket === 'work' ? 'Status' : 'Relation'}</div>
+      <SheetSection title={bucket === 'work' ? 'Status' : 'Relation'}
+        help={bucket === 'personal' ? 'A type without a relation is saved as Other' : 'Choose a status to finish, or leave it for Later.'}>
       <motion.div ref={primaryRef} {...motionProps(reduced, { initial: { opacity: 0, y: 4 }, animate: { opacity: 1, y: 0 }, transition: DECK_MOTION.fade })}
-        className="mb-2 flex flex-wrap gap-2" role="group" aria-label={bucket === 'work' ? 'Status' : 'Relation'}>
+        className="flex flex-wrap gap-2" role="group" aria-label={bucket === 'work' ? 'Status' : 'Relation'}>
         {primary.map((p) => <Chip key={p.key} label={p.label} tone={p.tone} selected={primaryValue === p.key} disabled={busy} onClick={() => setPrimary(p.key)} />)}
       </motion.div>
-      <p className="mb-2 t-meta text-ink-2">{bucket === 'personal' ? 'A type without a relation is saved as Other' : 'Choose a status to finish, or leave it for Later.'}</p>
-      <div className="t-eyebrow text-ink-2">Type</div>
+      </SheetSection>
+      <SheetSection title="Type">
       <ChipRow pass={bucket} draft={draft} toggleChip={(key) => setDraft((d) => toggleDeckType(d, bucket, key))}
         toggleTag={(tag) => setDraft((d) => toggleCustomTag(d, tag))} inputRef={inputRef} open={tagOpen} setOpen={setTagOpen} disabled={busy} sheet />
+      </SheetSection>
       {error && <InlineNotice tone="error">{error}</InlineNotice>}
       {confirmLater && <fieldset disabled={busy} className="min-w-0">
         <SheetConfirm title="Unsaved selections" initialFocus="cancel" returnFocusTo={laterRef}
@@ -127,13 +127,15 @@ function FollowUpContent({ target, onClose, onBusyChange, onUndo, onSettings }: 
           onCancel={() => { if (!saving.current) { afterClose.current = undefined; setConfirmLater(false) } }} />
         <Button type="button" variant="ghost" onClick={() => { if (!saving.current) close() }}>Discard</Button>
       </fieldset>}
-      <div className="flex items-center gap-2 t-meta text-ink-2">
-        <span>Turn this off in</span>
-        <button type="button" className="hit-44 underline" disabled={busy} onClick={() => {
+      <p className="t-meta text-ink-2">
+        Turn this off in{' '}
+        <a href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/settings`} className="hit-44 inline-flex items-center underline"
+          aria-disabled={busy || undefined} onClick={(event) => {
+          event.preventDefault()
           // Respect the deploy base path (GitHub Pages serves from /contact-tinder/).
           if (!saving.current) { afterClose.current = () => { if (onSettings) onSettings(); else window.location.assign(`${import.meta.env.BASE_URL.replace(/\/$/, '')}/settings`) }; dismiss() }
-        }}>Settings</button>
-      </div>
+        }}>Settings</a>.
+      </p>
     </div>
   </Sheet>
 }

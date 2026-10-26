@@ -11,6 +11,7 @@ import ProgressOverview from './ProgressOverview'
 import FirstRun from './FirstRun'
 import InstallRow from './InstallRow'
 import { readPossibleDuplicates } from '@/import/duplicates'
+import './HomeScreen.css'
 
 export default function HomeScreen() {
   const [retry, setRetry] = useState(0)
@@ -35,19 +36,19 @@ export default function HomeScreen() {
   const current = progress.current
   const unsorted = rows?.filter(isUnsortedRow).length ?? 0
   const skipped = rows?.filter(({ decision }) => PASS_ORDER.some((pass) => isUnsorted(decision, pass))).length ?? 0
-  return <Frame className="lg:max-w-[920px]">
-    <header className="pb-5 pt-6">
+  return <Frame className="home-screen lg:max-w-[920px]">
+    <header className="pb-6 pt-6">
       <h1 className="font-serif t-display tracking-tight">Contacts.</h1>
 
     </header>
-    {data && !data.modelSeen && sorted < 10 && <p className="mb-5 t-meta text-ink-2">Delete marks a list. Your phone's contacts stay unchanged.</p>}
+    {data && !data.modelSeen && sorted < 10 && <p className="mb-6 t-meta text-ink-2">Delete marks a list. Your phone's contacts stay unchanged.</p>}
     {modelError && <InlineNotice tone="error">{modelError}<Button variant="ghost" onClick={() => {
       void setMeta('homeModelSeen', true).then(() => setModelError('')).catch(() => setModelError('Could not save this preference. Try again.'))
     }}>Retry</Button></InlineNotice>}
     {data?.error ? <InlineNotice tone="error">{data.error}<Button variant="ghost" onClick={() => setRetry(value => value + 1)}>Retry</Button></InlineNotice> :
       !rows ? <div role="status" aria-label="Loading contacts" className="space-y-5"><Skeleton className="h-36" /><Skeleton className="h-20" /><Skeleton className="h-48" /></div> : rows.length === 0 ? <FirstRun /> : <>
-      <div className="grid gap-x-8 lg:grid-cols-2">
-      <section aria-label="Continue sorting" className="rounded-[20px] border border-rule bg-paper-2 p-5 lg:col-start-1 lg:row-start-1">
+      <div className="home-dashboard">
+      <section aria-label="Continue sorting" className="home-resume rounded-[20px] border border-rule bg-paper-2 p-5">
         <p className="eyebrow mb-3">{current ? 'Pick up where you left off' : 'Your address book'}</p>
         <h2 className="mb-4 font-serif t-title tabular">{current ? `${rows.length - progress.completed} to go` :
           skipped ? `All decks done · ${skipped} skipped waiting in Review` : 'All sorted.'}</h2>
@@ -66,7 +67,7 @@ export default function HomeScreen() {
         {error && <InlineNotice tone="error">{error}</InlineNotice>}
       </section>
       <ProgressOverview progress={progress} total={rows.length} unsorted={unsorted} />
-      <nav aria-label="Contact counts" className="my-5 border-t border-rule lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:my-0">
+      <nav aria-label="Contact counts" className="home-counts border-t border-rule">
         {(Object.keys(BUCKET_META) as Array<keyof typeof BUCKET_META>).map((key) =>
           <Link key={key} to={`/review?tab=${key}`} className="flex min-h-12 items-center justify-between border-b border-rule">
             <LabelDot tone={key} label={BUCKET_META[key].label} size={8} />{' '}
@@ -80,7 +81,7 @@ export default function HomeScreen() {
         </Link>}
       </nav>
       </div>
-      <nav aria-label="Contacts" className="flex flex-wrap justify-between gap-4 t-meta underline underline-offset-4">
+      <nav aria-label="Contacts" className="mt-6 flex flex-wrap justify-between gap-4 t-meta underline underline-offset-4">
         <Link className="hit-44 inline-flex items-center py-3" to="/review">Review</Link><Link className="hit-44 inline-flex items-center py-3" to="/export">Export</Link><Link className="hit-44 inline-flex items-center py-3" to="/import">Import more</Link>
       </nav>
     </>}

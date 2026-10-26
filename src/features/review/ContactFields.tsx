@@ -5,6 +5,7 @@ import { readRawFields } from '@/import/rawFields'
 import { rawCards } from '@/import/metadata'
 import { sourceLabel } from '@/import/sourceLabel'
 import { emailHref, phoneHref } from './safeLinks'
+import './RowSheet.css'
 
 /** #23: essential identity remains ahead of all classification controls. */
 export function ContactIdentity({ contact }: { contact: Contact }) {
@@ -14,8 +15,8 @@ export function ContactIdentity({ contact }: { contact: Contact }) {
     ...(phone ? [{ label: 'Phone', value: phone.value, display: formatPhone(phone.value), href: phoneHref(phone.value, phone.e164) }] : []),
     ...(email ? [{ label: 'Email', value: email.value, display: email.value, href: emailHref(email.value) }] : []),
   ]
-  return <section aria-label="Contact identity" className="space-y-2">
-    {values.map(({ label, value, display, href }) => <div key={label} className="flex min-w-0 items-center justify-between gap-3">
+  return <section aria-label="Contact identity" className="review-identity">
+    {values.map(({ label, value, display, href }) => <div key={label} className="review-identity-row">
       <div className="min-w-0">
         {label === 'Name' ? <h2 className="break-words font-serif t-title">{display}</h2> : href ?
           <a className="hit-44 inline-flex items-center break-all underline t-body" href={href}>{display}</a> :
@@ -23,7 +24,7 @@ export function ContactIdentity({ contact }: { contact: Contact }) {
       </div>
       <CopyButton value={value} label={value} />
     </div>)}
-    {contact.org && <p className="break-words t-body text-ink-2">{contact.org}</p>}
+    {contact.org && <p className="mt-2 break-words t-meta text-ink-2">{contact.org}</p>}
   </section>
 }
 
@@ -40,7 +41,7 @@ export function ContactFields({ contact }: { contact: Contact }) {
     }).flatMap(([label, value]) => value ? [{ label, value }] : []),
     ...readRawFields(contact),
   ]
-  return <details className="border-y border-rule py-3">
+  return <details className="border-y border-rule">
     <summary className="hit-44 flex cursor-pointer items-center t-body">All fields</summary>
     <FieldList fields={fields} />
     {rawCards(contact).map((raw, index) => <details key={index}>

@@ -28,19 +28,24 @@ const contact = { id: 'layout', displayName: scenario.width === 390 ? 'Daniel Re
   source:'demo', importedAt:1, phoneKeys:[], emailKeys:[] }
 markCoachSeen('triage')
 const root = createRoot(document.getElementById('root'))
-resetAll().then(() => upsertContacts([contact])).then(() => {
+resetAll().then(() => upsertContacts([contact, { ...contact, id: 'next', displayName: 'Next contact' }])).then(() => {
   root.render(<MemoryRouter><DeckScreen pass="triage" /></MemoryRouter>)
 })
 setTimeout(async () => {
   await document.fonts.ready
   try {
-    const card = document.querySelector('article')
+    const card = document.querySelector('.deck-current-card article')
     const body = card.querySelector('.deck-front-scroll')
     const name = body.querySelector('h2'), role = body.querySelector('.deck-identity > p')
     const rect = node => { const r = node.getBoundingClientRect(); return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height} }
     const nameLines = name.scrollHeight / parseFloat(getComputedStyle(name).lineHeight)
     const rows = [...body.querySelectorAll('.deck-field-row')].map(row => ({...rect(row), text:row.textContent}))
-    const front = { body:rect(body), card:rect(card), identity:rect(name), role:rect(role), nameLines,
+    const rail = document.querySelector('.deck-controls'), toolbar = document.querySelector('.deck-toolbar')
+    const legend = document.querySelector('.deck-keyboard-help')
+    const front = { body:rect(body), card:rect(card), rail:rect(rail), toolbar:rect(toolbar),
+      pageHeight:document.documentElement.scrollHeight,
+      legendHidden:getComputedStyle(legend).display === 'none', legendClipped:legend.scrollWidth > legend.clientWidth + 1,
+      identity:rect(name), role:rect(role), nameLines,
       nameClamp:getComputedStyle(name).webkitLineClamp, roleClamp:getComputedStyle(role).webkitLineClamp,
       nameOverflow:name.scrollHeight > name.clientHeight + 4,
       overflow:getComputedStyle(body).overflowY, rows, constrained:card.dataset.constrained }
@@ -49,7 +54,7 @@ setTimeout(async () => {
     const viewReachable = button.getBoundingClientRect().top >= 0 && button.getBoundingClientRect().bottom <= innerHeight
     button.click()
     setTimeout(() => {
-      const details = document.querySelector('[aria-label="All contact fields"]')
+      const details = document.querySelector('.deck-current-card [aria-label="All contact fields"]')
       const back = [...card.querySelectorAll('button')].find(node => node.textContent === 'Back')
       back.scrollIntoView({block:'center'})
       const backReachable = back.getBoundingClientRect().top >= 0 && back.getBoundingClientRect().bottom <= innerHeight
@@ -81,6 +86,8 @@ const css = readdirSync(assets).filter(name => name.endsWith('.css')).map(name =
 const scenarios = [
   { name: 'portrait-390', width: 390, height: 844 },
   { name: 'portrait-320', width: 320, height: 568 },
+  { name: 'portrait-430', width: 430, height: 932 },
+  { name: 'landscape-844', width: 844, height: 390 },
   { name: 'short-height', width: 320, height: 540 },
 ]
 for (const scenario of scenarios) {
@@ -103,6 +110,14 @@ for (const scenario of scenarios) {
   const result = JSON.parse(match[1].replaceAll('&quot;', '"').replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>'))
   console.log(JSON.stringify(result))
   assert(!result.error, result.error)
+  if (scenario.name !== 'short-height') {
+    assert(result.card.height <= 560, 'Card exceeds 560px cap')
+    assert(result.pageHeight <= scenario.height + 1, 'Deck must not scroll the page')
+    assert(result.card.bottom <= result.rail.top || result.card.right <= result.rail.left, 'Card overlaps controls')
+    assert(result.toolbar.bottom <= scenario.height && result.toolbar.bottom >= scenario.height - 24, 'Actions must stay at the safe bottom')
+  }
+  if (scenario.width < 360) assert(result.legendHidden, 'Hide keyboard legend on narrow phones')
+  else assert(result.legendHidden || !result.legendClipped, 'Keyboard legend is clipped')
   assert.equal(result.overflow, 'visible')
   assert.equal(result.nameClamp, '2')
   assert.equal(result.roleClamp, '2')

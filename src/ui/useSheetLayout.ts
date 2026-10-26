@@ -4,7 +4,7 @@ import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 export function useSheetLayout(panel: RefObject<HTMLDivElement | null>, body: RefObject<HTMLDivElement | null>,
   header: RefObject<HTMLDivElement | null>, footer: HTMLDivElement) {
   const [layout, setLayout] = useState({ height: window.visualViewport?.height ?? window.innerHeight,
-    bottom: 0, safeTop: 0, safeBottom: 0, constrained: false, sticky: true })
+    bottom: 0, safeTop: 0, safeBottom: 0, footerHeight: 0, constrained: false, sticky: true })
   const measured = useRef(layout)
   useLayoutEffect(() => {
     const visual = window.visualViewport
@@ -29,7 +29,7 @@ export function useSheetLayout(panel: RefObject<HTMLDivElement | null>, body: Re
       const bodyHeight = body.current?.getBoundingClientRect().height ?? 0
       // A tall sticky confirmation must scroll normally rather than cover the fields.
       const sticky = footerHeight + 120 <= bodyHeight
-      const next = { height, safeTop, safeBottom, constrained, sticky,
+      const next = { height, safeTop, safeBottom, footerHeight, constrained, sticky,
         bottom: visual ? Math.max(0, window.innerHeight - height - visual.offsetTop) : 0 }
       if (!Object.keys(next).every(key => next[key as keyof typeof next] === measured.current[key as keyof typeof next])) {
         measured.current = next

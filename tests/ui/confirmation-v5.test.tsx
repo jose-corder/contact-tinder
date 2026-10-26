@@ -45,7 +45,7 @@ it.each([[320, 568, 240], [568, 320, 320]])('#63: actual RowSheet hands off focu
   HTMLElement.prototype.scrollIntoView = reveal
   try {
     const trigger = screen.getByRole('button', { name: 'Remove from app' })
-    trigger.focus(); fireEvent.click(trigger)
+    trigger.focus(); fireEvent.keyDown(trigger, { key: 'Enter' }); fireEvent.click(trigger)
     const confirmation = screen.getByRole('group', { name: 'Remove from app?' })
     expect(confirmation).toContainElement(document.activeElement as HTMLElement)
     expect(screen.getByRole('button', { name: 'Cancel removal' })).toHaveFocus()

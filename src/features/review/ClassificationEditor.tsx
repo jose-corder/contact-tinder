@@ -8,38 +8,38 @@ export default function ClassificationEditor({ decision, busy, error, save }: {
   decision: Decision; busy: boolean; error: string; save: (next: Decision) => Promise<boolean>
 }) {
   const [tag, setTag] = useState('')
-  return <section aria-label="Classification" className="my-5">
-      <fieldset disabled={busy} aria-busy={busy} className="space-y-5">
+  return <section aria-label="Classification">
+      <fieldset disabled={busy} aria-busy={busy}>
         <legend className="sr-only">Sort contact</legend>
-        <div><h3 className="eyebrow mb-2">List</h3><div className="flex flex-wrap gap-2">
+        <div className="sheet-section"><h3 className="eyebrow t-eyebrow">List</h3><div className="flex flex-wrap gap-2">
           {(Object.keys(BUCKET_META) as Bucket[]).map((bucket) => <Chip key={bucket} label={BUCKET_META[bucket].label}
             selected={decision.bucket === bucket} tone={bucket} onClick={() => void save(setBucket(decision, bucket))} />)}
         </div></div>
         {decision.bucket === 'work' && <>
-          <div><h3 className="eyebrow mb-2">Work status</h3><div className="flex flex-wrap gap-2">
+          <div className="sheet-section"><h3 className="eyebrow t-eyebrow">Work status</h3><div className="flex flex-wrap gap-2">
             {(Object.keys(WORK_STATUS_META) as WorkStatus[]).map((status) => <Chip key={status} label={WORK_STATUS_META[status].label}
               selected={decision.workStatus === status} tone={status}
               onClick={() => void save({ ...decision, workStatus: decision.workStatus === status ? undefined : status, updatedAt: Date.now() })} />)}
           </div></div>
-          <div><h3 className="eyebrow mb-2">Work types</h3><div className="flex flex-wrap gap-2">
+          <div className="sheet-section"><h3 className="eyebrow t-eyebrow">Work types</h3><div className="flex flex-wrap gap-2">
             {(Object.keys(WORK_TYPE_META) as WorkType[]).map((type) => <Chip key={type} label={WORK_TYPE_META[type].uiLabel}
               selected={decision.workTypes.includes(type)} tone="work" onClick={() => void save(toggleChip(decision, 'work', type))} />)}
           </div></div>
         </>}
         {decision.bucket === 'personal' && <>
-          <div><h3 className="eyebrow mb-2">Relationship</h3><div className="flex flex-wrap gap-2">
+          <div className="sheet-section"><h3 className="eyebrow t-eyebrow">Relationship</h3><div className="flex flex-wrap gap-2">
             {(Object.keys(PERSONAL_RELATION_META) as PersonalRelation[]).map((relation) => <Chip key={relation} label={PERSONAL_RELATION_META[relation].label}
               selected={decision.relation === relation} tone={relation === 'ex' ? 'delete' : relation === 'other' ? 'skip' : 'personal'}
               onClick={() => void save({ ...decision, relation: decision.relation === relation ? undefined : relation, updatedAt: Date.now() })} />)}
           </div></div>
-          <div><h3 className="eyebrow mb-2">Personal types</h3>
+          <div className="sheet-section"><h3 className="eyebrow t-eyebrow">Personal types</h3>
             <p className="mb-2 t-meta text-ink-2">Choosing a type saves this contact as Other until you pick a relation</p><div className="flex flex-wrap gap-2">
             {(Object.keys(PERSONAL_TYPE_META) as PersonalType[]).map((type) => <Chip key={type} label={PERSONAL_TYPE_META[type].label}
               selected={decision.personalTypes.includes(type)} tone="personal" onClick={() => void save(toggleDeckType(decision, 'personal', type))} />)}
           </div></div>
         </>}
-        <div><h3 className="eyebrow mb-2">Custom tags</h3>
-          <div className="mb-2 flex flex-wrap gap-2">{decision.customTags.map((value) => <Chip key={value} label={value} selected onClick={() => void save(toggleCustomTag(decision, value))} />)}</div>
+        <div className="sheet-section"><h3 className="eyebrow t-eyebrow">Custom tags</h3>
+          {!!decision.customTags.length && <div className="mb-2 flex flex-wrap gap-2">{decision.customTags.map((value) => <Chip key={value} label={value} selected onClick={() => void save(toggleCustomTag(decision, value))} />)}</div>}
           <form className="flex gap-2" onSubmit={(event) => {
             event.preventDefault()
             const value = normalizeTag(tag)

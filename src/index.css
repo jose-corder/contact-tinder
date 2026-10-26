@@ -140,7 +140,7 @@ html { -webkit-text-size-adjust: 100%; scroll-padding-bottom: 120px; }
 
 :focus-visible {
   outline: 2px solid var(--ink);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
 body {
@@ -286,6 +286,11 @@ input, textarea, select { border-color: var(--control-border); }
 .sheet-body :where(.overflow-y-auto, .overflow-y-scroll) { overflow-y: visible; max-height: none; }
 .chip-hit { position: relative; min-width: 44px; margin-block: 4px; overflow: visible; }
 .chip-hit::after { content: ''; position: absolute; inset: -4px 0; }
+/* One rhythm shared by FollowUpSheet and RowSheet; chips keep their normal border. */
+.sheet-section > .t-eyebrow { margin-bottom: 8px; }
+.sheet-section > .sheet-section-help { margin-top: 12px; color: var(--ink-2); }
+.sheet-section + .sheet-section { margin-top: 20px; }
+.sheet-section .deck-chips-sheet { padding-block: 0; }
 @media (prefers-reduced-motion: reduce) {
   button:active { transform: none; scale: none; }
 }

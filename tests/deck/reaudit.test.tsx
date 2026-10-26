@@ -167,11 +167,12 @@ it('#50 uses the shared inner label for a 32-character custom tag in a 280px rai
 
 it('#14/#38 uses measured short-landscape cards and compact actions, then exposes keyboard entry', async () => {
   vi.stubGlobal('innerWidth', 844); vi.stubGlobal('innerHeight', 390)
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('orientation: landscape'), addEventListener() {}, removeEventListener() {} }))
   vi.stubGlobal('ResizeObserver', class {
     callback: ResizeObserverCallback
     constructor(callback: ResizeObserverCallback) { this.callback = callback }
     observe(node: HTMLElement) {
-      if (node.hasAttribute('data-deck-stage')) this.callback([{ contentRect: { width: 804, height: 170 } } as ResizeObserverEntry], this as unknown as ResizeObserver)
+      if (node.classList.contains('deck-card-stack')) this.callback([{ contentRect: { width: 588, height: 290 } } as ResizeObserverEntry], this as unknown as ResizeObserver)
     }
     disconnect() {}
   })
@@ -181,6 +182,8 @@ it('#14/#38 uses measured short-landscape cards and compact actions, then expose
   HTMLElement.prototype.scrollIntoView = scroll
   show()
   expect(await screen.findByRole('article')).toHaveAttribute('data-layout', 'landscape')
+  expect(document.querySelector('.deck-active')).toHaveAttribute('data-landscape', 'true')
+  expect(document.querySelector('.scroll-fallback')).toHaveAttribute('data-constrained', 'false')
   expect(document.querySelector('.deck-front-columns')).not.toBeNull()
   expect(document.querySelector('.deck-toolbar')).toHaveClass('deck-toolbar-compact')
   await click('+ tag')
@@ -188,6 +191,7 @@ it('#14/#38 uses measured short-landscape cards and compact actions, then expose
   act(() => { viewport.height = 240; viewport.dispatchEvent(new Event('resize')) })
   expect(scroll).toHaveBeenCalledWith({ block: 'nearest', behavior: 'instant' })
   expect(document.querySelector('.deck-active')).toHaveClass('deck-keyboard-open')
+  expect(document.querySelector('.scroll-fallback')).toHaveAttribute('data-constrained', 'true')
   expect(screen.queryByRole('button', { name: 'Keyboard shortcuts' })).not.toBeInTheDocument()
   act(() => { viewport.height = 390; viewport.dispatchEvent(new Event('resize')) })
   expect(document.querySelector('.deck-active')).not.toHaveClass('deck-keyboard-open')

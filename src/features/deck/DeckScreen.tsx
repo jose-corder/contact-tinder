@@ -10,6 +10,7 @@ import { useKeyboard } from '@/hooks/useKeyboard'
 import { useElementSize } from '@/hooks/useElementSize'
 import { DesktopContext } from './DesktopContext'
 import { useDeckViewport } from '@/hooks/useDeckViewport'
+import { useLandscapeDeck } from '@/hooks/useLandscapeDeck'
 import { ActionBar } from './ActionBar'
 import { ChipRow } from './ChipRow'
 import { DeckEnd } from './DeckEnd'
@@ -30,7 +31,8 @@ export default function DeckScreen({ pass }: { pass: Pass }) {
 function DeckSession({ pass }: { pass: Pass }) {
   const deck = useDeck(pass)
   const { shortHeight, keyboardOpen, largeText } = useConstrainedViewport()
-  const constrained = shortHeight || keyboardOpen || largeText
+  const landscape = useLandscapeDeck()
+  const constrained = (shortHeight && !landscape) || keyboardOpen || largeText
   const coach = useCoach(pass)
   const navigate = useNavigate()
   const [followUp, setFollowUp] = useState<FollowUpTarget>()
@@ -86,7 +88,8 @@ function ActiveDeck({ pass, deck, coach, onSwipe, undo, locked }: {
   const railRef = useRef<HTMLDivElement>(null)
   const keyboard = useDeckViewport(inputRef, railRef)
   const { shortHeight, keyboardOpen, largeText } = useConstrainedViewport()
-  const scrollable = shortHeight || keyboardOpen || largeText
+  const landscape = useLandscapeDeck()
+  const scrollable = (shortHeight && !landscape) || keyboardOpen || largeText
   const toastHeight = useToastHeight()
   const [tagOpen, setTagOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -110,9 +113,9 @@ function ActiveDeck({ pass, deck, coach, onSwipe, undo, locked }: {
     focusTag: () => { coach.dismiss(); setTagOpen(true); inputRef.current?.focus({ preventScroll: true }) },
   })
   if (!deck.top || !deck.draft) return null
-  const compact = stage.height > 0 && stage.height < 420 && window.innerWidth > window.innerHeight
-  return <div className={`deck-active flex min-h-0 flex-1 flex-col ${keyboard ? 'deck-keyboard-open' : ''}`}>
-    <div ref={stage.ref} data-deck-stage data-scroll-stage className="deck-stage relative mb-2 flex-1">
+  return <div data-landscape={landscape} className={`deck-active flex min-h-0 flex-1 flex-col ${keyboard ? 'deck-keyboard-open' : ''}`}>
+    <div data-deck-stage data-scroll-stage className="deck-stage relative mb-2 flex-1">
+      <div ref={stage.ref} className="deck-card-stack relative">
       {deck.next && <NextCard contact={deck.next.contact} stageHeight={stage.height} advancing={!!swipe.committing} />}
       <motion.div ref={swipe.cardRef} className="deck-current-card absolute inset-0 z-10" style={{ x: reduced ? 0 : swipe.x, y: reduced ? 0 : swipe.y, rotate: reduced ? 0 : swipe.rotate, opacity: swipe.opacity, touchAction: scrollable || detailsOpen || stage.height < 240 ? 'pan-y' : 'none' }}
         onPointerDown={swipe.onPointerDown} onPan={swipe.drag && !detailsOpen ? swipe.onDrag : undefined}
@@ -123,12 +126,15 @@ function ActiveDeck({ pass, deck, coach, onSwipe, undo, locked }: {
           opacity={swipe.committing === direction ? 1 : swipe.committing ? 0 : swipe.stamps[direction]} />)}
       </motion.div>
       {coach.visible && <DeckCoach pass={pass} dismiss={coach.dismiss} />}
+      </div>
     </div>
+    <div className="deck-controls shrink-0">
     <div ref={railRef} className="deck-chip-region relative z-20 shrink-0" onClickCapture={coach.dismiss}>
       <ChipRow pass={pass} draft={deck.draft} toggleChip={deck.toggleChip} toggleTag={deck.toggleTag} inputRef={inputRef} open={tagOpen} setOpen={setTagOpen} disabled={disabled}
         setRelation={pass === 'personal' ? deck.setRelation : undefined} completePersonal={pass === 'personal' ? () => { deck.dismissToast(); void deck.completePersonal() } : undefined} />
     </div>
     <ToastDock className="deck-feedback-dock" data-toast-height={toastHeight} />
-    <ActionBar pass={pass} triggerSwipe={triggerSwipe} disabled={disabled} compact={compact} keyboard={keyboard} />
+    <ActionBar pass={pass} triggerSwipe={triggerSwipe} disabled={disabled} compact={landscape} keyboard={keyboard} />
+    </div>
   </div>
 }

@@ -50,7 +50,7 @@ it.each(['shortHeight', 'keyboardOpen', 'largeText'] as const)('#14/#38 enables 
   const body = document.querySelector('.deck-front-scroll')!
   expect(body).not.toHaveClass('overflow-y-auto')
   expect(getComputedStyle(body).overflowY).toBe('visible')
-  expect(document.querySelector('[data-deck-stage] > .z-10')).toHaveStyle({ touchAction: 'pan-y' })
+  expect(document.querySelector('.deck-current-card')).toHaveStyle({ touchAction: 'pan-y' })
   await click('+ tag')
   expect(screen.getByRole('textbox')).toHaveFocus()
   expect(screen.getByRole('button', { name: 'Work' })).toBeEnabled()

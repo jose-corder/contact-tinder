@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { Button } from './index'
 import { useMediaQuery } from './useMediaQuery'
+import { useLastInputModality } from './useLastInputModality'
 
 export interface SheetConfirmProps {
   title: string
@@ -23,16 +24,17 @@ export function SheetConfirm({ title, body, confirmLabel, cancelLabel, tone = 'd
   const cancel = useRef<HTMLButtonElement>(null)
   const reduced = useMediaQuery('(prefers-reduced-motion: reduce)')
   const activated = useRef(false)
+  const openedWith = useRef(useLastInputModality()).current
   const [announcement, setAnnouncement] = useState('')
   useEffect(() => {
-    const target = initialFocus === 'heading' ? heading.current : cancel.current
+    const target = openedWith === 'pointer' || initialFocus === 'heading' ? heading.current : cancel.current
     target?.focus({ preventScroll: true })
     if (activated.current) return
     activated.current = true
     // Reveal the focused control even when the confirmation is taller than the sheet body.
     target?.scrollIntoView?.({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' })
     setAnnouncement(title)
-  }, [initialFocus, reduced, title])
+  }, [initialFocus, reduced, title, openedWith])
   function cancelConfirmation() {
     onCancel()
     // Wait for the parent to re-enable its trigger after removing the confirmation.

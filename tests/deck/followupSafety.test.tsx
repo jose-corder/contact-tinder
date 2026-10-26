@@ -65,7 +65,7 @@ it('followup_pending_save_blocks_every_dismissal_and_preserves_the_failed_draft'
   fireEvent.keyDown(document, { key: 'Escape' })
   fireEvent.keyDown(window, { key: 'Escape' })
   act(() => sheet.dismiss()) // Drag's onClose callback is also ignored while pending.
-  fireEvent.click(screen.getByRole('button', { name: 'Settings' }))
+  fireEvent.click(screen.getByRole('link', { name: 'Settings' }))
   fireEvent.click(screen.getByRole('button', { name: 'Later' }))
   expect(onClose).not.toHaveBeenCalled()
   expect(followUpEnabled()).toBe(true)

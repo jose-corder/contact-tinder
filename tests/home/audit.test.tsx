@@ -28,8 +28,8 @@ it('#8/#28: leads with model and Continue, then compact progress and linked coun
   expect(screen.getByRole('progressbar')).toHaveClass('h-[72px]', 'w-[72px]')
   expect(screen.queryByText(/contacts sorted/)).not.toBeInTheDocument()
   // Audit #40: CSS grid places counts beside resume from the lg (1024px) breakpoint.
-  expect(resume.parentElement).toHaveClass('lg:grid-cols-2')
-  expect(screen.getByRole('navigation', { name: 'Contact counts' })).toHaveClass('lg:col-start-2', 'lg:row-start-1')
+  expect(resume.parentElement).toHaveClass('home-dashboard')
+  expect(screen.getByRole('navigation', { name: 'Contact counts' })).toHaveClass('home-counts')
   for (const tab of ['delete', 'work', 'personal', 'unsorted']) {
     expect(screen.getByRole('navigation', { name: 'Contact counts' }).querySelector('a[href="/review?tab=' + tab + '"]')).toBeInTheDocument()
   }
@@ -52,12 +52,15 @@ it('#8: retires the model after ten classified cards and persists across remount
 
 it('#24: shows a designed loader and a retryable database failure', async () => {
   let rejectRead!: (reason: Error) => void
-  vi.spyOn(repo, 'allWithDecisions').mockImplementationOnce(() => new Promise((_, reject) => { rejectRead = reject }))
+  const pendingRead = new Promise<Awaited<ReturnType<typeof repo.allWithDecisions>>>((_, reject) => { rejectRead = reject })
+  // Keep the simulated failure active across live-query invalidations until Retry.
+  const read = vi.spyOn(repo, 'allWithDecisions').mockReturnValue(pendingRead)
   open()
   expect(screen.getByRole('status', { name: 'Loading contacts' }).querySelector('.skeleton')).toBeInTheDocument()
   await waitFor(() => expect(rejectRead).toBeTypeOf('function'))
   act(() => rejectRead(new Error('Unavailable')))
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not load your contacts')
+  read.mockRestore()
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
   expect(await screen.findByRole('button', { name: 'Import contacts' })).toBeInTheDocument()
 })

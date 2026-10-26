@@ -45,12 +45,12 @@ export default function RowSheet({ row, onClose, pane = false }: { row: ContactW
   }
   const footer = <SheetFooterActions secondary={{ ref: removeButton, label: 'Remove from app', onClick: () => setConfirm(true), disabled: busy || confirm }}
     primary={{ label: 'Done', onClick: close, disabled: busy }} />
-  const content = <ScrollFallback>
+  const content = <ScrollFallback className="review-sheet-content space-y-5">
     <ContactIdentity contact={contact} />
     <ClassificationEditor decision={decision} busy={busy} error={saveError} save={save} />
     <ContactFields contact={contact} />
-    <div className="py-3">
-      <Button variant="ghost" disabled={busy} onClick={async () => {
+    <div>
+      <Button full variant="outline" disabled={busy} onClick={async () => {
         if (locked.current) return
         locked.current = true; setBusy(true); setDeckError('')
         try {
@@ -59,7 +59,7 @@ export default function RowSheet({ row, onClose, pane = false }: { row: ContactW
         } catch { setDeckError('Could not open the deck. Please try again.') }
         finally { locked.current = false; setBusy(false) }
       }}>Jump to deck</Button>
-      <p className="t-meta text-ink-2">Nothing changes until you swipe.</p>
+      <p className="mt-2 t-meta text-ink-2">Nothing changes until you swipe.</p>
       {deckError && <InlineNotice tone="error">{deckError}</InlineNotice>}
     </div>
     {confirm && <fieldset disabled={busy} aria-busy={busy}>
@@ -70,6 +70,6 @@ export default function RowSheet({ row, onClose, pane = false }: { row: ContactW
     </fieldset>}
   </ScrollFallback>
   return pane ? <section aria-label="Contact details" className="flex min-w-0 flex-col rounded-[20px] border border-rule bg-paper-2 p-5">
-    {content}<div className="mt-auto border-t border-rule pt-4">{footer}</div>
+    {content}<div className="mt-5 border-t border-rule pt-4">{footer}</div>
   </section> : <Sheet open onClose={close} title="Contact details" footer={footer}>{content}</Sheet>
 }

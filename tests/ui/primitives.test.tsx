@@ -7,13 +7,14 @@ afterEach(() => { cleanup(); vi.restoreAllMocks() })
 describe('Sheet', () => {
   beforeEach(() => { vi.spyOn(window, 'scrollTo').mockImplementation(() => {}) })
 
-  it('names the dialog, focuses the first control and cycles Tab in both directions', () => {
+  it('names the dialog, focuses its heading for pointer opens and cycles Tab in both directions', () => {
+    fireEvent.pointerDown(window)
     render(<Sheet open onClose={() => {}} title="Choose a type"><button>First</button><button disabled>Unavailable</button><button>Last</button></Sheet>)
     expect(screen.getByRole('dialog', { name: 'Choose a type' })).toBeInTheDocument()
     const first = screen.getByRole('button', { name: 'Close sheet' })
     const last = screen.getByRole('button', { name: 'Last' })
-    expect(first).toHaveFocus()
-    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+    expect(screen.getByRole('heading')).toHaveFocus()
+    fireEvent.keyDown(screen.getByRole('heading'), { key: 'Tab', shiftKey: true })
     expect(last).toHaveFocus()
     fireEvent.keyDown(last, { key: 'Tab' })
     expect(first).toHaveFocus()

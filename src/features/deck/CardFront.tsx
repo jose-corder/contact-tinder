@@ -46,7 +46,7 @@ export function CardFront({ contact, stageHeight, preview, toggleRef, flip, cons
         <div ref={identity.ref} className="deck-identity">
         <div className={compact ? 'flex items-center gap-3' : 'flex flex-col gap-3'}>
           <div data-identity-avatar className="shrink-0"><Avatar name={contact.displayName} photo={contact.photo} size={compact ? 44 : 72} /></div>
-          <h2 style={{ WebkitLineClamp: constrained ? 2 : lines.name }} className={`deck-identity-name min-w-0 font-serif ${landscape ? 't-title' : 't-display'} line-clamp-2 break-words`}>{contact.displayName}</h2>
+          <h2 style={{ WebkitLineClamp: constrained ? 2 : lines.name }} className={`deck-identity-name min-w-0 font-serif ${landscape || (!constrained && stageHeight < 350) ? 't-title' : 't-display'} line-clamp-2 break-words`}>{contact.displayName}</h2>
         </div>
         <p style={{ WebkitLineClamp: constrained ? 2 : lines.role }} className="mt-1 t-body text-ink-2 line-clamp-2 break-words">{[contact.title, contact.org].filter(Boolean).join(' · ') || '\u00a0'}</p>
         </div>

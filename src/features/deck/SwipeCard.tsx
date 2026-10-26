@@ -7,6 +7,7 @@ import { CardFront, formatContactDate } from './CardFront'
 import { isDrag } from './swipeMath'
 import { CardFields } from './CardFields'
 import { useConstrainedViewport } from '@/ui'
+import { useLandscapeDeck } from '@/hooks/useLandscapeDeck'
 import './deck.css'
 export { friendlyType } from './CardFields'
 
@@ -17,7 +18,8 @@ export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onF
   const [opened, setOpened] = useState(false)
   const reduced = useDeckReducedMotion()
   const { shortHeight, keyboardOpen, largeText } = useConstrainedViewport()
-  const constrained = shortHeight || keyboardOpen || largeText
+  const landscape = useLandscapeDeck()
+  const constrained = (shortHeight && !landscape) || keyboardOpen || largeText
   const origin = useRef({ x: 0, y: 0 })
   const moved = useRef(false)
   const alive = useRef(true)

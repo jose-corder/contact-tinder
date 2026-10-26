@@ -1,5 +1,27 @@
 /* Inherit the shared type role: Tailwind variants cannot target plain .t-* classes. */
+.review-tabs { gap: 4px; }
 .review-tabs [role='tab'] {
   font-size: inherit;
   line-height: inherit;
+}
+
+@media (width < 390px) {
+  .review-tabs-scroll {
+    margin-inline: -20px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 20px;
+    scrollbar-width: none;
+  }
+  .review-tabs {
+    width: max-content;
+    min-width: 100%;
+    padding-inline: 20px;
+    gap: 20px;
+  }
+  .review-tabs [role='tab'] {
+    flex-shrink: 0;
+    white-space: nowrap;
+    scroll-snap-align: start;
+  }
 }

@@ -1,12 +1,17 @@
 import { AnimatePresence, motion, useDragControls } from 'framer-motion'
-import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useMediaQuery } from './useMediaQuery'
 import { motionProps } from './motion'
 import { setToastSuppressed } from './toast'
 import { useSheetLayout } from './useSheetLayout'
+import { useLastInputModality } from './useLastInputModality'
 
-export interface SheetProps { open: boolean; onClose: () => void; title?: string; children: ReactNode; footer?: ReactNode }
+export interface SheetProps {
+  open: boolean; onClose: () => void; title?: string; children: ReactNode; footer?: ReactNode
+  /** Preferred keyboard target (or group containing it). Pointer opens focus the heading. */
+  initialFocus?: RefObject<HTMLElement | null>
+}
 const sheets: HTMLElement[] = []
 let unlockBody: (() => void) | undefined
 
@@ -21,10 +26,12 @@ function lockBody() {
   }
 }
 
-function SheetContent({ onClose, title, children, footer }: Omit<SheetProps, 'open'>) {
+function SheetContent({ onClose, title, children, footer, initialFocus }: Omit<SheetProps, 'open'>) {
   const panel = useRef<HTMLDivElement>(null)
   const body = useRef<HTMLDivElement>(null)
   const header = useRef<HTMLDivElement>(null)
+  const heading = useRef<HTMLHeadingElement>(null)
+  const openedWith = useRef(useLastInputModality()).current
   const [footerHost] = useState(() => {
     const node = document.createElement('div')
     node.className = 'sheet-footer shrink-0 border-t border-rule pt-4'
@@ -66,7 +73,9 @@ function SheetContent({ onClose, title, children, footer }: Omit<SheetProps, 'op
       'button, a[href], input, select, textarea, [tabindex]',
     )].filter((el) => el.tabIndex >= 0 && !el.matches(':disabled') && !el.closest('[hidden], [inert], [aria-hidden="true"]') && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden')
     const focusFirst = () => (focusable()[0] ?? dialog).focus()
-    focusFirst()
+    const preferred = initialFocus?.current
+    const keyboardTarget = focusable().find(el => preferred ? preferred === el || preferred.contains(el) : body.current?.contains(el))
+    ;(openedWith === 'keyboard' ? keyboardTarget ?? focusable()[0] ?? dialog : heading.current ?? dialog).focus({ preventScroll: true })
     const keydown = (event: KeyboardEvent) => {
       if (sheets.at(-1) !== dialog) return
       if (event.key === 'Escape') {
@@ -79,7 +88,7 @@ function SheetContent({ onClose, title, children, footer }: Omit<SheetProps, 'op
       const first = items[0] ?? dialog
       const last = items.at(-1) ?? dialog
       if (!items.length || !dialog.contains(document.activeElement) ||
-        (event.shiftKey && document.activeElement === first) ||
+        (event.shiftKey && (document.activeElement === first || document.activeElement === heading.current)) ||
         (!event.shiftKey && document.activeElement === last)) {
         event.preventDefault()
         ;(event.shiftKey ? last : first).focus()
@@ -122,11 +131,12 @@ function SheetContent({ onClose, title, children, footer }: Omit<SheetProps, 'op
           <span aria-hidden="true" className="h-1 w-10 rounded-full bg-rule" />
         </button>
         <div className={title ? 'sheet-title' : undefined}>
-          <h2 id={titleId} className={title ? 'eyebrow t-eyebrow' : 'sr-only'}>{title ?? 'Options'}</h2>
+          <h2 ref={heading} tabIndex={-1} id={titleId} className={title ? 'eyebrow t-eyebrow' : 'sr-only'}>{title ?? 'Options'}</h2>
         </div>
       </div>
       <div ref={body} className="sheet-body min-h-0 overflow-y-auto overscroll-contain"
-        style={{ scrollPaddingBottom: 96, paddingBottom: footer ? 16 : 'max(16px, env(safe-area-inset-bottom))' }}>{children}</div>
+        style={{ scrollPaddingBottom: viewport.footerHeight + 16,
+          paddingBottom: footer ? `calc(${viewport.footerHeight}px + 16px)` : 'max(16px, env(safe-area-inset-bottom))' }}>{children}</div>
       {createPortal(footer, footerHost)}
     </motion.div>
   </>

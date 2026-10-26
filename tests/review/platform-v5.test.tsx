@@ -105,7 +105,8 @@ it.each(['Undo merge', 'Dismiss'])('#65: Settings %s removes the repository and 
   fireEvent.click(screen.getByRole('button', { name: 'Visit Review' }))
   await screen.findByRole('tab', { name: /^Work/ })
   expect(screen.queryByText('Merged A and B')).not.toBeInTheDocument()
-  expect(screen.getByText('Earlier move')).toBeVisible()
+  // The route can mount before its entrance animation has made it visible.
+  await waitFor(() => expect(screen.getByText('Earlier move')).toBeVisible())
 })
 
 it('#65: failed persistent dismissal remains retryable and retains both copies until success', async () => {

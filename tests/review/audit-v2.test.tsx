@@ -55,7 +55,8 @@ it('#7: choosing only a Personal type persists Other and keeps it when the type 
   render(<MemoryRouter><RowSheet row={item} onClose={vi.fn()} /></MemoryRouter>)
   fireEvent.click(screen.getByRole('button', { name: 'Neighbor' }))
   await waitFor(async () => expect(await repo.getDecision('Maria')).toMatchObject({ relation: 'other', personalTypes: ['neighbor'] }))
-  expect(screen.getByRole('button', { name: 'Other' })).toHaveAttribute('aria-pressed', 'true')
+  // The live query re-renders a tick after the write under full-suite load; wait for it.
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Other' })).toHaveAttribute('aria-pressed', 'true'))
   fireEvent.click(screen.getByRole('button', { name: 'Neighbor' }))
   await waitFor(async () => expect(await repo.getDecision('Maria')).toMatchObject({ relation: 'other', personalTypes: [] }))
 })

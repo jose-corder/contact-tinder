@@ -34,6 +34,8 @@ createRoot(document.getElementById('root')).render(<Sheet open title="Contact de
   <label>Notes<textarea aria-label="Notes" defaultValue="Unsaved notes" /></label>
   {!scenario.legacy && confirm}
   <InlineNotice tone="error">Could not save. Please try again.</InlineNotice>
+  <div style={{height:800}} aria-hidden="true" />
+  <button data-last-control>Last body control</button>
 </Sheet>)
 setTimeout(async () => {
   await document.fonts.ready
@@ -50,12 +52,17 @@ setTimeout(async () => {
         whole: item.height > box.height || (item.top >= box.top - 1 && item.bottom <= box.bottom + 1),
         horizontal: item.left >= rect.left - 1 && item.right <= rect.right + 1 }
     })
+    const last = document.querySelector('[data-last-control]')
+    last.scrollIntoView({ block: 'end', behavior: 'instant' })
+    const clearance = document.querySelector('.sheet-footer').getBoundingClientRect().top - last.getBoundingClientRect().bottom
+    const padding = parseFloat(getComputedStyle(body).paddingBottom)
+    const footerHeight = document.querySelector('.sheet-footer').getBoundingClientRect().height
     body.scrollTop = 0
     parent.postMessage({ name: scenario.name, constrained: panel.dataset.constrained,
       panel: { top: rect.top, bottom: rect.bottom, height: rect.height },
       body: { height: body.clientHeight, scrollHeight: body.scrollHeight },
       headerHeight: document.querySelector('.sheet-header').getBoundingClientRect().height,
-      checks }, '*')
+      checks, clearance, padding, footerHeight }, '*')
   } catch (error) { parent.postMessage({ name: scenario.name, error: String(error) }, '*') }
 }, 1200)
 `
@@ -104,6 +111,8 @@ for (const scenario of scenarios) {
     assert(result.panel.bottom <= scenario.visual - scenario.safe + 1, 'Panel below usable viewport')
     for (const check of result.checks) assert(check.inside && check.reachable && check.whole && check.horizontal, JSON.stringify(check))
   } else {
+    assert(result.clearance >= 8, 'Last body control is covered by the footer')
+    assert(Math.abs(result.padding - result.footerHeight - 16) <= 1, 'Padding must follow real footer height')
     assert(result.checks.filter(check => check.text === 'Save contact' || check.text === 'Cancel').every(check => !check.inside))
   }
   console.log(JSON.stringify(result))

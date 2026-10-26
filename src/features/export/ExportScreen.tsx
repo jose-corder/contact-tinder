@@ -43,12 +43,12 @@ export default function ExportScreen() {
       <p>Import a contact file to create your lists.</p>
       <Link to="/import" className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4">Import contacts</Link>
     </Empty> : <>
-      <section className="mb-6 border-y border-rule py-5">
+      <section className="mb-6 border-y border-rule py-6">
         <h2 className="font-serif t-title">Clean address book</h2>
-        <p className="mt-2 t-body text-ink-2">Import this vCard into your phone’s Contacts app. {clean.description}</p>
-        <p className="tabular my-3 t-body text-ink-2">{clean.rows.length.toLocaleString()} contacts · contacts-clean.vcf</p>
+        <p className="mt-2 t-body text-ink-2">Everything except Delete, including unsorted contacts.</p>
+        <p className="tabular my-3 t-meta text-ink-2">{clean.rows.length.toLocaleString()} contacts · contacts-clean.vcf</p>
         {contactAction([clean], 'clean address book', true)}
-        <p className="mt-3 t-body leading-relaxed text-ink-2">{platformHint(exportPlatform())}</p>
+        <p className="mt-3 t-body leading-relaxed text-ink-2">Import this vCard into your phone’s Contacts app. {platformHint(exportPlatform())}</p>
         <p className="mt-2 t-body leading-relaxed text-ink-2">Importing adds entries and can duplicate existing ones. Keep a backup, then clear the originals first or use Google Contacts’ merge. This file does not remove originals.</p>
         {!clean.rows.length && <InlineNotice tone="info">All contacts are on the Delete list. Move contacts to Work or Personal in Review to include them here.</InlineNotice>}
       </section>

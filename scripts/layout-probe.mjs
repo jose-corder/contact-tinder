@@ -25,14 +25,14 @@ const ROUTES = process.argv[3] ? JSON.parse(process.argv[3]) : [
 mkdirSync(OUT, { recursive: true })
 
 const profile = resolve(OUT, '.profile')
-const chrome = spawn(CHROME, ['--headless=new', '--disable-gpu', '--no-first-run', '--hide-scrollbars', `--user-data-dir=${profile}`, '--remote-debugging-port=0', 'about:blank'], { stdio: ['ignore', 'pipe', 'pipe'] })
+const chrome = spawn(CHROME, ['--headless=new', '--disable-gpu', '--no-first-run', '--hide-scrollbars', `--user-data-dir=${profile}`, '--remote-debugging-port=0', BASE + '/'], { stdio: ['ignore', 'pipe', 'pipe'] })
 const wsUrl = await new Promise((res, rej) => {
   let buf = ''
   chrome.stderr.on('data', (d) => { buf += d; const m = buf.match(/DevTools listening on (ws:\/\/\S+)/); if (m) res(m[1]) })
   chrome.on('exit', (c) => rej(new Error('chrome exited ' + c)))
 })
 const port = new URL(wsUrl).port
-const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json()
+const target = await (await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(BASE + "/import")}`, { method: 'PUT' })).json()
 const ws = new WebSocket(target.webSocketDebuggerUrl)
 await new Promise((r) => (ws.onopen = r))
 let id = 0
@@ -51,13 +51,16 @@ const evaluate = async (expression) => {
   return r.result.value
 }
 await send('Page.enable'); await send('Runtime.enable')
-const goto = async (url) => { await send('Page.navigate', { url }); await sleep(400); for (let i = 0; i < 50; i++) { if (await evaluate('document.readyState') === 'complete') break; await sleep(100) } await sleep(1200) }
+const goto = async (url) => { await send('Page.navigate', { url }); await sleep(400); for (let i = 0; i < 50; i++) { try { if (await evaluate('document.readyState') === 'complete') break } catch { /* navigating */ } await sleep(100) } await sleep(1200) }
 
 // Seed once (idempotent import through the app UI) and dismiss the coach.
 await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
 await goto(`${BASE}/import`)
-await evaluate(`(async () => { for (let i = 0; i < 40; i++) { const b = [...document.querySelectorAll('button')].find((b) => /sample contacts/i.test(b.textContent)); if (b) { b.click(); break } await new Promise((r) => setTimeout(r, 250)) } for (let i = 0; i < 80; i++) { if (/Start triage/i.test(document.body.textContent)) { await new Promise((r) => setTimeout(r, 1500)); return 'seeded' }; await new Promise((r) => setTimeout(r, 250)) } return 'timeout' })()`).then((v) => console.log('seed:', v))
-await evaluate(`(() => { for (const p of ['triage','work','personal']) localStorage.setItem('ct.coach.' + p, 'seen'); return 1 })()`)
+for (let attempt = 0; attempt < 3; attempt++) {
+  try { console.log("seed:", await evaluate(`(async () => { for (let i = 0; i < 40; i++) { const b = [...document.querySelectorAll('button')].find((b) => /sample contacts/i.test(b.textContent)); if (b) { b.click(); break } await new Promise((r) => setTimeout(r, 250)) } for (let i = 0; i < 80; i++) { if (/Start triage/i.test(document.body.textContent)) { await new Promise((r) => setTimeout(r, 1500)); return 'seeded' }; await new Promise((r) => setTimeout(r, 250)) } return 'timeout' })()`)); break }
+  catch (e) { console.log("seed attempt failed:", e.message.slice(0, 80)); await sleep(1500); await goto(`${BASE}/import`) }
+}
+try { await evaluate(`(() => { for (const p of ['triage','work','personal']) localStorage.setItem('ct.coach.' + p, 'seen'); return 1 })()`) } catch (e) { console.log('coach:', e.message.slice(0, 60)) }
 
 const PROBE = String.raw`(() => {
   const w = window, d = document, vw = w.innerWidth, vh = w.innerHeight, findings = []
@@ -76,7 +79,7 @@ const PROBE = String.raw`(() => {
     if (e.children.length === 0 && e.textContent.trim() && e.scrollHeight > e.clientHeight + 2 && cs.overflowY === 'hidden') findings.push({ kind: 'clipped-text-y', el: desc(e), by: e.scrollHeight - e.clientHeight })
   }
   const openDialog = d.querySelector('[role="dialog"][aria-modal="true"]')
-  const onHiddenFace = (e) => { for (let p = e; p && p !== d.body; p = p.parentElement) { const cs = w.getComputedStyle(p); if (cs.backfaceVisibility === 'hidden' && /rotateY(|matrix3d/.test(cs.transform) && cs.transform !== 'none') { const m = new DOMMatrix(cs.transform); if (m.m33 < 0) return true } } return false }
+  const onHiddenFace = (e) => { for (let p = e; p && p !== d.body; p = p.parentElement) { const cs = w.getComputedStyle(p); if (cs.backfaceVisibility === 'hidden' && cs.transform !== 'none' && (cs.transform.includes('matrix3d') || cs.transform.includes('rotateY'))) { const m = new DOMMatrix(cs.transform); if (m.m33 < 0) return true } } return false }
   const scope = openDialog ?? d
   const allInteractive = [...d.querySelectorAll('button, a[href], input:not([type=hidden]), [role="button"], [role="tab"], [role="radio"], summary')].filter((e) => visible(e) && !srOnly(e))
   for (const e of allInteractive) if (onHiddenFace(e) && !e.closest('[inert],[aria-hidden="true"]')) findings.push({ kind: 'hidden-face-focusable', el: desc(e) })
@@ -114,11 +117,13 @@ for (const { name, route, act } of ROUTES) {
       await evaluate(`(() => { const want = ${JSON.stringify(act)}; const b = [...document.querySelectorAll('button')].find((b) => { const t = (b.getAttribute('aria-label') || b.textContent).trim().toLowerCase(); return want.endsWith(' ') ? t.startsWith(want) : t === want }); if (b) { b.click(); return 'clicked ' + (b.getAttribute('aria-label') || b.textContent).trim() } return 'no button' })()`)
       await sleep(1500)
     }
-    const probe = await evaluate(PROBE)
-    const shot = await send('Page.captureScreenshot', { format: 'png' })
-    writeFileSync(resolve(OUT, `${name}-${width}x${height}.png`), Buffer.from(shot.data, 'base64'))
-    results.push({ name, size: `${width}x${height}`, ...probe })
-    console.log(`${name} ${width}x${height}: ${probe.findings.length}`)
+    try {
+      const probe = await evaluate(PROBE)
+      const shot = await send('Page.captureScreenshot', { format: 'png' })
+      writeFileSync(resolve(OUT, `${name}-${width}x${height}.png`), Buffer.from(shot.data, 'base64'))
+      results.push({ name, size: `${width}x${height}`, ...probe })
+      console.log(`${name} ${width}x${height}: ${probe.findings.length}`)
+    } catch (e) { console.log(`${name} ${width}x${height}: ERROR ${e.message.slice(0, 80)}`); results.push({ name, size: `${width}x${height}`, error: e.message, findings: [] }) }
   }
 }
 writeFileSync(resolve(OUT, 'probe.json'), JSON.stringify(results, null, 2))

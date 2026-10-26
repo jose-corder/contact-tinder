@@ -1,0 +1,42 @@
+.review-identity-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  column-gap: 12px;
+  min-height: 44px;
+}
+
+.review-identity-row > div {
+  min-height: 44px;
+  align-content: center;
+}
+
+.review-identity-row > span { display: contents; }
+.review-identity-row > span > button {
+  justify-self: end;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  gap: 0;
+}
+
+/* The check icon supplies local success feedback without widening the circle. */
+.review-identity-row [role='status'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.review-identity-row > span > span { grid-column: 1 / -1; }
+
+/* Preserve a 44px hit area around the compact, aligned circle. */
+.review-identity-row > span > button::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
