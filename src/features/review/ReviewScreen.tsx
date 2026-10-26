@@ -121,9 +121,9 @@ export default function ReviewScreen() {
                 onToggle={toggleSelection} onLongPress={longPress} onClear={clearFilters} />}
           {selecting && <div aria-hidden="true" className="h-64 shrink-0" />}
       </div>
-      {desktop && <aside aria-label="Selected contact" className="min-w-0 w-full max-w-[480px] self-start lg:col-start-2 lg:row-start-4">
+      {desktop && <aside aria-label="Selected contact" className="review-pane min-w-0 w-full max-w-[480px] self-start lg:col-start-2 lg:row-span-4 lg:row-start-1">
         {openRow ? <RowSheet key={openRow.contact.id} row={openRow} pane onClose={() => setOpenId(undefined)} /> :
-          <div className={filtered.length > 30 ? 'pt-[41px]' : 'pt-2'}>
+          <div className="pt-2">
             <h2 className="font-serif serif-text t-heading">Choose a contact.</h2>
             <p className="mt-2 max-w-[280px] t-body text-ink-2">{openId ? 'This contact is no longer in the app.' : 'Select a row to review its classification and details.'}</p>
           </div>}

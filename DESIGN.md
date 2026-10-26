@@ -149,3 +149,7 @@ An adversarial Codex UI audit (UI_AUDIT.md, 43 findings from 23 screenshots) and
 ## Audit closure (2026-10-25)
 
 Six Codex audits (UI_AUDIT.md through UI_AUDIT_V6.md) tracked 65 findings across the app. UI_AUDIT_V6.md confirms 65 of 65 fixed with no regressions, and lists five physical-device validation areas (keyboard-open layouts, safe areas with enlarged text, native share delivery, assistive technology, clipboard permissions) that cannot be verified from a desktop.
+
+## Layout verification (2026-10-26)
+
+`node scripts/layout-probe.mjs <outDir> [routesJson]` drives installed Chrome over CDP against a running build (`BASE_URL`, default the dev server), seeds demo data, emulates phones with real touch input, and for each screen state at 320×568, 360×740, 390×844, 430×932, 844×390, 1024×768 and 1280×800 saves a screenshot and reports horizontal overflow, clipped text, sub-44px targets, overlapping controls, off-screen dialogs, focusable controls on a turned-away card face, and drawn focus rings. Run it against `vite preview` to keep memory low. Focus rings are drawn only after keyboard input (`html[data-input]`); scroll areas fade their clipped edge (`useScrollFade`).

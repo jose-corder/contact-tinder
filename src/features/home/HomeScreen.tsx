@@ -81,7 +81,7 @@ export default function HomeScreen() {
         </Link>}
       </nav>
       </div>
-      <nav aria-label="Contacts" className="mt-6 flex flex-wrap justify-between gap-4 t-meta underline underline-offset-4">
+      <nav aria-label="Contacts" className="mt-6 flex flex-wrap justify-between gap-4 t-meta underline underline-offset-4 lg:justify-start lg:gap-x-10">
         <Link className="hit-44 inline-flex items-center py-3" to="/review">Review</Link><Link className="hit-44 inline-flex items-center py-3" to="/export">Export</Link><Link className="hit-44 inline-flex items-center py-3" to="/import">Import more</Link>
       </nav>
     </>}

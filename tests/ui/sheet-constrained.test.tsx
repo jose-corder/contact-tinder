@@ -7,8 +7,11 @@ let measure: () => void
 beforeEach(() => {
   footerHeight = 180
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+  // Several components observe size (sheet layout, scroll-edge fade); notify every observer.
+  const callbacks: Array<() => void> = []
+  measure = () => callbacks.forEach((callback) => callback())
   vi.stubGlobal('ResizeObserver', class {
-    constructor(callback: () => void) { measure = callback }
+    constructor(callback: () => void) { callbacks.push(callback) }
     observe() {} disconnect() {}
   })
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {

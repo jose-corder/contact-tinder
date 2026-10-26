@@ -64,15 +64,22 @@
 .deck-desktop-context { display: none; }
 .deck-active[data-landscape='true'] { flex-direction: row; gap: 16px; }
 .deck-active[data-landscape='true'] .deck-stage { min-width: 0; margin-bottom: 10px; }
-.deck-active[data-landscape='true'] .deck-controls { display: flex; flex-direction: column; width: 200px; height: 100%; margin-top: 0; overflow-y: auto; }
-.deck-active[data-landscape='true'] .deck-chip-region { min-height: 44px; flex: 1 1 auto; overflow-y: auto; }
+/* Landscape phone: card on the left, a right rail with tags at the top and a 2x2 action grid
+   anchored to the bottom, aligned with the card's bottom edge. Nothing scrolls, nothing overlaps. */
+.deck-active[data-landscape='true'] .deck-controls { display: flex; flex-direction: column; justify-content: space-between; gap: 12px; width: 232px; height: 100%; margin-top: 0; padding-bottom: 10px; overflow: visible; }
+.deck-active[data-landscape='true'] .deck-chip-region { min-height: 44px; flex: 0 1 auto; overflow-y: auto; }
 .deck-active[data-landscape='true'] .deck-chips-stage { display: block; }
 .deck-active[data-landscape='true'] [aria-label='Relation'] { flex-wrap: wrap; justify-content: flex-start; }
-.deck-active[data-landscape='true'] .deck-actions { grid-template-columns: minmax(0, 1fr); gap: 4px; }
-.deck-active[data-landscape='true'] .deck-actions > div { justify-content: start; gap: 12px; }
+.deck-active[data-landscape='true'] .deck-toolbar { margin-top: auto; padding-top: 0; }
+.deck-active[data-landscape='true'] .deck-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
+.deck-active[data-landscape='true'] .deck-actions > div { flex-direction: column; justify-content: center; align-items: center; gap: 2px; }
+.deck-active[data-landscape='true'] .deck-action-circle { width: 48px !important; height: 48px !important; }
 .deck-active[data-landscape='true'] .deck-chip-rail { flex-wrap: wrap; overflow: visible; }
 @media (min-width: 1024px) and (pointer: fine) {
   .deck-workspace { display: grid; grid-template-columns: 440px 240px; gap: 40px; justify-content: center; align-items: start; }
   .deck-desktop-context { display: flex; flex-direction: column; gap: 24px; padding-block: 32px; padding-right: 20px; }
   .deck-keyboard-help { display: none; }
 }
+
+/* Keyboard legend is a desktop affordance; never squeeze it into short windows. */
+@media (max-height: 479px) { .deck-keyboard-help { display: none; } }

@@ -31,25 +31,33 @@ it('focuses an inline confirmation heading after pointer input, including initia
   expect(screen.getByRole('heading')).toHaveFocus()
 })
 
-it('recomputes body padding and scroll clearance from the resized real footer', () => {
+// The footer sits in normal flow below the body (or as a sticky last child when constrained), so
+// the body never needs footer-sized padding; a footer-sized pad left a blank band above the actions.
+// Only a sticky footer reserves scroll clearance, measured from its real height.
+it('keeps a constant body padding and reserves scroll clearance only for a sticky footer', () => {
   let footerHeight = 76
   let notify = () => {}
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
     return { height: this.classList.contains('sheet-footer') ? footerHeight : 500 } as DOMRect
   })
+  // Several components observe size (sheet layout, scroll-edge fade); notify every observer.
+  const callbacks: Array<() => void> = []
+  notify = () => callbacks.forEach((callback) => callback())
   vi.stubGlobal('ResizeObserver', class {
-    constructor(callback: () => void) { notify = callback }
+    constructor(callback: () => void) { callbacks.push(callback) }
     observe() {} disconnect() {}
   })
   render(<Sheet open title="Tall content" onClose={() => {}} footer={<button>Done</button>}>
     {Array.from({ length: 40 }, (_, i) => <button key={i}>Tag {i}</button>)}
   </Sheet>)
   const body = document.querySelector<HTMLElement>('.sheet-body')!
-  expect(body.style.paddingBottom).toBe('calc(92px)')
-  expect(body.style.scrollPaddingBottom).toBe('92px')
+  const footer = () => document.querySelector<HTMLElement>('.sheet-footer')!
+  const clearance = () => footer().closest('.sheet-body') && footer().style.position === 'sticky' ? `${footerHeight + 16}px` : '16px'
+  expect(body.style.paddingBottom).toBe('16px')
+  expect(body.style.scrollPaddingBottom).toBe(clearance())
   act(() => { footerHeight = 144; notify() })
-  expect(body.style.paddingBottom).toBe('calc(160px)')
-  expect(body.style.scrollPaddingBottom).toBe('160px')
+  expect(body.style.paddingBottom).toBe('16px')
+  expect(body.style.scrollPaddingBottom).toBe(clearance())
 })
 
 it('uses a single ink outline with three-pixel clearance and the shared section rhythm', () => {

@@ -6,6 +6,7 @@ import { motionProps } from './motion'
 import { setToastSuppressed } from './toast'
 import { useSheetLayout } from './useSheetLayout'
 import { useLastInputModality } from './useLastInputModality'
+import { useScrollFade } from './useScrollFade'
 
 export interface SheetProps {
   open: boolean; onClose: () => void; title?: string; children: ReactNode; footer?: ReactNode
@@ -32,6 +33,7 @@ function SheetContent({ onClose, title, children, footer, initialFocus }: Omit<S
   const header = useRef<HTMLDivElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   const openedWith = useRef(useLastInputModality()).current
+  useScrollFade(body)
   const [footerHost] = useState(() => {
     const node = document.createElement('div')
     node.className = 'sheet-footer shrink-0 border-t border-rule pt-4'
@@ -134,9 +136,13 @@ function SheetContent({ onClose, title, children, footer, initialFocus }: Omit<S
           <h2 ref={heading} tabIndex={-1} id={titleId} className={title ? 'eyebrow t-eyebrow' : 'sr-only'}>{title ?? 'Options'}</h2>
         </div>
       </div>
-      <div ref={body} className="sheet-body min-h-0 overflow-y-auto overscroll-contain"
-        style={{ scrollPaddingBottom: viewport.footerHeight + 16,
-          paddingBottom: footer ? `calc(${viewport.footerHeight}px + 16px)` : 'max(16px, env(safe-area-inset-bottom))' }}>{children}</div>
+      <div ref={body} className="sheet-body scroll-fade min-h-0 overflow-y-auto overscroll-contain"
+        // The footer is always in normal flow (a sibling below the body, or a sticky last child of the
+        // body when constrained), so content never sits under it and no footer-sized padding is
+        // needed. Only a sticky footer overlaps focused fields while scrolling, so only then does
+        // scroll-padding reserve its height.
+        style={{ scrollPaddingBottom: viewport.constrained && viewport.sticky ? viewport.footerHeight + 16 : 16,
+          paddingBottom: footer ? 16 : 'max(16px, env(safe-area-inset-bottom))' }}>{children}</div>
       {createPortal(footer, footerHost)}
     </motion.div>
   </>

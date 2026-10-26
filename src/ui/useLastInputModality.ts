@@ -2,10 +2,14 @@ import { useSyncExternalStore } from 'react'
 
 type Modality = 'pointer' | 'keyboard'
 let lastInput: Modality = 'pointer'
+// Mirror the modality on <html> so CSS can show focus rings only for keyboard users (see index.css).
+const mark = (modality: Modality) => { if (typeof document !== 'undefined') document.documentElement.dataset.input = modality }
+mark(lastInput)
 const listeners = new Set<() => void>()
 const update = (modality: Modality) => {
   if (lastInput === modality) return
   lastInput = modality
+  mark(modality)
   listeners.forEach(listener => listener())
 }
 // Track before a sheet mounts, including an asynchronous swipe-to-open transition.

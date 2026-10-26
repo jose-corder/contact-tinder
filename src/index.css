@@ -143,6 +143,34 @@ html { -webkit-text-size-adjust: 100%; scroll-padding-bottom: 120px; }
   outline-offset: 3px;
 }
 
+/* Rings are for keyboard users. When the last input was a pointer or touch (data-input is set by
+   useLastInputModality), focus the app moves programmatically (restoring a tab, a list row, a sheet
+   target) must not draw a ring. The first keydown switches data-input to keyboard. */
+:root:not([data-input='keyboard']) :focus-visible {
+  outline: none;
+}
+
+/* Programmatic focus targets (headings, main landmarks, scroll regions moved to after navigation)
+   are not controls; they receive focus for screen readers and must never draw a ring. */
+[tabindex='-1']:focus,
+[tabindex='-1']:focus-visible {
+  outline: none;
+}
+
+/* Scroll containers fade the clipped edge instead of cutting a row in half (see useScrollFade). */
+.scroll-fade[data-fade='bottom'] {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}
+.scroll-fade[data-fade='top'] {
+  -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 20px), transparent);
+  mask-image: linear-gradient(to top, #000 calc(100% - 20px), transparent);
+}
+.scroll-fade[data-fade='top bottom'] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 20px, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 20px, #000 calc(100% - 28px), transparent);
+}
+
 body {
   margin: 0;
   background: var(--paper);

@@ -7,6 +7,7 @@ import { CardFront, formatContactDate } from './CardFront'
 import { isDrag } from './swipeMath'
 import { CardFields } from './CardFields'
 import { useConstrainedViewport } from '@/ui'
+import { useScrollFade } from '@/ui/useScrollFade'
 import { useLandscapeDeck } from '@/hooks/useLandscapeDeck'
 import './deck.css'
 export { friendlyType } from './CardFields'
@@ -25,6 +26,8 @@ export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onF
   const alive = useRef(true)
   const toggleRef = useRef<HTMLButtonElement>(null)
   const backRef = useRef<HTMLButtonElement>(null)
+  const detailsRef = useRef<HTMLDivElement>(null)
+  useScrollFade(detailsRef, opened && !constrained)
   useEffect(() => {
     alive.current = true
     return () => { alive.current = false }
@@ -60,7 +63,7 @@ export const SwipeCard = memo(function SwipeCard({ contact, preview = false, onF
         style={{ rotateY: reduced ? 0 : 180, pointerEvents: flipped ? 'auto' : 'none' }}
         animate={{ opacity: reduced ? (flipped ? 1 : 0) : 1 }} transition={DECK_MOTION.fade}>
         {opened && <>
-          <div className={`flex min-h-0 flex-1 flex-col gap-3 ${constrained ? '' : 'overflow-y-auto overscroll-contain'}`} style={{ touchAction: 'pan-y', ...(constrained ? { overflowY: 'visible' } : {}) }} tabIndex={0} aria-label="All contact fields">
+          <div ref={detailsRef} className={`flex min-h-0 flex-1 flex-col gap-3 ${constrained ? '' : 'scroll-fade overflow-y-auto overscroll-contain'}`} style={{ touchAction: 'pan-y', ...(constrained ? { overflowY: 'visible' } : {}) }} tabIndex={0} aria-label="All contact fields">
             <h2 className="break-words font-serif t-title">{contact.displayName}</h2>
             <div className="hairline shrink-0" />
             <CardFields contact={contact} />

@@ -25,3 +25,32 @@
     scroll-snap-align: start;
   }
 }
+
+/* Desktop detail pane: starts level with the screen header and stays in view while the list
+   scrolls; long details scroll inside the pane instead of running off the window. */
+@media (min-width: 1024px) {
+  .review-pane {
+    position: sticky;
+    top: 24px;
+    max-height: calc(100dvh - 48px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-top: 12px;
+  }
+}
+
+/* Narrow screens: the tab strip scrolls; fade the trailing edge so the cut tab reads as "more". */
+@media (width < 390px) {
+  .review-tabs-scroll[data-fade~='right'] {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  }
+  .review-tabs-scroll[data-fade~='left'][data-fade~='right'] {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 32px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 24px, #000 calc(100% - 32px), transparent);
+  }
+  .review-tabs-scroll[data-fade='left'] {
+    -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to left, #000 calc(100% - 24px), transparent);
+  }
+}

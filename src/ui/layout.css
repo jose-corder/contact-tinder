@@ -25,7 +25,8 @@
   min-height: min-content;
   overflow: visible !important;
 }
-.scroll-fallback[data-constrained='true'] :where(.flex-1, .h-full, .h-dvh, .overflow-y-auto, .overflow-hidden) {
+/* Never collapse a control's 44px touch target while unlocking fixed-height layouts. */
+.scroll-fallback[data-constrained='true'] :where(.flex-1, .h-full, .h-dvh, .overflow-y-auto, .overflow-hidden):not(.hit-44, .chip-hit, button, a, summary) {
   height: auto;
   max-height: none;
   min-height: min-content;

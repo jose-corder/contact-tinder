@@ -21,7 +21,7 @@ export function ActionBar({ pass, triggerSwipe, disabled, compact, keyboard }: {
           <IconButton className="deck-action-circle" label={outcome.label} size={56} disabled={disabled}
             title={direction === 'down' ? SKIP_HINT : outcome.label} aria-description={direction === 'down' ? SKIP_HINT : undefined}
             onClick={() => triggerSwipe(direction)}><Icon size={24} /></IconButton>
-          {direction === 'down' ? <button type="button" aria-label="About Skip" className="deck-action-caption deck-skip-help hit-44 t-meta text-ink-2 underline underline-offset-4"
+          {direction === 'down' ? <button type="button" aria-label="About Skip" className="deck-action-caption deck-skip-help hit-44 t-meta text-ink-2 underline decoration-dotted decoration-1 underline-offset-4"
             onClick={() => setSkipHelp(true)}>Skip</button>
             : <span aria-hidden="true" className="deck-action-caption t-meta text-ink-2">{outcome.label}</span>}
         </div>

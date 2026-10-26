@@ -90,7 +90,7 @@ it('shows the filter fade only while more chips remain and remeasures after resi
   expect(disconnect).toHaveBeenCalled()
 })
 
-it('aligns the desktop detail pane with the list grid row and caps its width (#7)', async () => {
+it('starts the desktop detail pane level with the header, keeps it sticky and caps its width (#7)', async () => {
   vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(min-width: 1024px)',
     media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() }))
   await resetAll()
@@ -101,7 +101,8 @@ it('aligns the desktop detail pane with the list grid row and caps its width (#7
   const list = screen.getByRole('tabpanel')
   expect(pane.parentElement).toBe(list.parentElement)
   expect(list).toHaveClass('lg:row-start-4')
-  expect(pane).toHaveClass('lg:row-start-4', 'max-w-[480px]', 'self-start')
+  // Spans from the header row so it starts level with the screen title, not beside the clicked row.
+  expect(pane).toHaveClass('review-pane', 'lg:row-start-1', 'lg:row-span-4', 'max-w-[480px]', 'self-start')
   expect(screen.getByRole('heading', { name: 'Choose a contact.' }).parentElement).toHaveClass('pt-2')
   expect(container.querySelector('.ui-frame')).toHaveClass('lg:max-w-[960px]')
 })
