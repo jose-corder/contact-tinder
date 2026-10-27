@@ -1,4 +1,5 @@
 import type { Contact } from '@/domain/types'
+import type { ContactDetail } from './details'
 
 /** Import-owned metadata persists with the contact without changing the shared projection. */
 export interface ImportedContact extends Contact {
@@ -6,6 +7,8 @@ export interface ImportedContact extends Contact {
   hasName?: boolean
   /** Other decoded source cards; raw remains the richest decoded source text, not original bytes. */
   rawCards?: string[]
+  /** Addresses, dates, websites and other fields from CSV or phone-picker imports (vCards keep theirs in raw). */
+  details?: ContactDetail[]
 }
 
 export const metadata = (contact: Contact): ImportedContact => contact

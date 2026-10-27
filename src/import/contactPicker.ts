@@ -1,5 +1,6 @@
 import type { Contact } from '@/domain/types'
 import { makeContact } from './contact'
+import { formatAddress, type ContactDetail } from './details'
 
 /**
  * Phone contacts via the Contact Picker API (navigator.contacts).
@@ -68,10 +69,14 @@ async function supportedProperties(picker: ContactPicker): Promise<PickerPropert
   return ['name', 'tel', 'email']
 }
 
-function addressNote(addresses: PickerAddress[] | undefined): string | undefined {
-  const lines = (addresses ?? []).map((address) => [...(address.addressLine ?? []), address.city, address.region, address.postalCode, address.country]
-    .map((part) => part?.trim()).filter(Boolean).join(', ')).filter(Boolean)
-  return lines.length ? lines.map((line) => `Address: ${line}`).join('\n') : undefined
+function addressDetails(addresses: PickerAddress[] | undefined): ContactDetail[] {
+  return (addresses ?? []).flatMap((entry) => {
+    const address = { street: (entry.addressLine ?? []).map((line) => line.trim()).filter(Boolean).join(', ') || undefined,
+      city: entry.city?.trim() || undefined, region: entry.region?.trim() || undefined,
+      postalCode: entry.postalCode?.trim() || undefined, country: entry.country?.trim() || undefined }
+    const value = formatAddress(address)
+    return value ? [{ kind: 'address' as const, value, address }] : []
+  })
 }
 
 /** Opens the phone's contact chooser and converts the selection. Rejects with AbortError on cancel. */
@@ -80,12 +85,13 @@ export async function pickContacts(): Promise<Contact[]> {
   const picker = (navigator as PickerNavigator).contacts!
   const selected = await picker.select(await supportedProperties(picker), { multiple: true })
   return selected.flatMap((entry) => {
+    const details = addressDetails(entry.address)
     const contact = makeContact({
       displayName: entry.name?.find((name) => name.trim()),
       phones: (entry.tel ?? []).map((value) => ({ value })),
       emails: (entry.email ?? []).map((value) => ({ value })),
       photo: entry.icon?.find((icon) => icon.size > 0),
-      notes: addressNote(entry.address),
+      ...(details.length ? { details } : {}),
     }, 'picker')
     return contact ? [contact] : []
   })

@@ -47,7 +47,7 @@ Tabs: Delete / Work / Personal / Unsorted. Inside Work: segmented control Old / 
 ### Export
 
 - One `.vcf` per bucket or per status/type (e.g. `work-current-clients.vcf`). Original vCard bytes are preserved and a `CATEGORIES:` line is added so the labels survive the round trip into iOS or Google Contacts.
-- One `.csv` with every contact and every label.
+- A spreadsheet, `all-contacts.xlsx` (Excel, Numbers, Google Sheets) and `all-contacts.csv`, on the main Export screen: one row per contact, sorting columns first (bucket, status, types, relation, tags), then every name part, phones and emails with their labels, the first address split into columns, birthday, anniversary, dates, websites, social profiles, messaging, related people, groups, notes and any other field. Built from `src/export/sheet.ts`; vCard details come from the source cards (`src/import/details.ts`), CSV and phone-picker details are stored at import.
 - `delete-list.txt` with names and numbers.
 - Full JSON backup / restore of the local database.
 - Uses the Web Share API when available, falls back to download.

@@ -3,6 +3,7 @@ import { keysFor, phoneKey } from './dedupe'
 import { defaultCountry as regionCountry } from './region'
 import { normalizedName, type ImportedContact } from './metadata'
 import { hash } from './hash'
+import type { ContactDetail } from './details'
 
 interface ContactFields {
   displayName?: string
@@ -17,6 +18,7 @@ interface ContactFields {
   emails: EmailEntry[]
   raw?: string
   uid?: string
+  details?: ContactDetail[]
 }
 
 export function makeContact(fields: ContactFields, source: ContactSource, defaultCountry: string = regionCountry()): ImportedContact | undefined {

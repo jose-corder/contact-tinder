@@ -2,6 +2,8 @@ import type { ContactWithDecision } from '@/db/repo'
 import type { Contact } from '@/domain/types'
 import { escapeText, foldLine, sourceCategories, complementaryLines, utf8LiteralCharsets } from './vcardLines'
 import { missingEntries } from './mergedFields'
+import { metadata } from '@/import/metadata'
+import type { ContactDetail, DetailKind } from '@/import/details'
 import { decisionLabels, isUnsorted, PASS_ORDER, BUCKET_META, WORK_STATUS_META, WORK_TYPE_META, PERSONAL_RELATION_META, PERSONAL_TYPE_META } from '@/domain/taxonomy'
 
 export function buildVcard(contact: Contact, labels: string[]): string {
@@ -25,19 +27,63 @@ export function buildVcard(contact: Contact, labels: string[]): string {
       ...(allLabels.length ? [foldLine(categories)] : []))
     return lines.join(newline)
   }
+  const details = metadata(contact).details ?? []
+  const first = (kind: DetailKind) => escapeText(details.find((detail) => detail.kind === kind)?.value ?? '')
+  const groups = details.filter((detail) => detail.kind === 'group').map((detail) => detail.value)
+  const notes = [contact.notes, ...details.filter((detail) => detail.kind === 'other').map((detail) => `${detail.label ?? 'Other'}: ${detail.value}`)]
+  const extraLabels = [...new Set([...groups, ...allLabels])]
   const lines = [
     'BEGIN:VCARD', 'VERSION:3.0',
-    `N:${escapeText(contact.familyName ?? '')};${escapeText(contact.givenName ?? '')};;;`,
+    `N:${escapeText(contact.familyName ?? '')};${escapeText(contact.givenName ?? '')};${first('middle')};${first('prefix')};${first('suffix')}`,
     `FN:${escapeText(contact.displayName)}`,
     `ORG:${(contact.org ?? '').split(' · ').map(escapeText).join(';')}`, `TITLE:${escapeText(contact.title ?? '')}`,
     ...contact.phones.map((p) => `TEL;TYPE=${safeType(p.type, 'CELL')}:${escapeText(p.e164 || p.value)}`),
     ...contact.emails.map((e) => `EMAIL;TYPE=${safeType(e.type, 'INTERNET')}:${escapeText(e.value)}`),
-    `NOTE:${escapeText(contact.notes ?? '')}`,
+    ...detailLines(details),
+    `NOTE:${escapeText(notes.filter(Boolean).join('\n'))}`,
     `REV:${escapeText(contact.rev ?? new Date(contact.importedAt).toISOString())}`,
     `UID:${escapeText(contact.id)}`,
-    categories, 'END:VCARD',
+    extraLabels.length === allLabels.length ? categories : `CATEGORIES:${extraLabels.map(escapeText).join(',')}`, 'END:VCARD',
   ]
   return lines.map(foldLine).join('\r\n') + '\r\n'
+}
+
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
+
+/** "1990-05-12" stays; a yearless "May 12" becomes the vCard partial date "--05-12". */
+function vcardDate(value: string): string | undefined {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const partial = /^([A-Za-z]+) (\d{1,2})$/.exec(value)
+  const month = partial ? MONTHS.indexOf(partial[1].toLowerCase()) + 1 : 0
+  return month ? `--${String(month).padStart(2, '0')}-${partial![2].padStart(2, '0')}` : undefined
+}
+
+/** Details stored for CSV and phone-picker contacts, written the way Apple and Google Contacts read them. */
+function detailLines(details: ContactDetail[]): string[] {
+  const lines: string[] = []
+  let item = 0
+  const labeled = (line: string, label: string | undefined) => {
+    if (!label) return lines.push(line)
+    item++
+    lines.push(`item${item}.${line}`, `item${item}.X-ABLabel:${escapeText(label)}`)
+  }
+  const nicknames = details.filter((detail) => detail.kind === 'nickname').map((detail) => escapeText(detail.value))
+  if (nicknames.length) lines.push(`NICKNAME:${nicknames.join(',')}`)
+  for (const detail of details) {
+    const value = escapeText(detail.value)
+    const type = detail.label ? `;TYPE=${safeType(detail.label, 'OTHER')}` : ''
+    if (detail.kind === 'address') {
+      const address = detail.address ?? { street: detail.value }
+      lines.push(`ADR${type}:;;${[address.street, address.city, address.region, address.postalCode, address.country].map((part) => escapeText(part ?? '')).join(';')}`)
+    } else if (detail.kind === 'birthday' && vcardDate(detail.value)) lines.push(`BDAY:${vcardDate(detail.value)}`)
+    else if ((detail.kind === 'anniversary' || detail.kind === 'date') && vcardDate(detail.value)) {
+      labeled(`X-ABDATE:${vcardDate(detail.value)}`, detail.kind === 'anniversary' ? '_$!<Anniversary>!$_' : detail.label ?? 'Other')
+    } else if (detail.kind === 'website') labeled(`URL:${value}`, detail.label)
+    else if (detail.kind === 'social') lines.push(`X-SOCIALPROFILE${type}:${value}`)
+    else if (detail.kind === 'messaging') lines.push(`IMPP${detail.label ? `;X-SERVICE-TYPE=${safeType(detail.label, 'Other')}` : ''}:x-apple:${value}`)
+    else if (detail.kind === 'related') labeled(`X-ABRELATEDNAMES:${value}`, detail.label ?? 'Other')
+  }
+  return lines
 }
 
 function safeType(type: string | undefined, fallback: string): string {

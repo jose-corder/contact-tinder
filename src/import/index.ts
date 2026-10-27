@@ -63,7 +63,7 @@ export async function importContacts(contacts: Contact[], onProgress?: OnProgres
 function comparable(c: Contact): string {
   // Thumbnail encoders may differ by browser; exact original photo bytes are in raw.
   return JSON.stringify([c.id, c.displayName, c.givenName, c.familyName, c.org, c.title,
-    c.notes, c.rev, c.raw, metadata(c).rawCards ?? [], c.source, c.phones.map((p) => [p.value, p.type, p.e164]),
+    c.notes, c.rev, c.raw, metadata(c).rawCards ?? [], metadata(c).details ?? [], c.source, c.phones.map((p) => [p.value, p.type, p.e164]),
     c.emails.map((e) => [e.value, e.type]), c.phoneKeys, c.emailKeys,
     !c.raw && c.photo ? [c.photo.size, c.photo.type] : null])
 }

@@ -7,6 +7,8 @@ import { Button, Empty, Frame, InlineNotice, Skeleton, TopBar } from '@/ui'
 import { cleanFile, groupFiles, type ExportFile } from '@/export/vcf'
 import { prepareVcards, fileStub } from '@/export/prepare'
 import { csvText } from '@/export/csv'
+import { sheetTable } from '@/export/sheet'
+import { XLSX_TYPE, xlsxFile } from '@/export/xlsx'
 import { deleteListText } from '@/export/deleteList'
 import { dbRevision } from '@/export/json'
 import { exportPlatform, platformHint } from '@/export/platform'
@@ -57,6 +59,15 @@ export default function ExportScreen() {
         <p className="my-3 t-body text-ink-2">A checklist of {rows.filter((r) => r.decision.bucket === 'delete').length} contacts marked Delete. Review these names in your phone’s Contacts app and remove only the entries you intend to delete.</p>
         {textAction('delete list', 'delete-list.txt', 'text/plain', () => deleteListText(rows))}
       </section>
+      <section className="mb-6 rounded-[20px] border border-rule p-5">
+        <h2 className="font-serif t-title">Spreadsheet</h2>
+        <p className="my-3 t-body text-ink-2">Every contact on one row. Your sorting comes first: bucket, status, types and tags. Then every name part, phone and email with its label, addresses, birthdays, websites, related people and notes.</p>
+        <p className="tabular mb-3 t-meta text-ink-2">{rows.length.toLocaleString()} contacts · all-contacts.xlsx</p>
+        <ExportAction label="Excel spreadsheet" revision={data?.revision} prepareFirst stubs={[new File([], 'all-contacts.xlsx', { type: XLSX_TYPE })]}
+          prepare={async () => [await xlsxFile(sheetTable(rows), 'all-contacts.xlsx')]} />
+        <p className="mt-2 t-meta text-ink-2">Opens in Excel, Numbers and Google Sheets.</p>
+        <div className="mt-4">{textAction('CSV', 'all-contacts.csv', 'text/csv', () => csvText(rows))}</div>
+      </section>
       <details className="border-y border-rule py-2">
         <summary className="min-h-11 cursor-pointer py-3 font-serif t-heading">More exports</summary>
         <p className="mb-4 t-body text-ink-2">Lists overlap. Import the clean address book once, or choose individual lists. Everything includes contacts marked Delete.</p>
@@ -76,8 +87,6 @@ export default function ExportScreen() {
         </table>
         <div className="my-4 space-y-4">
           {contactAction(files, 'all contact files')}
-          <p className="t-body text-ink-2">Open the CSV in a spreadsheet to review every contact and label.</p>
-          {textAction('CSV', 'all-contacts.csv', 'text/csv', () => csvText(rows))}
         </div>
       </details>
     </>}

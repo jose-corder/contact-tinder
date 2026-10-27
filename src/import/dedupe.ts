@@ -4,6 +4,7 @@ import { CHUNK_SIZE, yieldToBrowser, type OnProgress } from './progress'
 import { defaultCountry as regionCountry } from './region'
 import { identityName, metadata, rawCards, type ImportedContact } from './metadata'
 import { hash } from './hash'
+import { uniqueDetails } from './details'
 import { describeMergePair, type MergePair } from './mergeSummary'
 
 export function phoneKey(value: string, defaultCountry: string = regionCountry()): string | undefined {
@@ -53,6 +54,8 @@ export function mergeContactFields(first: Contact, next: Contact, defaultCountry
     notes: [...new Set([first.notes, next.notes].filter(Boolean).flatMap((note) => note!.split('\n')))].join('\n') || undefined,
     photo: first.photo?.size ? first.photo : next.photo,
     rev: first.rev || next.rev,
+    ...(metadata(first).details || metadata(next).details
+      ? { details: uniqueDetails([...metadata(first).details ?? [], ...metadata(next).details ?? []]) } : {}),
     raw,
     phones, emails,
     phoneKeys: [...new Set([...first.phoneKeys, ...next.phoneKeys, ...keys.phoneKeys])],

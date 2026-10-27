@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { isAppleMobile, isContactPickerSupported, phoneContactsAccess, pickContacts } from '@/import/contactPicker'
+import { metadata } from '@/import/metadata'
 
 afterEach(() => { vi.unstubAllGlobals() })
 
@@ -34,7 +35,7 @@ describe('contact picker', () => {
     expect(select).toHaveBeenCalledWith(['name', 'email', 'address'], { multiple: true })
   })
 
-  it('preserves the first icon as a photo and formats addresses as notes', async () => {
+  it('preserves the first icon as a photo and keeps addresses as structured details', async () => {
     const photo = new Blob(['portrait'], { type: 'image/png' })
     const select = vi.fn().mockResolvedValue([{ name: ['Ada'], icon: [photo, new Blob(['other'])], address: [
       { addressLine: [' 123 Main St ', ' Apt 2 '], city: ' London ', region: ' Greater London ', postalCode: ' N1 ', country: ' UK ' },
@@ -47,7 +48,12 @@ describe('contact picker', () => {
     const [contact] = await pickContacts()
     expect(select).toHaveBeenCalledWith(['name', 'tel', 'email', 'icon', 'address'], { multiple: true })
     expect(contact.photo).toBe(photo)
-    expect(contact.notes).toBe('Address: 123 Main St, Apt 2, London, Greater London, N1, UK\nAddress: PO Box 4, Oxford')
+    expect(contact.notes).toBeUndefined()
+    expect(metadata(contact).details).toEqual([
+      { kind: 'address', value: '123 Main St, Apt 2, London, Greater London, N1, UK',
+        address: { street: '123 Main St, Apt 2', city: 'London', region: 'Greater London', postalCode: 'N1', country: 'UK' } },
+      { kind: 'address', value: 'PO Box 4, Oxford', address: { street: 'PO Box 4', city: 'Oxford' } },
+    ])
   })
 
   it.each(['absent', 'throws', 'empty'] as const)('falls back to basic fields when getProperties is %s', async mode => {

@@ -24,7 +24,7 @@ function header(size: number) {
     long: (at: number, value: number) => view.setUint32(at, value, true) }
 }
 
-export async function zipFiles(files: File[]): Promise<File> {
+export async function zipFiles(files: File[], archiveName = 'contacts-export.zip', type = 'application/zip'): Promise<File> {
   if (files.length > 0xffff) throw new Error('Too many files for a ZIP archive.')
   const local: BlobPart[] = [], central: BlobPart[] = []
   const names = new Set<string>()
@@ -56,7 +56,7 @@ export async function zipFiles(files: File[]): Promise<File> {
   const end = header(22)
   end.long(0, 0x06054b50); end.short(8, files.length); end.short(10, files.length)
   end.long(12, directorySize); end.long(16, offset)
-  return new File([...local, ...central, end.bytes], 'contacts-export.zip', { type: 'application/zip' })
+  return new File([...local, ...central, end.bytes], archiveName, { type })
 }
 
 export async function packageFiles(files: File[]): Promise<File[]> {

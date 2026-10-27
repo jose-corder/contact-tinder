@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Papa from 'papaparse'
 import { csvText } from '@/export/csv'
+import { SHEET_HEADERS } from '@/export/sheet'
 import { deleteListText } from '@/export/deleteList'
 import { row } from './fixtures'
 
@@ -11,8 +12,12 @@ describe('text exports', () => {
     Object.assign(r.contact, { displayName: 'Ana, Lane', givenName: 'Ana', familyName: 'Lane', org: 'Studio', title: 'Lead',
       phones: [{ value: '111' }, { value: '222' }], emails: [{ value: 'a@example.com' }], notes: 'Line 1\nLine 2' })
     const parsed = Papa.parse<string[]>(csvText([r])).data
-    expect(parsed[0]).toEqual(['Name', 'Given name', 'Family name', 'Organization', 'Department', 'Title' /* Finding #15 */, 'Phones', 'Emails', 'Phone 1', 'Phone 2', 'Phone 3', 'Email 1', 'Email 2', 'Bucket', 'Work status', 'Work types', 'Relation', 'Personal types', 'Tags', 'Notes', 'Source', 'Added'])
-    expect(parsed[1]).toEqual(['Ana, Lane', 'Ana', 'Lane', 'Studio', '', 'Lead' /* Finding #15 */, '111; 222', 'a@example.com', '111', '222', '', 'a@example.com', '', 'Work', 'Current', 'Client', '', '', 'vip; local', 'Line 1\nLine 2', 'csv', '1970-01-01T00:00:00.000Z'])
+    expect(parsed[0]).toEqual(SHEET_HEADERS)
+    const record = Object.fromEntries(SHEET_HEADERS.map((header, i) => [header, parsed[1][i]]))
+    expect(record).toMatchObject({ Name: 'Ana, Lane', Bucket: 'Work', 'Work status': 'Current', 'Work types': 'Client', Tags: 'vip; local',
+      'Given name': 'Ana', 'Family name': 'Lane', Organization: 'Studio', Department: '', Title: 'Lead' /* Finding #15 */,
+      'Phone 1': '111', 'Phone 2': '222', 'Phone 3': '', 'Email 1': 'a@example.com', 'Email 2': '',
+      Notes: 'Line 1\nLine 2', Source: 'CSV file', Added: '1970-01-01T00:00:00.000Z' })
     expect(Papa.parse(csvText([]), { skipEmptyLines: true }).data).toHaveLength(1)
   })
   it('sorts delete contacts by name and omits missing phone/email parts', () => {

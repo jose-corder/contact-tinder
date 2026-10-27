@@ -3,6 +3,7 @@ import { formatDate } from '@/ui/format'
 import { metadata, rawCards } from './metadata'
 import { emailKey, phoneKey } from './dedupe'
 import { structured } from './vcard'
+import type { DetailKind } from './details'
 import { decodeQuotedPrintable, logicalLines, property, unescapeValue } from './vcardCodec'
 
 export interface RawField {
@@ -82,5 +83,20 @@ export function readRawFields(contact: Contact): RawField[] {
       result.push({ label, value, kind, ...(href ? { href } : {}) })
     }
   }
+  // CSV and phone-picker imports store their extra columns as details instead of a source card.
+  for (const detail of metadata(contact).details ?? []) {
+    const name = DETAIL_LABELS[detail.kind]
+    const label = detail.kind === 'other' ? detail.label || name : detail.label ? `${name} · ${detail.label}` : name
+    const href = detail.kind === 'website' ? websiteHref(detail.value) : undefined
+    const kind: RawField['kind'] = detail.kind === 'address' ? 'address' : detail.kind === 'website' ? 'url' : 'text'
+    const identity = JSON.stringify([kind, label, detail.value])
+    if (seen.has(identity)) continue
+    seen.add(identity)
+    result.push({ label, value: detail.value, kind, ...(href ? { href } : {}) })
+  }
   return result
 }
+
+const DETAIL_LABELS: Record<DetailKind, string> = { prefix: 'Name prefix', middle: 'Middle name', suffix: 'Name suffix',
+  nickname: 'Nickname', address: 'Address', birthday: 'Birthday', anniversary: 'Anniversary', date: 'Date', website: 'Website',
+  social: 'Social profile', messaging: 'Messaging', related: 'Related person', group: 'Group', other: 'Other' }
