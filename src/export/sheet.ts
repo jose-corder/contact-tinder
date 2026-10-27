@@ -2,6 +2,7 @@ import type { ContactWithDecision } from '@/db/repo'
 import { BUCKET_META, WORK_STATUS_META, WORK_TYPE_META, PERSONAL_RELATION_META, PERSONAL_TYPE_META } from '@/domain/taxonomy'
 import { contactDetails, labeledEntries, type ContactDetail, type DetailKind, type LabeledValue } from '@/import/details'
 import { sourceLabel } from '@/import/sourceLabel'
+import { yieldToBrowser } from '@/import/progress'
 
 /** One row per contact: your sorting first, then every field the contact carries. Shared by CSV and Excel. */
 export interface SheetTable { headers: string[]; rows: string[][] }
@@ -18,13 +19,14 @@ export const SHEET_HEADERS = [
 ]
 
 const join = (values: Array<string | undefined>) => [...new Set(values.map((value) => value?.trim()).filter(Boolean))].join('; ')
-const withLabel = (entry: { value: string; label?: string }) => entry.label ? `${entry.label}: ${entry.value}` : entry.value
+const listValue = (value: string) => /;|: |[\r\n"]/.test(value) ? JSON.stringify(value) : value
+const withLabel = (entry: { value: string; label?: string }) => entry.label ? `${listValue(entry.label)}: ${listValue(entry.value)}` : listValue(entry.value)
 const pair = (entry: LabeledValue | undefined) => [entry?.value ?? '', entry?.label ?? '']
 
 export function sheetRow({ contact: c, decision: d }: ContactWithDecision): string[] {
   const details = contactDetails(c)
   const of = (kind: DetailKind): ContactDetail[] => details.filter((detail) => detail.kind === kind)
-  const values = (kind: DetailKind) => join(of(kind).map((detail) => detail.value))
+  const values = (kind: DetailKind) => join(of(kind).map((detail) => listValue(detail.value)))
   const labeled = (kind: DetailKind) => join(of(kind).map(withLabel))
   const { phones, emails } = labeledEntries(c)
   const [address, ...moreAddresses] = of('address')
@@ -36,15 +38,15 @@ export function sheetRow({ contact: c, decision: d }: ContactWithDecision): stri
     d.bucket === 'work' ? d.workTypes.map((t) => WORK_TYPE_META[t].label).join('; ') : '',
     d.bucket === 'personal' && d.relation ? PERSONAL_RELATION_META[d.relation].label : '',
     d.bucket === 'personal' ? d.personalTypes.map((t) => PERSONAL_TYPE_META[t].label).join('; ') : '',
-    d.customTags.join('; '),
+    d.customTags.map(listValue).join('; '),
     values('prefix'), c.givenName ?? '', values('middle'), c.familyName ?? '', values('suffix'), values('nickname'),
     company ?? '', department.join(' · '), c.title ?? '',
     ...pair(phones[0]), ...pair(phones[1]), ...pair(phones[2]), join(phones.slice(3).map(withLabel)),
     ...pair(emails[0]), ...pair(emails[1]), join(emails.slice(2).map(withLabel)),
-    address?.label ?? '', address ? address.address?.street ?? (address.address ? '' : address.value) : '',
+    address?.label ?? '', address ? address.address?.street || (Object.values(address.address ?? {}).some((part) => part?.trim()) ? '' : address.value) : '',
     address?.address?.city ?? '', address?.address?.region ?? '', address?.address?.postalCode ?? '', address?.address?.country ?? '',
     join(moreAddresses.map(withLabel)),
-    of('birthday')[0]?.value ?? '', values('anniversary'), labeled('date'), labeled('website'), labeled('social'),
+    values('birthday'), values('anniversary'), labeled('date'), labeled('website'), labeled('social'),
     labeled('messaging'), labeled('related'), values('group'),
     c.notes ?? '', labeled('other'), c.photo?.size ? 'Yes' : '', sourceLabel(c), c.rev ?? '', new Date(c.importedAt).toISOString(),
   ]
@@ -52,4 +54,13 @@ export function sheetRow({ contact: c, decision: d }: ContactWithDecision): stri
 
 export function sheetTable(rows: ContactWithDecision[]): SheetTable {
   return { headers: SHEET_HEADERS, rows: rows.map(sheetRow) }
+}
+
+export async function prepareSheet(rows: ContactWithDecision[]): Promise<SheetTable> {
+  const table: SheetTable = { headers: SHEET_HEADERS, rows: [] }
+  for (let offset = 0; offset < rows.length; offset += 200) {
+    table.rows.push(...rows.slice(offset, offset + 200).map(sheetRow))
+    if (rows.length > 1000) await yieldToBrowser()
+  }
+  return table
 }

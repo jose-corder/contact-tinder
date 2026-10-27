@@ -51,7 +51,7 @@ export function mergeContactFields(first: Contact, next: Contact, defaultCountry
     familyName: first.familyName || next.familyName,
     org: first.org || next.org,
     title: first.title || next.title,
-    notes: [...new Set([first.notes, next.notes].filter(Boolean).flatMap((note) => note!.split('\n')))].join('\n') || undefined,
+    notes: first.notes === next.notes ? first.notes : [...new Set([first.notes, next.notes].filter(Boolean).flatMap((note) => note!.split('\n')))].join('\n') || undefined,
     photo: first.photo?.size ? first.photo : next.photo,
     rev: first.rev || next.rev,
     ...(metadata(first).details || metadata(next).details

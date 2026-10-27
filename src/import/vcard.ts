@@ -24,7 +24,7 @@ function normalizeRev(value: string): string {
 export function parseVcf(text: string, source: ContactSource = 'vcf', defaultCountry: string = regionCountry()): Contact[] {
   const contacts: Contact[] = []
   // Capture from the original string, including its line endings and folds.
-  const cards = text.replace(/^\uFEFF/, '').matchAll(/^BEGIN:VCARD[ \t]*\r?\n[\s\S]*?^END:VCARD[ \t]*(?:\r?\n|$)/gim)
+  const cards = text.replace(/^\uFEFF/, '').matchAll(/^BEGIN:VCARD[ \t]*(?:\r\n|\n|\r)[\s\S]*?^END:VCARD[ \t]*(?:\r\n|\n|\r|$)/gim)
   for (const [raw] of cards) {
     const fields: Record<string, string> = {}
     const phones: PhoneEntry[] = []
@@ -34,7 +34,11 @@ export function parseVcf(text: string, source: ContactSource = 'vcf', defaultCou
     const labels = new Map<string, string>()
     for (const line of lines) {
       const prop = property(line)
-      if (prop?.group && prop.name === 'X-ABLABEL') labels.set(prop.group, unescapeValue(prop.value).replace(/^_\$!<|>!\$_$/g, ''))
+      if (prop?.group && prop.name === 'X-ABLABEL') {
+        const value = prop.params.get('ENCODING')?.[0]?.toUpperCase() === 'QUOTED-PRINTABLE'
+          ? decodeQuotedPrintable(prop.value, prop.params.get('CHARSET')?.[0]) : prop.value
+        labels.set(prop.group, unescapeValue(value).replace(/^_\$!<|>!\$_$/g, '').trim())
+      }
     }
     for (const line of lines) {
       const prop = property(line)

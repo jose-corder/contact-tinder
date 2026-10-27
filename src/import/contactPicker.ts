@@ -1,6 +1,6 @@
 import type { Contact } from '@/domain/types'
 import { makeContact } from './contact'
-import { formatAddress, type ContactDetail } from './details'
+import { formatAddress, uniqueDetails, type ContactDetail } from './details'
 
 /**
  * Phone contacts via the Contact Picker API (navigator.contacts).
@@ -69,14 +69,18 @@ async function supportedProperties(picker: ContactPicker): Promise<PickerPropert
   return ['name', 'tel', 'email']
 }
 
+const strings = (value: unknown): string[] => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+const clean = (value: unknown) => typeof value === 'string' ? value.trim() || undefined : undefined
+
 function addressDetails(addresses: PickerAddress[] | undefined): ContactDetail[] {
-  return (addresses ?? []).flatMap((entry) => {
-    const address = { street: (entry.addressLine ?? []).map((line) => line.trim()).filter(Boolean).join(', ') || undefined,
-      city: entry.city?.trim() || undefined, region: entry.region?.trim() || undefined,
-      postalCode: entry.postalCode?.trim() || undefined, country: entry.country?.trim() || undefined }
+  return uniqueDetails((Array.isArray(addresses) ? addresses : []).flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const address = { street: strings(entry.addressLine).map((line) => line.trim()).filter(Boolean).join(', ') || undefined,
+      city: clean(entry.city), region: clean(entry.region),
+      postalCode: clean(entry.postalCode), country: clean(entry.country) }
     const value = formatAddress(address)
     return value ? [{ kind: 'address' as const, value, address }] : []
-  })
+  }))
 }
 
 /** Opens the phone's contact chooser and converts the selection. Rejects with AbortError on cancel. */
@@ -84,13 +88,14 @@ export async function pickContacts(): Promise<Contact[]> {
   if (!isContactPickerSupported()) throw new Error('This browser cannot open your phone contacts. Import a contacts file instead.')
   const picker = (navigator as PickerNavigator).contacts!
   const selected = await picker.select(await supportedProperties(picker), { multiple: true })
-  return selected.flatMap((entry) => {
+  return (Array.isArray(selected) ? selected : []).flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
     const details = addressDetails(entry.address)
     const contact = makeContact({
-      displayName: entry.name?.find((name) => name.trim()),
-      phones: (entry.tel ?? []).map((value) => ({ value })),
-      emails: (entry.email ?? []).map((value) => ({ value })),
-      photo: entry.icon?.find((icon) => icon.size > 0),
+      displayName: strings(entry.name).find((name) => name.trim()),
+      phones: strings(entry.tel).map((value) => ({ value })),
+      emails: strings(entry.email).map((value) => ({ value })),
+      photo: Array.isArray(entry.icon) ? entry.icon.find((icon) => icon instanceof Blob && icon.size > 0) : undefined,
       ...(details.length ? { details } : {}),
     }, 'picker')
     return contact ? [contact] : []

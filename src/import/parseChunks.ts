@@ -14,7 +14,7 @@ export async function parseVcfChunks(text: string, onProgress?: OnProgress, sour
   let skipped = 0
   let start: number | undefined
   let processed = 0
-  const boundaries = /^(?:\uFEFF)?(BEGIN|END):VCARD[ \t]*(?:\r?\n|$)/gim
+  const boundaries = /^(?:\uFEFF)?(BEGIN|END):VCARD[ \t]*(?:\r\n|\n|\r|$)/gim
   for (const match of text.matchAll(boundaries)) {
     if (match[1].toUpperCase() === 'BEGIN') {
       if (start !== undefined) skipped++

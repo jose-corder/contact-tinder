@@ -20,18 +20,30 @@ function splitOutsideQuotes(value: string, delimiter: string): string[] {
 }
 
 export function property(line: string) {
-  const [header, ...values] = splitOutsideQuotes(line, ':')
-  if (!values.length) return undefined
+  let quoted = false, colon = -1
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"' && line[i - 1] !== '\\') quoted = !quoted
+    if (line[i] === ':' && !quoted) { colon = i; break }
+  }
+  if (colon < 0) return undefined
+  const header = line.slice(0, colon)
   const [name, ...parameters] = splitOutsideQuotes(header, ';')
   const params = new Map<string, string[]>()
   for (const param of parameters) {
     const equals = param.indexOf('=')
     const key = equals < 0 ? 'TYPE' : param.slice(0, equals).toUpperCase()
-    const value = (equals < 0 ? param : param.slice(equals + 1)).replace(/^"|"$/g, '')
-    params.set(key, [...(params.get(key) ?? []), ...value.split(',').map((v) => v.replace(/^"|"$/g, ''))])
+    const value = equals < 0 ? param : param.slice(equals + 1)
+    const values = splitOutsideQuotes(value, ',').map(v => v.replace(/^"|"$/g, ''))
+      .flatMap(v => key === 'TYPE' ? v.split(',') : [v])
+      .map(v => v.replace(/\^(n|'|\^)/gi, (_, escape: string) => escape.toLowerCase() === 'n' ? '\n' : escape === "'" ? '"' : '^'))
+    params.set(key, [...(params.get(key) ?? []), ...values])
   }
-  return { name: name.split('.').pop()!.toUpperCase(), group: name.includes('.') ? name.slice(0, name.lastIndexOf('.')).toLowerCase() : undefined, params, value: values.join(':') }
+  return { name: name.split('.').pop()!.toUpperCase(), group: name.includes('.') ? name.slice(0, name.lastIndexOf('.')).toLowerCase() : undefined, params, value: line.slice(colon + 1) }
 }
+
+export const binaryProperty = (prop: NonNullable<ReturnType<typeof property>>) =>
+  /^(?:B|BASE64)$/i.test(prop.params.get('ENCODING')?.[0] ?? '') || /^binary$/i.test(prop.params.get('VALUE')?.[0] ?? '')
+  || /^data:[^,]*;base64,/i.test(prop.value)
 
 export function logicalLines(raw: string): string[] {
   const lines: string[] = []
@@ -58,13 +70,14 @@ export function logicalLines(raw: string): string[] {
 
 export function decodeQuotedPrintable(value: string, charset = 'UTF-8'): string {
   const bytes: number[] = []
+  const encoder = new TextEncoder()
   for (let i = 0; i < value.length;) {
     if (value[i] === '=' && /^[\da-f]{2}$/i.test(value.slice(i + 1, i + 3))) {
       bytes.push(parseInt(value.slice(i + 1, i + 3), 16))
       i += 3
     } else {
       const character = String.fromCodePoint(value.codePointAt(i)!)
-      bytes.push(...new TextEncoder().encode(character))
+      bytes.push(...encoder.encode(character))
       i += character.length
     }
   }

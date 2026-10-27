@@ -2,7 +2,7 @@ import type { Contact } from '@/domain/types'
 import { emailKey, phoneKey } from './dedupe'
 import { metadata, rawCards } from './metadata'
 import { structured } from './vcard'
-import { decodeQuotedPrintable, logicalLines, property, unescapeValue } from './vcardCodec'
+import { binaryProperty, decodeQuotedPrintable, logicalLines, property, unescapeValue } from './vcardCodec'
 
 /**
  * Everything on a contact beyond the core projection (name, org, phones, emails, notes): addresses,
@@ -38,12 +38,12 @@ const capitalize = (value: string) => value.charAt(0).toUpperCase() + value.slic
 /** "WORK,CELL" → "Work mobile"; "HOME;FAX" → "Home fax"; custom labels pass through. */
 export function humanLabel(types: readonly string[]): string {
   const location: string[] = [], kinds: string[] = []
-  for (const type of types.flatMap((value) => value.split(','))) {
-    const trimmed = type.trim(), lower = trimmed.toLowerCase()
+  for (const type of types.flatMap((value) => value.split(/[,;]/))) {
+    const trimmed = type.trim().replace(/^x-/i, ''), lower = trimmed.toLowerCase()
     if (!trimmed || IGNORED.has(lower) || /^pref=?\d*$/.test(lower)) continue
     const word = WORDS[lower] ?? (/^[A-Z0-9_-]+$/.test(trimmed) ? lower.replace(/^x-/, '').replace(/[_-]+/g, ' ') : trimmed)
     const target = LOCATIONS.includes(lower) || lower === 'business' ? location : kinds
-    if (!location.includes(word) && !kinds.includes(word)) target.push(word)
+    if (![...location, ...kinds].some(existing => existing.toLowerCase() === word.toLowerCase())) target.push(word)
   }
   const words = [...location, ...kinds].join(' ')
   return /^[a-z]/.test(words) && !words.startsWith('iPhone') ? capitalize(words) : words
@@ -71,19 +71,22 @@ export function labeledEntries(contact: Contact): { phones: LabeledValue[]; emai
   const country = metadata(contact).defaultCountry
   const phoneId = (value: string) => phoneKey(value, country) ?? value.trim()
   const emailId = (value: string) => emailKey(value) ?? value.trim().toLowerCase()
-  const phoneLabels = new Map<string, string>(), emailLabels = new Map<string, string>()
+  type Label = { text: string; custom: boolean }
+  const phoneLabels = new Map<string, Label>(), emailLabels = new Map<string, Label>()
   for (const { props, labels } of cardProps(contact)) for (const prop of props) {
     if (prop.name !== 'TEL' && prop.name !== 'EMAIL') continue
     const value = unescapeValue(decoded(prop)).trim().replace(/^(?:tel|mailto):/i, '')
     const label = labelFor(prop, labels)
     const [map, id] = prop.name === 'TEL' ? [phoneLabels, phoneId(value)] : [emailLabels, emailId(value)]
-    if (label && !map.has(id)) map.set(id, label)
+    const previous = map.get(id), custom = !!(prop.group && labels.get(prop.group))
+    if (label && (!previous || (custom && !previous.custom)
+      || (custom === previous.custom && label.split(/\s+/).length > previous.text.split(/\s+/).length))) map.set(id, { text: label, custom })
   }
   return {
     phones: contact.phones.map((phone) => ({ value: phone.value,
-      label: phoneLabels.get(phoneId(phone.e164 || phone.value)) || humanLabel(phone.type ? [phone.type] : []) })),
+      label: phoneLabels.get(phoneId(phone.e164 || phone.value))?.text || humanLabel(phone.type ? [phone.type] : []) })),
     emails: contact.emails.map((email) => ({ value: email.value,
-      label: emailLabels.get(emailId(email.value)) || humanLabel(email.type ? [email.type] : []) })),
+      label: emailLabels.get(emailId(email.value))?.text || humanLabel(email.type ? [email.type] : []) })),
   }
 }
 
@@ -95,8 +98,12 @@ export function dateText(value: string, omitYear?: string): string {
   const full = /^(\d{4})-?(\d{2})-?(\d{2})(?:T[\d:.]*(?:Z|[+-]\d{2}:?\d{2})?)?$/.exec(trimmed)
   const partial = /^--(\d{2})-?(\d{2})$/.exec(trimmed)
   const [year, month, day] = full ? [full[1], full[2], full[3]] : partial ? [undefined, partial[1], partial[2]] : []
-  if (!month || !day || +month < 1 || +month > 12 || +day < 1 || +day > 31) return trimmed
-  if (year && year !== omitYear && year !== '1604') return `${year}-${month}-${day}`
+  if (!month || !day || +month < 1 || +month > 12 || (year && +year === 0)) return trimmed
+  const calendarYear = !year || year === omitYear ? 2000 : +year
+  const leap = calendarYear % 4 === 0 && (calendarYear % 100 !== 0 || calendarYear % 400 === 0)
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  if (+day < 1 || +day > days[+month - 1]) return trimmed
+  if (year && year !== omitYear) return `${year}-${month}-${day}`
   return `${MONTHS[+month - 1]} ${+day}`
 }
 
@@ -135,6 +142,7 @@ function androidCustom(value: string): ContactDetail | undefined {
 }
 
 function propDetails(prop: Prop, labels: Map<string, string>): ContactDetail[] {
+  if (SKIP.has(prop.name) || binaryProperty(prop)) return []
   const raw = decoded(prop)
   const text = unescapeValue(raw).trim()
   const label = labelFor(prop, labels) || undefined
@@ -144,7 +152,8 @@ function propDetails(prop: Prop, labels: Map<string, string>): ContactDetail[] {
     return [['prefix', prefix], ['middle', middle], ['suffix', suffix]].filter(([, value]) => value)
       .map(([kind, value]) => ({ kind: kind as DetailKind, value: value! }))
   }
-  if (name === 'NICKNAME') return text.split(/\s*,\s*/).filter(Boolean).map((value) => ({ kind: 'nickname', value }))
+  if (name === 'NICKNAME') return (raw.match(/(?:\\.|[^,\\])+/g) ?? []).map(part => unescapeValue(part).trim())
+    .filter(Boolean).map((value) => ({ kind: 'nickname', value }))
   if (name === 'CATEGORIES') return (raw.match(/(?:\\.|[^,\\])+/g) ?? []).map((part) => unescapeValue(part).trim())
     .filter(Boolean).map((value) => ({ kind: 'group', value }))
   if (name === 'ADR') {
@@ -152,26 +161,28 @@ function propDetails(prop: Prop, labels: Map<string, string>): ContactDetail[] {
     const address = { street: [box, street, extended].filter(Boolean).join(', ') || undefined, city: city || undefined,
       region: region || undefined, postalCode: postalCode || undefined, country: country || undefined }
     const value = formatAddress(address)
-    return value ? [{ kind: 'address', value, label, address }] : []
+    const formatted = prop.params.get('LABEL')?.[0]?.trim()
+    return value ? [{ kind: 'address', value, label, address }] : formatted ? [{ kind: 'address', value: formatted, label }] : []
   }
   if (!text) return []
   const omitYear = prop.params.get('X-APPLE-OMIT-YEAR')?.[0]
-  if (name === 'BDAY') return [{ kind: 'birthday', value: dateText(text, omitYear) }]
-  if (name === 'ANNIVERSARY' || name === 'X-ANNIVERSARY') return [{ kind: 'anniversary', value: dateText(text, omitYear) }]
+  const date = () => prop.params.get('VALUE')?.[0]?.toLowerCase() === 'text' ? text : dateText(text, omitYear)
+  if (name === 'BDAY') return [{ kind: 'birthday', value: date() }]
+  if (name === 'ANNIVERSARY' || name === 'X-ANNIVERSARY') return [{ kind: 'anniversary', value: date() }]
   if (name === 'X-ABDATE') {
-    return [/anniversary/i.test(label ?? '') ? { kind: 'anniversary', value: dateText(text, omitYear) }
-      : { kind: 'date', value: dateText(text, omitYear), label }]
+    return [/anniversary/i.test(label ?? '') ? { kind: 'anniversary', value: date() }
+      : { kind: 'date', value: date(), label }]
   }
   if (name === 'URL') return [{ kind: 'website', value: text, label: label === 'Other' ? undefined : label }]
   if (name === 'X-SOCIALPROFILE') {
     const service = prop.params.get('TYPE')?.find((type) => !IGNORED.has(type.toLowerCase()))
     return [{ kind: 'social', value: prop.params.get('X-USER')?.[0] || text.replace(/^x-apple:/i, ''),
-      label: service ? capitalize(service) : undefined }]
+      label: (prop.group && labels.get(prop.group)) || (service ? capitalize(service) : undefined) }]
   }
   if (name === 'IMPP') {
     const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(text)?.[1]
     const service = prop.params.get('X-SERVICE-TYPE')?.[0] || (scheme && scheme.toLowerCase() !== 'x-apple' ? capitalize(scheme) : undefined)
-    return [{ kind: 'messaging', value: text.replace(/^[a-z][a-z0-9+.-]*:/i, ''), label: service || label }]
+    return [{ kind: 'messaging', value: text.replace(/^[a-z][a-z0-9+.-]*:/i, ''), label: (prop.group && labels.get(prop.group)) || service || label }]
   }
   if (MESSAGING[name]) return [{ kind: 'messaging', value: text, label: MESSAGING[name] }]
   if (name === 'X-ABRELATEDNAMES' || name === 'RELATED') return [{ kind: 'related', value: text.replace(/^text:/i, ''), label }]
@@ -181,14 +192,25 @@ function propDetails(prop: Prop, labels: Map<string, string>): ContactDetail[] {
   return [{ kind: 'other', value: text, label: OTHER_LABELS[name] ?? (labels.get(prop.group ?? '') || capitalize(name.replace(/^X-/, '').toLowerCase().replace(/[_-]+/g, ' '))) }]
 }
 
-const identity = (detail: ContactDetail) => JSON.stringify([detail.kind, detail.value.toLowerCase().replace(/\s+/g, ' ')])
+const normalized = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ')
+const identity = (detail: ContactDetail) => JSON.stringify([detail.kind,
+  ['website', 'social', 'messaging'].includes(detail.kind) ? detail.value.trim() : normalized(detail.value),
+  ['other', 'social', 'messaging', 'related', 'date'].includes(detail.kind) ? normalized(detail.label ?? '') : ''])
 
 export function uniqueDetails(details: Iterable<ContactDetail>): ContactDetail[] {
-  const seen = new Set<string>()
+  const seen = new Map<string, number>()
   const result: ContactDetail[] = []
   for (const detail of details) {
-    if (!detail.value.trim() || seen.has(identity(detail))) continue
-    seen.add(identity(detail))
+    if (!detail.value.trim()) continue
+    const key = identity(detail), index = seen.get(key)
+    if (index !== undefined) {
+      const first = result[index]
+      if ((!first.label && detail.label) || (!first.address && detail.address)) result[index] = { ...first,
+        ...(!first.label && detail.label ? { label: detail.label } : {}),
+        ...(!first.address && detail.address ? { address: detail.address } : {}) }
+      continue
+    }
+    seen.set(key, result.length)
     result.push(detail)
   }
   return result

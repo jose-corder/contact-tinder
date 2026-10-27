@@ -30,16 +30,16 @@ export function buildVcard(contact: Contact, labels: string[]): string {
   const details = metadata(contact).details ?? []
   const first = (kind: DetailKind) => escapeText(details.find((detail) => detail.kind === kind)?.value ?? '')
   const groups = details.filter((detail) => detail.kind === 'group').map((detail) => detail.value)
-  const notes = [contact.notes, ...details.filter((detail) => detail.kind === 'other').map((detail) => `${detail.label ?? 'Other'}: ${detail.value}`)]
+  const notes = [contact.notes, ...details.filter((detail) => detail.kind === 'other'
+    || (['birthday', 'anniversary', 'date'].includes(detail.kind) && !vcardDate(detail.value)))
+    .map((detail) => `${detail.label ?? (detail.kind === 'other' ? 'Other' : detail.kind[0].toUpperCase() + detail.kind.slice(1))}: ${detail.value}`)]
   const extraLabels = [...new Set([...groups, ...allLabels])]
   const lines = [
     'BEGIN:VCARD', 'VERSION:3.0',
     `N:${escapeText(contact.familyName ?? '')};${escapeText(contact.givenName ?? '')};${first('middle')};${first('prefix')};${first('suffix')}`,
     `FN:${escapeText(contact.displayName)}`,
     `ORG:${(contact.org ?? '').split(' · ').map(escapeText).join(';')}`, `TITLE:${escapeText(contact.title ?? '')}`,
-    ...contact.phones.map((p) => `TEL;TYPE=${safeType(p.type, 'CELL')}:${escapeText(p.e164 || p.value)}`),
-    ...contact.emails.map((e) => `EMAIL;TYPE=${safeType(e.type, 'INTERNET')}:${escapeText(e.value)}`),
-    ...detailLines(details),
+    ...detailLines(details, contact),
     `NOTE:${escapeText(notes.filter(Boolean).join('\n'))}`,
     `REV:${escapeText(contact.rev ?? new Date(contact.importedAt).toISOString())}`,
     `UID:${escapeText(contact.id)}`,
@@ -52,14 +52,19 @@ const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 
 
 /** "1990-05-12" stays; a yearless "May 12" becomes the vCard partial date "--05-12". */
 function vcardDate(value: string): string | undefined {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
-  const partial = /^([A-Za-z]+) (\d{1,2})$/.exec(value)
-  const month = partial ? MONTHS.indexOf(partial[1].toLowerCase()) + 1 : 0
-  return month ? `--${String(month).padStart(2, '0')}-${partial![2].padStart(2, '0')}` : undefined
+  const full = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(value.trim())
+  const partial = /^--(\d{2})-?(\d{2})$/.exec(value.trim())
+  const named = /^([A-Za-z]+) (\d{1,2})$/.exec(value.trim())
+  const year = full ? +full[1] : 2000
+  const month = full ? +full[2] : partial ? +partial[1] : named ? MONTHS.indexOf(named[1].toLowerCase()) + 1 : 0
+  const day = full ? +full[3] : partial ? +partial[2] : named ? +named[2] : 0
+  const days = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  if (month < 1 || month > 12 || day < 1 || day > days[month - 1]) return undefined
+  return `${full ? full[1] + '-' : '--'}${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
 /** Details stored for CSV and phone-picker contacts, written the way Apple and Google Contacts read them. */
-function detailLines(details: ContactDetail[]): string[] {
+function detailLines(details: ContactDetail[], contact: Contact): string[] {
   const lines: string[] = []
   let item = 0
   const labeled = (line: string, label: string | undefined) => {
@@ -67,27 +72,32 @@ function detailLines(details: ContactDetail[]): string[] {
     item++
     lines.push(`item${item}.${line}`, `item${item}.X-ABLabel:${escapeText(label)}`)
   }
+  for (const p of contact.phones) labeled(`TEL;TYPE=${safeType(p.type, 'CELL')}:${escapeText(p.e164 || p.value)}`,
+    p.type && !/^[a-z0-9,-]+$/i.test(p.type) ? p.type : undefined)
+  for (const e of contact.emails) labeled(`EMAIL;TYPE=${safeType(e.type, 'INTERNET')}:${escapeText(e.value)}`,
+    e.type && !/^[a-z0-9,-]+$/i.test(e.type) ? e.type : undefined)
   const nicknames = details.filter((detail) => detail.kind === 'nickname').map((detail) => escapeText(detail.value))
   if (nicknames.length) lines.push(`NICKNAME:${nicknames.join(',')}`)
   for (const detail of details) {
     const value = escapeText(detail.value)
-    const type = detail.label ? `;TYPE=${safeType(detail.label, 'OTHER')}` : ''
+    const token = detail.label && /^[a-z0-9-]+$/i.test(detail.label) ? detail.label : undefined
+    const type = token ? `;TYPE=${token}` : ''
     if (detail.kind === 'address') {
-      const address = detail.address ?? { street: detail.value }
-      lines.push(`ADR${type}:;;${[address.street, address.city, address.region, address.postalCode, address.country].map((part) => escapeText(part ?? '')).join(';')}`)
+      const address = Object.values(detail.address ?? {}).some((part) => part?.trim()) ? detail.address! : { street: detail.value }
+      labeled(`ADR${type}:;;${[address.street, address.city, address.region, address.postalCode, address.country].map((part) => escapeText(part ?? '')).join(';')}`, detail.label)
     } else if (detail.kind === 'birthday' && vcardDate(detail.value)) lines.push(`BDAY:${vcardDate(detail.value)}`)
     else if ((detail.kind === 'anniversary' || detail.kind === 'date') && vcardDate(detail.value)) {
       labeled(`X-ABDATE:${vcardDate(detail.value)}`, detail.kind === 'anniversary' ? '_$!<Anniversary>!$_' : detail.label ?? 'Other')
     } else if (detail.kind === 'website') labeled(`URL:${value}`, detail.label)
-    else if (detail.kind === 'social') lines.push(`X-SOCIALPROFILE${type}:${value}`)
-    else if (detail.kind === 'messaging') lines.push(`IMPP${detail.label ? `;X-SERVICE-TYPE=${safeType(detail.label, 'Other')}` : ''}:x-apple:${value}`)
+    else if (detail.kind === 'social') labeled(`X-SOCIALPROFILE${type}:${value}`, detail.label)
+    else if (detail.kind === 'messaging') labeled(`IMPP${token ? `;X-SERVICE-TYPE=${token}` : ''}:${/^[a-z][a-z0-9+.-]*:/i.test(detail.value) ? '' : 'x-apple:'}${value}`, detail.label)
     else if (detail.kind === 'related') labeled(`X-ABRELATEDNAMES:${value}`, detail.label ?? 'Other')
   }
   return lines
 }
 
 function safeType(type: string | undefined, fallback: string): string {
-  return type?.replace(/[^a-zA-Z0-9,-]/g, '') || fallback
+  return type?.replace(/[^a-zA-Z0-9,-]/g, '').split(',').filter(Boolean).join(',') || fallback
 }
 
 export interface ExportFile { filename: string; rows: ContactWithDecision[]; description: string; colors: string[] }

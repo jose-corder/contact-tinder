@@ -1,12 +1,16 @@
 /** #25: minimal ZIP32 STORE archive. UTF-8 names, no dependencies or compression. */
+import { yieldToBrowser } from '@/import/progress'
+
 const crcTable = Uint32Array.from({ length: 256 }, (_, value) => {
   for (let bit = 0; bit < 8; bit++) value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1
   return value >>> 0
 })
 export function crc32(bytes: Uint8Array): number {
-  let crc = 0xffffffff
+  return (updateCrc(0xffffffff, bytes) ^ 0xffffffff) >>> 0
+}
+function updateCrc(crc: number, bytes: Uint8Array): number {
   for (const byte of bytes) crc = crcTable[(crc ^ byte) & 0xff] ^ (crc >>> 8)
-  return (crc ^ 0xffffffff) >>> 0
+  return crc
 }
 export async function fileBytes(file: Blob): Promise<Uint8Array<ArrayBuffer>> {
   const buffer = typeof file.arrayBuffer === 'function' ? await file.arrayBuffer() : await new Promise<ArrayBuffer>((resolve, reject) => {
@@ -34,15 +38,20 @@ export async function zipFiles(files: File[], archiveName = 'contacts-export.zip
     names.add(file.name)
     const name = new TextEncoder().encode(file.name)
     if (name.length > 0xffff) throw new Error('ZIP filename is too long.')
-    const bytes = await fileBytes(file)
-    const size = bytes.byteLength
+    const size = file.size
     if (offset + 30 + name.length + size > 0xffffffff) throw new Error('Export exceeds the ZIP32 size limit.')
-    const crc = crc32(bytes)
+    let crc = 0xffffffff
+    const chunkSize = 1024 * 1024
+    for (let at = 0; at < size; at += chunkSize) {
+      crc = updateCrc(crc, await fileBytes(file.slice(at, at + chunkSize)))
+      if (size > chunkSize) await yieldToBrowser()
+    }
+    crc = (crc ^ 0xffffffff) >>> 0
     const h = header(30)
     h.long(0, 0x04034b50); h.short(4, 20); h.short(6, 0x0800)
     h.short(8, 0); h.short(12, 33) // STORE; 1 Jan 1980 (deterministic)
     h.long(14, crc); h.long(18, size); h.long(22, size); h.short(26, name.length)
-    local.push(h.bytes, name, bytes)
+    local.push(h.bytes, name, file)
     const c = header(46)
     c.long(0, 0x02014b50); c.short(4, 20); c.short(6, 20); c.short(8, 0x0800)
     c.short(10, 0); c.short(14, 33)

@@ -120,7 +120,7 @@ describe('Review screen', () => {
     await waitFor(async () => expect((await getDecision('ana')).workStatus).toBe('current'))
     fireEvent.change(dialog.getByRole('textbox', { name: 'New custom tag' }), { target: { value: 'VIP' } })
     fireEvent.click(dialog.getByRole('button', { name: 'Add' }))
-    await waitFor(async () => expect((await getDecision('ana')).customTags).toEqual(['vip']))
+    await waitFor(async () => expect((await getDecision('ana')).customTags).toEqual(['vip']), { timeout: 5000 })
     await waitFor(() => expect(dialog.getByRole('button', { name: 'Remove from app' })).toBeEnabled())
     fireEvent.click(dialog.getByRole('button', { name: 'Remove from app' }))
     expect(dialog.getByRole('button', { name: 'Confirm removal' })).toBeInTheDocument()

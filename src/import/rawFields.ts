@@ -3,8 +3,8 @@ import { formatDate } from '@/ui/format'
 import { metadata, rawCards } from './metadata'
 import { emailKey, phoneKey } from './dedupe'
 import { structured } from './vcard'
-import type { DetailKind } from './details'
-import { decodeQuotedPrintable, logicalLines, property, unescapeValue } from './vcardCodec'
+import { dateText, type DetailKind } from './details'
+import { binaryProperty, decodeQuotedPrintable, logicalLines, property, unescapeValue } from './vcardCodec'
 
 export interface RawField {
   label: string
@@ -12,7 +12,7 @@ export interface RawField {
   href?: string
   kind: 'phone' | 'email' | 'url' | 'date' | 'address' | 'text'
 }
-const skip = new Set(['BEGIN', 'END', 'VERSION', 'FN', 'N', 'PHOTO', 'REV', 'X-ABLABEL'])
+const skip = new Set(['BEGIN', 'END', 'VERSION', 'FN', 'N', 'PHOTO', 'REV', 'X-ABLABEL', 'KEY', 'LOGO', 'SOUND'])
 const labels: Record<string, string> = { ADR: 'Address', BDAY: 'Birthday', URL: 'Website',
   NICKNAME: 'Nickname', ANNIVERSARY: 'Anniversary', UID: 'Contact ID', PRODID: 'Created by',
   TEL: 'Phone', EMAIL: 'Email', ORG: 'Organization', TITLE: 'Role', NOTE: 'Notes' }
@@ -20,12 +20,14 @@ const decoded = (prop: NonNullable<ReturnType<typeof property>>) =>
   prop.params.get('ENCODING')?.[0]?.toUpperCase() === 'QUOTED-PRINTABLE'
     ? decodeQuotedPrintable(prop.value, prop.params.get('CHARSET')?.[0]) : prop.value
 
-function dateValue(value: string): string {
-  const partial = /^--(\d{2})-?(\d{2})$/.exec(value)
-  if (!partial) return formatDate(value)
-  const date = new Date('2000-' + partial[1] + '-' + partial[2] + 'T00:00:00Z')
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined,
-    { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(date)
+function dateValue(value: string, params: Map<string, string[]>): string {
+  if (params.get('VALUE')?.[0]?.toLowerCase() === 'text') return value
+  const normalized = dateText(value, params.get('X-APPLE-OMIT-YEAR')?.[0])
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    const date = new Date(normalized + 'T00:00:00Z')
+    if (!Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === normalized) return formatDate(normalized)
+  }
+  return normalized
 }
 
 export function websiteHref(value: string): string | undefined {
@@ -52,13 +54,13 @@ export function readRawFields(contact: Contact): RawField[] {
       .map(prop => [prop.group!, unescapeValue(decoded(prop)).replace(/^_\$!<|>!\$_$/g, '')]))
     for (const prop of props) {
       const key = prop.name
-      if (skip.has(key)) continue
+      if (skip.has(key) || binaryProperty(prop) || (key.startsWith('X-') && prop.value.length > 500)) continue
       const original = decoded(prop)
       let value = unescapeValue(original).trim()
       let kind: RawField['kind'] = 'text'
       let href: string | undefined
-      if (key === 'ADR') { value = structured(original).filter(Boolean).join(', '); kind = 'address' }
-      if (key === 'BDAY' || key === 'ANNIVERSARY' || key === 'X-ABDATE') { value = dateValue(value); kind = 'date' }
+      if (key === 'ADR') { value = structured(original).filter(Boolean).join(', ') || prop.params.get('LABEL')?.[0]?.trim() || ''; kind = 'address' }
+      if (key === 'BDAY' || key === 'ANNIVERSARY' || key === 'X-ABDATE') { value = dateValue(value, prop.params); kind = 'date' }
       if (key === 'URL') { kind = 'url'; href = websiteHref(value) }
       if (key === 'ORG') {
         value = structured(original).filter(Boolean).join(' · ')

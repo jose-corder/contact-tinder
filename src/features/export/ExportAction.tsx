@@ -77,7 +77,7 @@ export function ExportAction(props: (ExportActionProps & PresentationProps) | Le
         setReady(null); setStale(false); setDownloadInstead(false)
       }
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
+      if (typeof error === 'object' && error !== null && 'name' in error && error.name === 'AbortError') {
         setReady(prepared); setMessage('Sharing cancelled. Your files are still here.')
       } else if (prepared && action === 'Share') {
         setReady(prepared); setDownloadInstead(true)

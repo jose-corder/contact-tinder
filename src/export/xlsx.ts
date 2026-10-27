@@ -1,5 +1,6 @@
 import type { SheetTable } from './sheet'
 import { zipFiles } from './zip'
+import { yieldToBrowser } from '@/import/progress'
 
 /**
  * Minimal Office Open XML workbook: one "Contacts" sheet of inline strings with a bold, frozen,
@@ -16,7 +17,9 @@ export function columnName(index: number): string {
 
 function xml(value: string): string {
   // XML 1.0 forbids most control characters; Excel also caps a cell at 32,767 characters.
-  return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '').slice(0, MAX_CELL)
+  let text = value.replace(/\r\n|\r/g, '\n').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uD800-\uDFFF\uFFFE\uFFFF]/gu, '').slice(0, MAX_CELL)
+  if (/[\uD800-\uDBFF]$/.test(text)) text = text.slice(0, -1)
+  return text.replace(/_x[\da-f]{4}_/gi, (escape) => '_x005F_' + escape.slice(1))
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
@@ -29,27 +32,37 @@ function widths(table: SheetTable): number[] {
   return table.headers.map((header, column) => {
     let longest = header.length
     for (const row of table.rows.slice(0, 500)) {
-      for (const line of (row[column] ?? '').split('\n')) longest = Math.max(longest, line.length)
+      for (const line of (row[column] ?? '').split(/\r\n|\r|\n/)) longest = Math.max(longest, line.length)
     }
     return Math.min(48, Math.max(8, longest + 2))
   })
 }
 
-export function worksheetXml(table: SheetTable): string {
+function* worksheetParts(table: SheetTable): Generator<string> {
+  if (table.rows.length > 1048575) throw new Error('Excel row limit is 1,048,576 including the header.')
+  if (!table.headers.length || table.headers.length > 16384) throw new Error('Excel column count must be between 1 and 16,384.')
   const last = columnName(table.headers.length - 1) + (table.rows.length + 1)
   const header = `<row r="1">${table.headers.map((value, i) => cell(columnName(i) + 1, value, 1)).join('')}</row>`
-  const body = table.rows.map((row, r) => `<row r="${r + 2}">${row.map((value, i) =>
-    cell(columnName(i) + (r + 2), value, value.includes('\n') ? 2 : 0)).join('')}</row>`).join('')
-  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+  yield '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
     + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
     + `<dimension ref="A1:${last}"/>`
     + '<sheetViews><sheetView workbookViewId="0"><pane xSplit="1" ySplit="1" topLeftCell="B2" activePane="bottomRight" state="frozen"/>'
     + '<selection pane="topRight"/><selection pane="bottomLeft"/><selection pane="bottomRight" activeCell="B2" sqref="B2"/></sheetView></sheetViews>'
     + '<sheetFormatPr defaultRowHeight="15"/>'
     + `<cols>${widths(table).map((width, i) => `<col min="${i + 1}" max="${i + 1}" width="${width}" customWidth="1"/>`).join('')}</cols>`
-    + `<sheetData>${header}${body}</sheetData>`
-    + `<autoFilter ref="A1:${last}"/>`
-    + '</worksheet>'
+    + `<sheetData>${header}`
+  for (let offset = 0; offset < table.rows.length; offset += 200) {
+    yield table.rows.slice(offset, offset + 200).map((row, index) => {
+      if (row.length > table.headers.length) throw new Error('Row exceeds the header column count.')
+      const r = offset + index + 2
+      return `<row r="${r}">${row.map((value, i) => cell(columnName(i) + r, value, /[\r\n]/.test(value) ? 2 : 0)).join('')}</row>`
+    }).join('')
+  }
+  yield `</sheetData><autoFilter ref="A1:${last}"/></worksheet>`
+}
+
+export function worksheetXml(table: SheetTable): string {
+  return [...worksheetParts(table)].join('')
 }
 
 const STATIC: Record<string, string> = {
@@ -92,6 +105,11 @@ function workbookXml(rows: number, columns: number): string {
 }
 
 export async function xlsxFile(table: SheetTable, name = 'contacts.xlsx'): Promise<File> {
+  const sheet: BlobPart[] = []
+  for (const chunk of worksheetParts(table)) {
+    sheet.push(new Blob([chunk]))
+    if (table.rows.length > 1000) await yieldToBrowser()
+  }
   const part = (path: string, text: string) => new File([text], path, { type: 'application/xml' })
   return zipFiles([
     part('[Content_Types].xml', STATIC['[Content_Types].xml']),
@@ -99,6 +117,6 @@ export async function xlsxFile(table: SheetTable, name = 'contacts.xlsx'): Promi
     part('xl/workbook.xml', workbookXml(table.rows.length, table.headers.length)),
     part('xl/_rels/workbook.xml.rels', STATIC['xl/_rels/workbook.xml.rels']),
     part('xl/styles.xml', STATIC['xl/styles.xml']),
-    part('xl/worksheets/sheet1.xml', worksheetXml(table)),
+    new File(sheet, 'xl/worksheets/sheet1.xml', { type: 'application/xml' }),
   ], name, XLSX_TYPE)
 }

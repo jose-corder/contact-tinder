@@ -6,8 +6,8 @@ import { db } from '@/db/schema'
 import { Button, Empty, Frame, InlineNotice, Skeleton, TopBar } from '@/ui'
 import { cleanFile, groupFiles, type ExportFile } from '@/export/vcf'
 import { prepareVcards, fileStub } from '@/export/prepare'
-import { csvText } from '@/export/csv'
-import { sheetTable } from '@/export/sheet'
+import { csvFile } from '@/export/csv'
+import { prepareSheet } from '@/export/sheet'
 import { XLSX_TYPE, xlsxFile } from '@/export/xlsx'
 import { deleteListText } from '@/export/deleteList'
 import { dbRevision } from '@/export/json'
@@ -64,9 +64,10 @@ export default function ExportScreen() {
         <p className="my-3 t-body text-ink-2">Every contact on one row. Your sorting comes first: bucket, status, types and tags. Then every name part, phone and email with its label, addresses, birthdays, websites, related people and notes.</p>
         <p className="tabular mb-3 t-meta text-ink-2">{rows.length.toLocaleString()} contacts · all-contacts.xlsx</p>
         <ExportAction label="Excel spreadsheet" revision={data?.revision} prepareFirst stubs={[new File([], 'all-contacts.xlsx', { type: XLSX_TYPE })]}
-          prepare={async () => [await xlsxFile(sheetTable(rows), 'all-contacts.xlsx')]} />
+          prepare={async () => [await xlsxFile(await prepareSheet(rows), 'all-contacts.xlsx')]} />
         <p className="mt-2 t-meta text-ink-2">Opens in Excel, Numbers and Google Sheets.</p>
-        <div className="mt-4">{textAction('CSV', 'all-contacts.csv', 'text/csv', () => csvText(rows))}</div>
+        <div className="mt-4"><ExportAction label="CSV" revision={data?.revision} prepareFirst downloadOnly
+          stubs={[new File([], 'all-contacts.csv', { type: 'text/csv' })]} prepare={async () => [await csvFile(rows, 'all-contacts.csv')]} /></div>
       </section>
       <details className="border-y border-rule py-2">
         <summary className="min-h-11 cursor-pointer py-3 font-serif t-heading">More exports</summary>
